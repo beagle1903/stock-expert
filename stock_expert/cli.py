@@ -1,0 +1,131 @@
+from __future__ import annotations
+
+import argparse
+import sys
+from datetime import date
+
+from stock_expert.config import get_settings
+from stock_expert.daily_csv import import_daily_csv_command, import_daily_csv_folder_command
+from stock_expert.services import daily_summary, picks_output, review_output
+from stock_expert.yahoo import download_ohlcv_command, import_ohlcv_excel_command
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="stocks", description="BIST intraday stock advisor MVP")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    for command_name in ("daily", "picks", "review"):
+        command_parser = subparsers.add_parser(command_name)
+        command_parser.add_argument(
+            "--date",
+            dest="as_of",
+            default=date.today().isoformat(),
+            help="As-of date in YYYY-MM-DD format",
+        )
+
+    download_parser = subparsers.add_parser("download-ohlcv", help="Download OHLCV history from Yahoo Finance")
+    download_parser.add_argument(
+        "--tickers",
+        nargs="+",
+        required=True,
+        help="One or more BIST tickers, with or without the .IS suffix",
+    )
+    download_parser.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="Number of calendar days to download, default is 30",
+    )
+    download_parser.add_argument(
+        "--output",
+        default="data/yahoo_ohlcv.csv",
+        help="CSV output path relative to the project root",
+    )
+    download_parser.add_argument(
+        "--import-db",
+        action="store_true",
+        help="Also import ticker, date, open_price, close_price, volume into SQLite",
+    )
+    download_parser.add_argument(
+        "--pause-seconds",
+        type=float,
+        default=1.0,
+        help="Pause between ticker requests, default is 1.0 second",
+    )
+    download_parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=4,
+        help="Maximum retry attempts per ticker on rate limiting or transient errors",
+    )
+    bulk_parser = subparsers.add_parser("import-ohlcv-excel", help="Bulk import Yahoo OHLCV using ticker codes from an Excel workbook")
+    bulk_parser.add_argument("--input", default="data/sirketler.xlsx", help="Excel input path relative to the project root")
+    bulk_parser.add_argument("--start-date", required=True, help="Start date in YYYY-MM-DD format")
+    bulk_parser.add_argument("--end-date", required=True, help="End date in YYYY-MM-DD format")
+    bulk_parser.add_argument("--pause-seconds", type=float, default=1.5, help="Pause between ticker requests")
+    bulk_parser.add_argument("--max-retries", type=int, default=5, help="Max retries per ticker")
+    bulk_parser.add_argument("--batch-size", type=int, default=25, help="Pause after each batch of tickers")
+    bulk_parser.add_argument("--batch-pause-seconds", type=float, default=20.0, help="Pause between batches")
+    csv_parser = subparsers.add_parser("import-daily-csv", help="Import daily snapshot CSV files from the data folder")
+    csv_parser.add_argument("--date", dest="as_of", required=True, help="Snapshot date in YYYY-MM-DD format")
+    csv_parser.add_argument("--data-dir", default="data", help="Directory containing fiyat/performans/teknik/temel csv files")
+    folder_parser = subparsers.add_parser("import-daily-folder", help="Import a dated folder containing the four daily CSV files")
+    folder_parser.add_argument("--folder", required=True, help="Folder path relative to the project root, e.g. data/20260408")
+    return parser
+
+
+def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    parser = build_parser()
+    args = parser.parse_args()
+    settings = get_settings()
+
+    if args.command == "daily":
+        as_of = date.fromisoformat(args.as_of)
+        print(daily_summary(settings, as_of))
+        return 0
+    if args.command == "picks":
+        as_of = date.fromisoformat(args.as_of)
+        print(picks_output(settings, as_of))
+        return 0
+    if args.command == "review":
+        as_of = date.fromisoformat(args.as_of)
+        print(review_output(settings, as_of))
+        return 0
+    if args.command == "download-ohlcv":
+        print(
+            download_ohlcv_command(
+                settings=settings,
+                tickers=args.tickers,
+                days=args.days,
+                output_path=args.output,
+                import_db=args.import_db,
+                pause_seconds=args.pause_seconds,
+                max_retries=args.max_retries,
+            )
+        )
+        return 0
+    if args.command == "import-ohlcv-excel":
+        print(
+            import_ohlcv_excel_command(
+                settings=settings,
+                input_path=args.input,
+                start_date=args.start_date,
+                end_date=args.end_date,
+                pause_seconds=args.pause_seconds,
+                max_retries=args.max_retries,
+                batch_size=args.batch_size,
+                batch_pause_seconds=args.batch_pause_seconds,
+            )
+        )
+        return 0
+    if args.command == "import-daily-csv":
+        print(import_daily_csv_command(settings=settings, snapshot_date=args.as_of, data_dir=args.data_dir))
+        return 0
+    if args.command == "import-daily-folder":
+        print(import_daily_csv_folder_command(settings=settings, folder=args.folder))
+        return 0
+
+    parser.error(f"Unsupported command: {args.command}")
+    return 2

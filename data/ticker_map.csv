@@ -1,0 +1,548 @@
+company_key,ticker,company_name,matched_name,match_type
+1000YATIRIMLARHOLDING,BINHO,1000 Yatırımlar Holding,1000 Yatirimlar Holding Anonim Sirketi,prefix
+A1CAPITALYATIRIM,A1CAP,A1 Capital Yatırım,A1 Capital Yatirim Menkul Degerler A.S.,prefix
+AGANADOLUGRUP,AGHOL,AG Anadolu Grup,AG Anadolu Grubu Holding A.S.,token_subset
+AKSIGORTA,AKGRT,AK Sigorta,Aksigorta A.S.,prefix
+ACISELSAN,ACSEL,Acıselsan,Aciselsan Acipayam Selüloz Sanayi ve Ticaret A.S.,prefix
+ADEL,ADEL,Adel,Adel Kalemcilik Ticaret ve Sanayi A.S.,prefix
+ADESEGAYRIMENKUL,ADESE,Adese Gayrimenkul,Adese Gayrimenkul Yatirim A.S.,prefix
+ADRAGAYRIMENKUL,ADGYO,Adra Gayrimenkul,Adra Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
+AFYONCIMENTO,AFYON,Afyon Çimento,Afyon Çimento Sanayi Türk Anonim Sirketi,prefix
+AGESAHAYATVEEMEKLILIK,AGESA,Agesa Hayat ve Emeklilik,AgeSA Hayat ve Emeklilik Anonim Sirketi,prefix
+AGROTECHTEKNOLOJI,AGROT,Agrotech Teknoloji,Agrotech Yuksek Teknoloji Ve Yatirim Anonim Sirketi,token_subset
+AHESGAYRIMENKULYATIRIMORTAKLIGI,AHSGY,Ahes GYO,Ahes Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
+AHLATCIDOGALGAZDAGITIMENERJI,AHGAZ,Ahlatcı Doğal Gaz Dağıtım Enerji,Ahlatci Dogal Gaz Dagitim Enerji ve Yatirim A.S.,prefix
+AKBANKTAS,AKBNK,Akbank T.A.Ş,Akbank T.A.S.,exact_key
+AKDENIZYATIRIM,AKYHO,Akdeniz Yatırım,Akdeniz Yatirim Holding A.S.,prefix
+AKENERJI,AKENR,Akenerji,Akenerji Elektrik Üretim A.S.,prefix
+AKFENGAYRIMENKULYATIRIMORTAKLIGI,AKFGY,Akfen GYO,Akfen Gayrimenkul Yatirim Ortakligi A.S.,prefix
+AKFENINSAATTURIZMVETICARETAS,AKFIS,Akfen Insaat Turizm ve Ticaret AS,Akfen Insaat Turizm ve Ticaret Anonim Sirketi,exact_canonical
+AKFENYENILENEBILIRENERJI,AKFYE,Akfen Yenilenebilir Enerji,Akfen Yenilenebilir Enerji A.S.,prefix
+AKISGAYRIMENKULYATIRIMORTAKLIGI,AKSGY,Akiş GYO,Akis Gayrimenkul Yatirim Ortakligi A.S.,prefix
+AKMERKEZGAYRIMENKULYATIRIMORTAKLIGI,AKMGY,Akmerkez GYO,Akmerkez Gayrimenkul Yatirim Ortakligi A.S.,prefix
+AKSAAKRILIK,AKSA,Aksa Akrilik,Aksa Akrilik Kimya Sanayii A.S.,prefix
+AKSAENERJIURETIM,AKSEN,Aksa Enerji Üretim,Aksa Enerji Üretim A.S.,prefix
+AKSUENERJIVETICARET,AKSUE,Aksu Enerji ve Ticaret,Aksu Enerji ve Ticaret Anonim Sirketi,prefix
+AKCANSACIMENTO,AKCNS,Akçansa Çimento,Akçansa Çimento Sanayi ve Ticaret Anonim Sirketi,prefix
+AKINTEKSTILAS,ATEKS,Akın Tekstil A.Ş.,Akin Tekstil Anonim Sirketi,exact_canonical
+ALARKOCARRIERSANVETICAS,ALCAR,Alarko Carrier San. Ve Tic. A.Ş.,Alarko Carrier Sanayi ve Ticaret A.S.,fuzzy_0.868
+ALARKOGAYRIMENKULYATIRIMORTAKLIGI,ALGYO,Alarko GYO,Alarko Gayrimenkul Yatirim Ortakligi A.S.,prefix
+ALARKOHOLDING,ALARK,Alarko Holding,Alarko Holding A.S.,prefix
+ALBARAKAPORTFOYGAYRIMENKULYATIRIMORTAKLIGI,ALGYO,Albaraka Portföy GYO,Alarko Gayrimenkul Yatirim Ortakligi A.S.,fuzzy_0.878
+ALBARAKATURKKATILIMBANKASIAS,ALBRK,Albaraka Türk Katılım Bankası A.Ş.,Albaraka Türk Katilim Bankasi A.S.,exact_key
+ALCATELLUCENT,ALCTL,Alcatel Lucent,Alcatel Lucent Teletas Telekomünikasyon A.S.,prefix
+ALFASOLARENERJI,ALFAS,Alfa Solar Enerji,Alfa Solar Enerji Sanayi ve Ticaret A.S.,prefix
+ALKIMALKALIKIMYAAS,ALKIM,Alkim Alkali Kimya A.Ş.,Alkim Alkali Kimya A.S.,exact_key
+ALKIMKAGITSANVETICAS,ALKA,Alkim Kağıt San. ve Tic. A.Ş.,Alkim Kagit Sanayi ve Ticaret AS,fuzzy_0.851
+ALTINYUNUS,AYCES,Altın Yunus,Altin Yunus Çesme Turistik Tesisler A.S.,prefix
+ALTINAYSAVUNMA,ALTNY,Altınay Savunma,Altinay Savunma Teknolojileri Anonim Sirketi,prefix
+ALTINKILICGIDA,ALKLC,Altınkılıç Gıda,Altinkilic Gida ve Sut Sanayi Ticaret A.S.,prefix
+ALVESKABLO,ALVES,Alves Kablo,Alves Kablo Sanayi ve Ticaret A.S.,prefix
+ANADOLUANONIMTURKSIGSTI,ANSGR,Anadolu Anonim Türk Sig. Şti.,Anadolu Anonim Türk Sigorta Sirketi,fuzzy_0.852
+ANADOLUEFESBIRACILIKVEMALTSANAYII,AEFES,Anadolu Efes Biracılık ve Malt Sanayii,Anadolu Efes Biracilik ve Malt Sanayii Anonim Sirketi,prefix
+ANADOLUHAYAT,ANHYT,Anadolu Hayat,Anadolu Hayat Emeklilik Anonim Sirketi,prefix
+ANADOLUISUZU,ASUZU,Anadolu Isuzu,Anadolu Isuzu Otomotiv Sanayi ve Ticaret A.S.,prefix
+ANATOLIATANIVEBIYOTEKNOLOJIURUNLERI,ANGEN,Anatolia Tanı ve Biyoteknoloji Ürünleri,Anatolia Tani ve Biyoteknoloji Ürünleri Ar-Ge Sanayi Ticaret A.S.,prefix
+ANELELEKPROJETAAHHUTVETICAS,ANELE,Anel Elek. Proje Taahhüt Ve Tic. A.Ş,Anel Elektrik Proje Taahhüt ve Ticaret Anonim Sirketi,fuzzy_0.871
+ARDGRUP,ARDYZ,Ard Grup,Ard Grup Bilisim Teknolojileri Anonim Sirketi,prefix
+ARENABILSANVETICAS,ARENA,Arena Bil. San. Ve Tic. A.Ş.,Arena Bilgisayar Sanayi ve Ticaret A.S.,fuzzy_0.720
+ARMADAGIDATICARETSANAYIANONIM,ARMGD,Armada Gida Ticaret Sanayi Anonim,Armada Gida Ticaret Sanayi Anonim Sirketi,prefix
+ARTEMISHALI,ARTMS,Artemis Halı,Artemis Hali Anonim Sirketi,prefix
+ARZUMELEKTRIKLIEVALETLERISAN,ARZUM,Arzum Elektrikli Ev Aletleri San.,Arzum Elektrikli Ev Aletleri Sanayi ve Ticaret A.S.,prefix
+ARCELIKAS,ARCLK,Arçelik A.Ş.,Arçelik Anonim Sirketi,exact_canonical
+ASCEGAYRIMENKUL,ASGYO,Asce Gayrimenkul,Asce Gayrimenkul Yatirim Ortakligi A.S.,prefix
+ASELSAN,ASELS,Aselsan,ASELSAN Elektronik Sanayi ve Ticaret Anonim Sirketi,prefix
+ASTORENERJI,ASTOR,Astor Enerji,Astor Enerji A.S.,prefix
+ATAGAYRIMENKULYATIRIMORTAKLIGI,ATAGY,Ata GYO,Ata Gayrimenkul Yatirim Ortakligi A.S.,prefix
+ATAKEYPATATES,ATAKP,Atakey Patates,Atakey Patates Gida Sanayi ve Ticaret A.S.,prefix
+ATAKULEGAYRIMENKULYATIRIMORTAKLIGI,AGYO,Atakule GYO,Atakule Gayrimenkul Yatirim Ortakligi A.S.,prefix
+ATLANTISHOLDING,ATSYH,Atlantis Holding,Atlantis Yatirim Holding A.S.,token_subset
+ATPTICARIBILGISAYARAGIVEELEKTRIK,HTTBT,Atp Ticari Bilgisayar Ağı ve Elektrik,Hitit Bilgisayar Hizmetleri A.S.,fuzzy_0.656
+AVRASYAGAYRIMENKULYATIRIMORTAKLIGI,AVGYO,Avrasya GYO,Avrasya Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
+AVRUPAYATIRIM,AVHOL,Avrupa Yatırım,Avrupa Yatirim Holding A.S.,prefix
+AVRUPAKENTGAYRIMENKULYATIRIMORTAKLIGI,AVPGY,Avrupakent GYO,Avrupakent Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
+AYDEMENERJI,AYDEM,Aydem Enerji,Aydem Yenilenebilir Enerji A.S.,token_subset
+AYENENERJIAS,AYEN,Ayen Enerji A.Ş.,Ayen Enerji A.S.,exact_key
+AYES,AYES,Ayes,Ayes Celik Hasir Ve Cit Sanayi A.S.,prefix
+AYGAZAS,AYGAZ,Aygaz A.Ş.,Aygaz A.S.,exact_key
+AZTEKTEKNOLOJIURUNLERI,AZTEK,Aztek Teknoloji Ürünleri,Aztek Teknoloji Urunleri Ticaret Anonim Sirketi,prefix
+BIMMAGAZALAR,BIMAS,BIM Mağazalar,BIM Birlesik Magazalar A.S.,token_subset
+BMSBIRLESIKMETALSANAYI,BMSTL,BMS Birleşik Metal Sanayi,Bms Birlesik Metal Sanayi ve Ticaret A.S.,prefix
+BMSCELIK,BMSCH,BMS Çelik,Bms Celik Hasir Sanayi Ve Ticaret Anonim Sirketi,prefix
+BAGFASBANDIRMAGUBREFAB,BAGFS,Bagfaş Bandırma Gübre Fab.,Bagfas Bandirma Gubre Fabrikalari A.S.,prefix
+BAHADIRKIMYA,BAHKM,Bahadır Kimya,Bahadir Kimya Sanayi ve Ticaret A.S.,prefix
+BAKAMBALAJSAN,BAKAB,Bak Ambalaj San.,Bak Ambalaj Sanayi ve Ticaret A.S.,prefix
+BALATACILAR,BALAT,Balatacılar,Balatacilar Balatacilik Sanayi Ve Ticaret A.S.,prefix
+BANTASBANDIRMA,BNTAS,Bantaş Bandırma,Bantas Bandirma Ambalaj Sanayi ve Ticaret A.S.,prefix
+BANVITAS,AKBNK,Banvitas,Akbank T.A.S.,fuzzy_0.706
+BAREMAMBALAJSANAYIVETICARETAS,BARMA,Barem Ambalaj Sanayi Ve Ticaret AS,Barem Ambalaj Sanayi ve Ticaret Anonim Sirketi,exact_canonical
+BATIEGEGAYRIMENKULYATIRIMORTAKLIGI,BEGYO,Batı Ege GYO,Bati Ege Gayrimenkul Yatirim Ortakligi A.S.,prefix
+BATISOKE,BSOKE,Batısöke,Batisöke Söke Çimento Sanayii T.A.S.,prefix
+BATICIMBATIANADOLUCIMENTOSANAYII,BTCIM,Batıçim Batı Anadolu Çimento Sanayii,Batiçim Bati Anadolu Çimento Sanayii Anonim Sirketi,prefix
+BAYDONERRESTORANLARI,BYDNR,Baydöner Restoranları,Baydoner Restoranlari A.S.,prefix
+BAYRAK,BAYRK,Bayrak,Bayrak EBT Taban Sanayi ve Ticaret Anonim Sirketi,prefix
+BASKENTDOGALGAZDAGITIMGAYRIMENKUL,BASGZ,Başkent Doğalgaz Dağıtım Gayrimenkul,Baskent Dogalgaz Dagitim Gayrimenkul Yatirim Ortakligi A.S.,prefix
+BASTAS,BASCM,Baştaş,Bastas Baskent Cimento Sanayi ve Ticaret A.S.,prefix
+BERA,BERA,Bera,Bera Holding A.S.,prefix
+BERKOSAN,BRKSN,Berkosan,Berkosan Yalitim Ve Tecrit Maddeleri Üretim Ve Ticaret A.S.,prefix
+BESLERGIDAVEKIMYASANAYIVETICARETAS,BESLR,Besler Gida ve Kimya Sanayi ve Ticaret AS,Besler Gida Ve Kimya Sanayi ve Ticaret Anonim Sirketi,exact_canonical
+BEYAZFILOOTOKIRALAMAAS,BEYAZ,Beyaz Filo Oto Kiralama A.Ş.,Beyaz Filo Oto Kiralama A.S.,exact_key
+BESIKTAS,BJKAS,Beşiktaş,Besiktas Futbol Yatirimlari Sanayi ve Ticaret A.S.,prefix
+BIENYAPIURUNLERI,BIENY,Bien Yapı Ürünleri,Bien Yapi Urunleri Sanayi Turizm ve Ticaret A.S.,prefix
+BIGMEDYATEKNOLOJIAS,BIGTK,Big Medya Teknoloji AS,Big Medya Teknoloji Anonim Sirketi,exact_canonical
+BILICIYATSANVETICAS,BLCYT,Bilici Yat. San. Ve Tic. A.Ş.,Bilici Yatirim Sanayi ve Ticaret A.S.,fuzzy_0.776
+BINULASIMVEAKILLISEHIRTEKNOLOJILERIAS,BINBN,Bin Ulasim ve Akilli Sehir Teknolojileri AS,Bin Ulasim ve Akilli Sehir Teknolojileri A.S.,exact_key
+BIRIKIMVARLIKYONETIM,BRKVY,Birikim Varlık Yönetim,Birikim Varlik Yonetim Anonim Sirketi,prefix
+BIRKOBIRLESIK,BRKO,Birko Birleşik,Birko Birlesik Koyunlulular Mensucat Ticaret ve Sanayi A.S.,prefix
+BIRLESIMGRUPENERJIAS,BIGEN,Birleşim Grup Enerji A.Ş,Birlesim Grup Enerji Yatirimlari A.S.,token_subset
+BIRLESIMMUHENDISLIKISITMASOGUTMA,BRLSM,Birleşim Mühendislik Isıtma Soğutma,Birlesim Mühendislik Isitma Sogutma Havalandirma Sanayi ve Ticaret Anonim Sirketi,prefix
+BIRLIKMENSUCATAS,BRMEN,Birlik Mensucat A.Ş.,Birlik Mensucat Ticaret ve Sanayi Isletmesi A.S.,token_subset
+BIZIM,BIZIM,Bizim,Bizim Toptan Satis Magazalari A.S.,prefix
+BORSEKER,BORSK,Bor Şeker,Bor Seker A.S.,prefix
+BORLEASEOTOMOTIV,BORLS,Borlease Otomotiv,Borlease Otomotiv A.S.,prefix
+BORUSANBIRLESIK,BRSAN,Borusan Birlesik,Borusan Birlesik Boru Fabrikalari Sanayi ve Ticaret A.S.,prefix
+BORUSANYATIRIM,BRYAT,Borusan Yatırım,Borusan Yatirim ve Pazarlama A.S.,prefix
+BOSCHFREN,BFREN,Bosch Fren,Bosch Fren Sistemleri Sanayi ve Ticaret A.S.,prefix
+BOSSATICVESANTAS,BOSSA,Bossa Tic. Ve San. T.A.Ş.,Bossa Ticaret ve Sanayi Isletmeleri T.A.S.,fuzzy_0.640
+BOGAZICIBETON,BOBET,Boğaziçi Beton,Bogazici Beton Sanayi Ve Ticaret Anonim Sirketi,prefix
+BRIDGESTONESABANCILASTIKSANAYI,BRISA,Bridgestone Sabancı Lastik Sanayi,Brisa Bridgestone Sabanci Lastik Sanayi ve Ticaret A.S.,token_subset
+BURSACIMENTO,BUCIM,Bursa Çimento,Bursa Cimento Fabrikasi A.S.,prefix
+BURCELIKVANASANVETICAS,BURVA,Burçelik Vana San. Ve Tic. A.Ş.,Burçelik Vana Sanayi ve Ticaret A.S.,fuzzy_0.863
+BURCELIKCELDKMSANAS,BURCE,Burçelik Çel. Dkm. San. A.Ş.,Burçelik Bursa Çelik Döküm Sanayii A.S.,fuzzy_0.745
+BULBULOGLUVINC,BVSAN,Bülbüloğlu Vinç,Bulbuloglu Vinc Sanayi ve Ticaret Anonim Sirketi,prefix
+CEOEVENTMEDYA,CEOEM,CEO Event Medya,Ceo Event Medya A.S.,prefix
+CAGDASCAMSANAYIVETICARETAS,CGCAM,Cagdas Cam Sanayi ve Ticaret AS,Cagdas Cam Sanayi ve Ticaret A.S.,exact_key
+CAN2TERMIK,CANTE,Can2 Termik,Çan2 Termik A.S.,prefix
+CARREFOURSA,CRFSA,CarrefourSA,CarrefourSA Carrefour Sabanci Ticaret Merkezi A.S.,prefix
+CASAEMTIAPETROLKIMYEVI,CASA,Casa Emtia Petrol Kimyevi,Casa Emtia Petrol Kimyevi ve Turevleri San. Tic. A.S.,prefix
+CEMZEYTIN,CEMZY,Cem Zeytin,Cem Zeytin Anonim Sirketi,prefix
+COCACOLAICECEK,CCOLA,Coca-Cola İçecek,Coca-Cola Içecek Anonim Sirketi,prefix
+CONSUSENERJIISLETMECILIGI,CONSE,Consus Enerji İşletmeciliği,Consus Enerji Isletmeciligi ve Hizmetleri A.S.,prefix
+COSMOS,COSMO,Cosmos,Cosmos Yatirim Holding Anonim Sirketi,prefix
+CREDITWEST,CRDFA,Creditwest,Creditwest Faktoring Anonim Sirketi,prefix
+CVKMADENISLETMELERI,CVKMD,Cvk Maden İşletmeleri,CVK Maden Isletmeleri Sanayi ve Ticaret Anonim Sirketi,prefix
+CWENERJIMUHENDISLIK,CWENE,Cw Enerji Mühendislik,CW Enerji Mühendislik Ticaret ve Sanayi Anonim Sirketi,prefix
+DAPGAYRIMENKUL,DAPGM,DAP Gayrimenkul,DAP Gayrimenkul Gelistirme A.S.,prefix
+DOCO,DOCO,DO & CO,DO &amp; CO Aktiengesellschaft,token_subset
+DYOBOYA,DYOBY,DYO Boya,DYO Boya Fabrikalari Sanayi ve Ticaret A.S.,prefix
+DAGI,DAGI,Dagi,Dagi Giyim Sanayi ve Ticaret A.S.,prefix
+DARDANELONENTAS,DARDL,Dardanel Önentaş,Dardanel Onentas Gida Sanayi A.S.,prefix
+DATAGATE,DGATE,Datagate,Datagate Bilgisayar Malzemeleri Ticaret Anonim Sriketi,prefix
+DCTTRADING,DCTTR,Dct Trading,DCT Trading Dis Ticaret Anonim Sirketi,prefix
+DEMISASDOKUM,DMSAS,Demisaş Döküm,Demisas Döküm Emaye Mamülleri Sanayi Anonim Sirketi,prefix
+DENGEYATIRIM,DENGE,Denge Yatırım,Denge Yatirim Holding A.S.,prefix
+DENIZGAYRIMENKULYATIRIMORTAKLIGI,DZGYO,Deniz GYO,Deniz Gayrimenkul Yatirim Ortakligi A.S.,prefix
+DERIMOD,DERIM,Derimod,Derimod Konfeksiyon Ayakkabi Deri Sanayi ve Ticaret A.S.,prefix
+DERLUKSYATIRIMHOLDING,DERHL,Derluks Yatırım Holding,Derluks Yatirim Holding Anonim Sirketi,prefix
+DESA,DESA,Desa,Desa Deri Sanayi ve Ticaret A.S.,prefix
+DESPEC,DESPC,Despec,Despec Bilgisayar Pazarlama ve Ticaret Anonim Sirketi,prefix
+DESTEKFINANSFAKTORING,DSTKF,Destek Finans Faktoring,Destek Finans Faktoring A.S.,prefix
+DEVAHOLDINGAS,DEVA,Deva Holding A.Ş.,Deva Holding A.S.,exact_key
+DINAMIKISIMAKINAYALITIMMALZEMELERI,DNISI,Dinamik Isi Makina Yalitim Malzemeleri,Dinamik Isi Makina Yalitim Malzemeleri Sanayi Ve Ticaret Anonim Sirketi,prefix
+DIRITEKS,DIRIT,Diriteks,Diriteks Dirilis Tekstil Sanayi ve Ticaret A.S.,prefix
+DITASDOGAN,DITAS,Ditaş Doğan,Ditas Dogan Yedek Parça Imalat ve Teknik A.S.,prefix
+DMRUNLUMAMULLER,DMRGD,Dmr Unlu Mamuller,Dmr Unlu Mamuller Uretim Gida Toptan Perakende Ihracat A.S.,prefix
+DOFERYAPIMALZEMELERI,DOFER,Dofer Yapı Malzemeleri,Dofer Yapi Malzemeleri Sanayi ve Ticaret A.S.,prefix
+DOGANSIRKETLERGRUBU,DOHOL,Doğan Şirketler Grubu,Dogan Sirketler Grubu Holding A.S.,prefix
+DOGANLARMOBILYAGRUBU,DGNMO,Doğanlar Mobilya Grubu,Doganlar Mobilya Grubu Imalat Sanayi ve Ticaret Anonim Sirketi,prefix
+DOGUARASENERJI,ARASE,Doğu Aras Enerji,Dogu Aras Enerji Yatirimlari AS,prefix
+DOGUSANBORU,DOGUB,Doğusan Boru,Dogusan Boru Sanayii ve Ticaret A.S.,prefix
+DOGUSGAYRIMENKULYATIRIMORTAKLIGI,DGGYO,Doğuş GYO,Dogus Gayrimenkul Yatirim Ortakligi A.S.,prefix
+DOGUSOTOMOTIVSERVIS,DOAS,Doğuş Otomotiv Servis,Dogus Otomotiv Servis ve Ticaret A.S.,prefix
+DUNYAHOLDINGAS,DUNYH,Dunya Holding AS,Dünya Holding Anonim Sirketi,exact_canonical
+DURANDOGAN,DURDO,Duran Doğan,Duran Dogan Basim ve Ambalaj Sanayi A.S.,prefix
+DURUKANSEKERLEMESANAYIVE,DURKN,Durukan Sekerleme Sanayi ve,Durukan Sekerleme Sanayi ve Ticaret Anonim Sirketi,prefix
+DOKTASDOKUMCULUK,DOKTA,Döktaş Dökümcülük,Döktas Dökümcülük Ticaret ve Sanayi A.S.,prefix
+EDATATEKNOLOJI,EDATA,E-Data Teknoloji,E-Data Teknoloji Pazarlama Anonim Sirketi,prefix
+EMEKELEKTRIK,EMKEL,EMEK Elektrik,Emek Elektrik Endustrisi Anonim Sirketi,prefix
+ENKA,ENKAI,ENKA,Enka Insaat ve Sanayi A.S.,prefix
+ERSU,ERSU,ERSU,Ersu Meyve ve Gida Sanayii A.S.,prefix
+EYGGAYRIMENKULYATIRIMORTAKLIGI,EYGYO,EYG GYO,Eyg Gayrimenkul Yatirim Ortakligi A.S.,prefix
+EBEBEKMAGAZACILIK,EBEBK,Ebebek Mağazacılık,Ebebek Magazacilik Anonim Sirketi,prefix
+ECZACIBASIYATIRIM,ECZYT,Eczacıbaşı Yatırım,Eczacibasi Yatirim Holding Ortakligi A.S.,prefix
+ECZACIBASIILAC,ECILC,Eczacıbaşı İlaç,"EIS Eczacibasi Ilaç, Sinai ve Finansal Yatirimlar Sanayi ve Ticaret A.S.",token_subset
+EDIPGAYRIMENKUL,EDIP,Edip Gayrimenkul,Edip Gayrimenkul Yatirim Sanayi ve Ticaret A.S.,prefix
+EFORYATIRIMSANAYI,EFOR,Efor Yatırım Sanayi,Efor Yatirim Sanayi Ticaret Anonim Sirketi,prefix
+EGEENDUSTRIVETICAS,EGEEN,Ege Endüstri Ve Tic. A.Ş.,Ege Endüstri ve Ticaret A.S.,fuzzy_0.900
+EGEGUBRESANAS,EGGUB,Ege Gübre San. A.Ş.,Ege Gübre Sanayii A.S.,fuzzy_0.867
+EGEPROFILTICVESANAS,EGPRO,Ege Profil Tic. Ve San. A.Ş.,Ege Profil Ticaret ve Sanayi Anonim Sirketi,fuzzy_0.837
+EGESERAMIKSANVETICAS,EGSER,Ege Seramik San. Ve Tic. A.Ş.,Ege Seramik Sanayi ve Ticaret A.S.,fuzzy_0.851
+EGEPLAST,EPLAS,Egeplast,Egeplast Ege Plastik Ticaret ve Sanayi Anonim Sirketi,prefix
+EGEYAPIAVRUPAGAYRIMENKULYATIRIMORTAKLIGIAS,EGEGY,Egeyapi Avrupa Gayrimenkul Yatirim Ortakligi AS,Egeyapi Avrupa Gayrimenkul Yatirim Ortakligi A.S.,exact_key
+EKIZKIMYA,EKIZ,Ekiz Kimya,Ekiz Kimya Sanayi ve Ticaret Anonim Sirketi,prefix
+EKOSTEKNOLOJI,EKOS,Ekos Teknoloji,Ekos Teknoloji ve Elektrik Anonim Sirketi,prefix
+EKSUNGIDA,EKSUN,Eksun Gıda,Eksun Gida Tarim Sanayi Ve Ticaret Anonim Sirketi,prefix
+ELITENATURELORGANIKGIDA,ELITE,Elite Naturel Organik Gıda,Elite Naturel Organik Gida Sanayi ve Ticaret A.S.,prefix
+EMINISAMBALAJ,EMNIS,Eminiş Ambalaj,Eminis Ambalaj Sanayi ve Ticaret A.S.,prefix
+EMLAKKONUTGAYRIMENKULYATIRIMORTAKLIGI,EKGYO,Emlak Konut GYO,Emlak Konut Gayrimenkul Yatirim Ortakligi A.S.,prefix
+ENERJISAENERJI,ENJSA,Enerjisa Enerji,Enerjisa Enerji A.S.,prefix
+ENERYAENERJI,ENERY,Enerya Enerji,Enerya Enerji Anonim Sirketi,prefix
+ERBOSANERCIYASBORU,ERBOS,Erbosan Erciyas Boru,Erbosan Erciyas Boru Sanayii ve Ticaret A.S.,prefix
+ERCIYASCELIKBORU,ERCB,Erciyas Çelik Boru,Erciyas Çelik Boru Sanayi A.S.,prefix
+ERSANALISVERISHIZMETLERIVEGIDASAN,KIMMR,Ersan Alışveriş Hizmetleri ve Gıda San.,Ersan Alisveris Hizmetleri ve Gida Sanayi Ticaret A.S.,prefix
+ESCARTURIZMTASIMACILIK,TUREX,Escar Turizm Taşımacılık,Tureks Turizm Tasimacilik Anonim Sirketi,fuzzy_0.857
+ESCORT,ESCOM,Escort,Escort Teknoloji Yatirim A.S.,prefix
+ESENBOGAELEKTRIK,ESEN,Esenboğa Elektrik,Esenboga Elektrik Üretim A.S.,prefix
+ETILERGIDA,ETILR,Etiler Gıda,Etiler Gida Ve Ticari Yatirimlar Sanayi Ve Ticaret Anonim Sirketi,prefix
+EUROKAPITALYATORTAS,EUKYO,Euro Kapital Yat. Ort. A.Ş.,Euro Kapital Yatirim Ortakligi Anonim Sirketi,fuzzy_0.800
+EUROMENKUL,EUYO,Euro Menkul,Euro Menkul Kiymet Yatirim Ortakligi Anonim Sirketi,prefix
+EUROTRENDYATIRIMORTAKLIGI,ETYAT,Euro Trend YO,Euro Trend Yatirim Ortakligi A.S.,prefix
+EUROYATIRIM,EUHOL,Euro Yatırım,Euro Yatirim Holding A.S.,prefix
+EUROPAPTEZOLKAGITSANAYI,TEZOL,Europap Tezol Kağıt Sanayi,Europap Tezol Kagit Sanayi ve Ticaret A.S.,prefix
+EUROPENENDUSTRIINSAAT,EUREN,Europen Endüstri İnşaat,Europen Endustri Insaat Sanayi ve Ticaret A.S.,prefix
+EUROPOWERENERJI,EUPWR,Europower Enerji,Europower Enerji ve Otomasyon Teknolojileri Sanayi Ticaret Anonim Sirketi,prefix
+FLAPKONG,FLAP,FLAP KONG,Flap Kongre Toplanti Hizmetleri Otomotiv ve Turizm A.S.,prefix
+FEDERALMOGUL,FMIZP,Federal Mogul,Federal-Mogul Izmit Piston Ve Pim Üretim Tesisleri A.S.,prefix
+FENERBAHCE,FENER,Fenerbahçe,Fenerbahçe Futbol A.S.,prefix
+FONETBILGI,FONET,Fonet Bilgi,Fonet Bilgi Teknolojileri A.S.,prefix
+FORDOTOMOTIVSANAS,FROTO,Ford Otomotiv San. A.Ş.,Ford Otomotiv Sanayi A.S.,fuzzy_0.919
+FORTEBILGIILETISIM,FORTE,Forte Bilgi İletişim,Forte Bilgi Iletisim Teknolojileri ve Savunma Sanayi A.S.,prefix
+FRIGOPAK,FRIGO,Frigo Pak,Frigo-Pak Gida Maddeleri Sanayi ve Ticaret A.S.,prefix
+FUZULGAYRIMENKUL,FZLGY,Fuzul Gayrimenkul,Fuzul Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
+GSDHOLDING,GSDHO,GSD Holding,GSD Holding A.S.,prefix
+GALATAWINDENERJI,GWIND,Galata Wind Enerji,Galata Wind Enerji A.S.,prefix
+GARANTIFAKTORING,GARFA,Garanti Faktoring,Garanti Faktoring A.S.,prefix
+GARANTIYATIRIMORTAKLIGI,GRNYO,Garanti YO,Garanti Yatirim Ortakligi A.S.,prefix
+GATETEKNOLOJIMEDYAVESIBERGUVENLIKHIZMETLERI,GATEG,Gate Teknoloji Medya ve Siber Guvenlik Hizmetleri,Gate Group Teknoloji Medya Ve Siber Guvenlik Hizmetleri A.S.,token_subset
+GEDIKYATIRIM,GEDIK,Gedik Yatırım,Gedik Yatirim Menkul Degerler A.S.,prefix
+GEDIZAMBALAJ,GEDZA,Gediz Ambalaj,Gediz Ambalaj Sanayi ve Ticaret A.S.,prefix
+GELECEKVARLIKYONETIMIAS,GLCVY,Gelecek Varlık Yönetimi A.Ş.,Gelecek Varlik Yönetimi Anonim Sirketi,exact_canonical
+GENILACVESAGLIKURUNLERI,GENIL,Gen İlaç ve Sağlık Ürünleri,Gen Ilac Ve Saglik Urunleri Sanayi Ve Ticaret Anonim Sirketi,prefix
+GERSAN,GEREL,Gersan,Gersan Elektrik Ticaret ve Sanayi Anonim Sirketi,prefix
+GEZINOMISEYAHAT,GZNMI,Gezinomi Seyahat,Gezinomi Seyahat Turizm Ticaret Anonim Sirketi,prefix
+GIMATMAGAZACILIK,GMTAS,Gimat Mağazacılık,Gimat Magazacilik Sanayi ve Ticaret A.S.,prefix
+GIRISIMELEKTRIK,GESAN,Girişim Elektrik,Girisim Elektrik Sanayi Taahhüt ve Ticaret A.S.,prefix
+GLOBALMENKULDEGERLER,GLBMD,Global Menkul Değerler,Global Menkul Degerler Anonim Sirketi,prefix
+GLOBALYATIRIM,GLYHO,Global Yatırım,Global Yatirim Holding A.S.,prefix
+GOODYEARLASTIKLERI,GOODY,Goodyear Lastikleri,Goodyear Lastikleri T.A.S.,prefix
+GRAINTURKHOLDINGAS,GRTHO,Grainturk Holding AS,GRAINTURK Holding A.S.,exact_key
+GULERMAKAGIRSANAYIINSAATVETAAHHUTAS,GLRMK,Gulermak Agir Sanayi Insaat ve Taahhut AS,Gulermak Aglr Sanayi Insaat ve Taahhut A.S.,fuzzy_0.971
+GURSELTURIZMTASIMACILIK,GRSEL,GÜR-SEL Turizm Taşımacılık,Gür-Sel Turizm Tasimacilik ve Servis Ticaret A.S.,prefix
+GOKNURGIDA,GOKNR,Göknur Gıda,Göknur Gida Maddeleri Enerji Imalat Ithalat Ihracat Ticaret ve Sanayi Anonim Sirketi,prefix
+GOLTASCIMENTO,GOLTS,Göltaş Çimento,Göltas Göller Bölgesi Cimento Sanayi ve Ticaret A.S.,token_subset
+GOZDEGIRISIM,GOZDE,Gözde Girişim,Gozde Girisim Sermayesi Yatirim Ortakligi A.S.,prefix
+GULERYATIRIM,GLRYH,Güler Yatırım,Güler Yatirim Holding A.S.,prefix
+GUNDOGDUGIDA,GUNDG,Gündoğdu Gıda,Gundogdu Gida Sut Urunleri Sanayi ve Dis Ticaret Anonim Sirketi,prefix
+GIPTAOFISKIRTASIYE,GIPTA,Gıpta Ofis Kırtasiye,Gipta Ofis Kirtasiye ve Promosyon Ürünleri Imalat Sanayi A.S.,prefix
+HEDEFGIRISIM,HDFGS,HEDEF Girişim,Hedef Girisim Sermayesi Yatirim Ortakligi A.S.,prefix
+HACIOMERSABANCIHOLDING,SAHOL,Hacı Ömer Sabancı Holding,Haci Ömer Sabanci Holding A.S.,prefix
+HALKGAYRIMENKULYATIRIMORTAKLIGI,HLGYO,Halk GYO,Halk Gayrimenkul Yatirim Ortakligi A.S,prefix
+HAREKETPROJETASIMACILIGI,HRKET,Hareket Proje Taşımacılığı,Hareket Proje Tasimaciligi Ve Yuk Muhendisligi Anonim Sirketi,prefix
+HATSANGEMIINSAA,HATSN,Hat-San Gemi İnşaa,Hat-San Gemi Insaa Bakim Onarim Deniz Nakliyat Sanayi ve Ticaret Anonim Sirketi,prefix
+HATEKS,HATEK,Hateks,Hateks Hatay Tekstil Isletmeleri A.S.,prefix
+HEDEFHOLDINGAS,HEDEF,Hedef Holding A.Ş.,Hedef Holding A.S,exact_key
+HEKTASTICARET,HEKTS,Hektaş Ticaret,Hektas Ticaret T.A.S.,prefix
+HIDROPARHAREKETKONTROLTEKNOLOJILERI,HKTM,Hidropar Hareket Kontrol Teknolojileri,Hidropar Hareket Kontrol Teknolojileri Merkezi Sanayi ve Ticaret A.S.,prefix
+HITITBILGISAYARHIZMETLERI,HTTBT,Hitit Bilgisayar Hizmetleri,Hitit Bilgisayar Hizmetleri A.S.,prefix
+HOROZLOJISTIK,HOROZ,Horoz Lojistik,Horoz Lojistik Kargo Hizmetleri ve Ticaret Anonim Sirketi,prefix
+HUBGIRISIMSERMAYESI,HUBVC,Hub Girişim Sermayesi,Hub Girisim Sermayesi Yatirim Ortakligi A.S.,prefix
+HUNYENILENEBILIRENERJI,HUNER,Hun Yenilenebilir Enerji,Hun Yenilenebilir Enerji Üretim A.S.,prefix
+HURRIYETGAZETE,HURGZ,Hürriyet Gazete,Hürriyet Gazetecilik ve Matbaacilik A.S.,prefix
+ICBCTURKEY,ICBCT,ICBC Turkey,ICBC Turkey Bank A.S.,prefix
+ICENTERRA,ENTRA,Ic Enterra,IC Enterra Yenilenebilir Enerji A.S.,prefix
+ICUGIRISIMSERMAYESIYATIRIMORTAKLIGIAS,ISGSY,Icu Girisim Sermayesi Yatirim Ortakligi AS,Is Girisim Sermayesi Yatirim Ortakligi AS,fuzzy_0.961
+INGRAMMICROBILISIM,INGRM,Ingram Micro Bilisim,Ingram Micro Bilisim Sistemleri Anonim Sirketi,prefix
+INNOSATEKNOLOJIAS,INTEK,Innosa Teknoloji AS,Innosa Teknoloji A.S.,exact_key
+INVEOYATIRIM,INVEO,Inveo Yatırım,Inveo Yatirim Holding A.S.,prefix
+INVESTCOHOLDING,INVES,Investco Holding,Investco Holding A.S.,prefix
+IZYATIRIMHOLDING,IZINV,Iz Yatirim Holding,Iz Yatirim Holding A.S.,prefix
+ISIKPLASTIK,ISKPL,Işık Plastik,Isik Plastik Sanayi ve Dis Ticaret Pazarlama Anonim Sirketi,prefix
+ISIKLARENERJI,IEYHO,Işıklar Enerji,Isiklar Enerji ve Yapi Holding A.S.,prefix
+JANTSA,JANTS,Jantsa,Jantsa Jant Sanayi ve Ticaret A.S.,prefix
+KAFEINYAZILIM,KFEIN,Kafein Yazılım,Kafein Yazilim Hizmetleri Ticaret A.S.,prefix
+KALEKIMKIMYEVIMADDELERSAN,KLKIM,Kalekim Kimyevi Maddeler San.,Kalekim Kimyevi Maddeler Sanayi Ve Ticaret Anonim Sirketi,prefix
+KALESERAMIK,KLSER,Kaleseramik,Kaleseramik Canakkale Kalebodur Seramik Sanayi A.S.,prefix
+KAPLAMINAMBALAJ,KAPLM,Kaplamin Ambalaj,Kaplamin Ambalaj Sanayi ve Ticaret A.S.,prefix
+KARDEMIRDEMIRCELIK,ISDMR,Kardemir Demir Çelik,Iskenderun Demir ve Çelik A.S.,fuzzy_0.762
+KAREL,KAREL,Karel,Karel Elektronik Sanayi Ve Ticaret A.S.,prefix
+KARSANOTOMOTIV,KARSN,Karsan Otomotiv,Karsan Otomotiv Sanayii ve Ticaret A.S.,prefix
+KARSUTEKSTILSANVETICAS,KRTEK,Karsu Tekstil San.Ve Tic. A.Ş.,Karsu Tekstil Sanayii ve Ticaret A.S.,fuzzy_0.846
+KARTONSANSANVETICAS,KARTN,Kartonsan San. Ve Tic. A.Ş.,Kartonsan Karton Sanayi ve Ticaret A.S.,fuzzy_0.745
+KATMERCILER,KATMR,Katmerciler,Katmerciler Arac Üstü Ekipman Sanayi ve Ticaret A.S.,prefix
+KATILIMEVIMTASARRUF,KTLEV,Katılımevim Tasarruf,Katilimevim Tasarruf Finansman Anonim Sirketi,prefix
+KAYSERISEKERFABRIKASI,KAYSE,Kayseri Şeker Fabrikası,Kayseri Seker Fabrikasi Anonim Sirketi,prefix
+KENTGIDAMAD,KENT,Kent Gıda Mad.,Kent Gida Maddeleri Sanayii ve Ticaret A.S.,prefix
+KERVANGIDA,KRVGD,Kervan Gıda,Kervan Gida Sanayi ve Ticaret A.S.,prefix
+KERVANSARAY,KERVN,Kervansaray,Kervansaray Yatirim Holding A.S.,prefix
+KILERGAYRIMENKULYATIRIMORTAKLIGI,KLGYO,Kiler GYO,Kiler Gayrimenkul Yatirim Ortakligi A.S.,prefix
+KILERHOLDING,KLRHO,Kiler Holding,Kiler Holding Anonim Sirketi,prefix
+KIMTEKSPOLIURETAN,KMPUR,Kimteks Poliüretan,Kimteks Poliüretan Sanayi ve Ticaret A.S.,prefix
+KLIMASANKLIMASAN,KLMSN,Klimasan Klima San.,Klimasan Klima Sanayi ve Ticaret A.S.,prefix
+KOCAERCELIK,KCAER,Kocaer Çelik,Kocaer Celik Sanayi ve Ticaret Anonim Sirketi,prefix
+KOLEKSIYONMOBILYA,KLSYN,Koleksiyon Mobilya,Koleksiyon Mobilya Sanayi A.S.,prefix
+KONFRUT,KNFRT,Konfrut,Konfrut Tarim A.S.,prefix
+KONTROLMATIKTEKNOLOJI,KONTR,Kontrolmatik Teknoloji,Kontrolmatik Teknoloji Enerji Ve Muhendislik Anonim Sirketi,prefix
+KONYAKAGIT,KONKA,Konya Kağıt,Konya Kagit Sanayi ve Ticaret A.S.,prefix
+KONYACIMENTO,KONYA,Konya Çimento,Konya Çimento Sanayii Anonim Sirketi,prefix
+KORAYGAYRIMENKULYATIRIMORTAKLIGI,KGYO,Koray GYO,Koray Gayrimenkul Yatirim Ortakligi A.S.,prefix
+KORDSATEKNIK,KORDS,Kordsa Teknik,Kordsa Teknik Tekstil A.S.,prefix
+KOROPLASTTEMIZLIKAMBALAJ,KRPLS,Koroplast Temizlik Ambalaj,Koroplast Temizlik Ambalaj Ürünleri Sanayi ve Dis Ticaret A.S.,prefix
+KOTONMAGAZACILIK,KOTON,Koton Mağazacılık,Koton Magazacilik Tekstil Sanayi ve Ticaret A.S.,prefix
+KOZAPOLYESTER,KOPOL,Koza Polyester,Koza Polyester Sanayi ve Ticaret Anonim Sirketi,prefix
+KOCHOLDING,KCHOL,Koç Holding,Koç Holding A.S.,prefix
+KOCMETALURJI,KOCMT,Koç Metalurji,Koç Metalürji Anonim Sirketi,prefix
+KRISTALKOLA,KRSTL,Kristal Kola,Kristal Kola ve Mesrubat Sanayi Ticaret A.S.,prefix
+KRONTELHIZAS,KRONT,Kron Tel. Hiz. A.Ş.,Kron Teknoloji A.S.,fuzzy_0.741
+KUVVAGIDATICARETVESAN,KUVVA,Kuvva Gıda Ticaret ve San.,Kuvva Gida Ticaret Ve Sanayi Yatirimlari Anonim Sirketi,prefix
+KUYASYATIRIM,KUYAS,Kuyaş Yatırım,Kuyas Yatirim A.S.,prefix
+KUZEYBORU,KBORU,Kuzey Boru,Kuzey Boru Anonim Sirketi,prefix
+KUZUGRUPGAYRIMENKUL,KZGYO,Kuzugrup Gayrimenkul,Kuzugrup Gayrimenkul Yatirim Ortakligi A.S.,prefix
+KUSTURKUSADASI,KSTUR,Kuştur Kuşadası,Kustur Kusadasi Turizm Endüstrisi A.S.,prefix
+KORFEZGAYRIMENKULYATIRIMORTAKLIGI,KRGYO,Körfez GYO,Körfez Gayrimenkul Yatirim Ortakligi A.S.,prefix
+KUTAHYAPORSELENSANAS,KUTPO,Kütahya Porselen San. A.Ş.,Kütahya Porselen Sanayi Anonim Sirketi,fuzzy_0.930
+KUTAHYASEKERFABRIKASI,KTSKR,Kütahya Şeker Fabrikası,Kutahya Seker Fabrikasi Anonim Sirketi,prefix
+KIRACGALVANIZ,TCKRC,Kıraç Galvaniz,Kirac Galvaniz Telekominikasyon Metal Makine Insaat Elektrik Sanayi ve Ticaret Anonim Sirketi,prefix
+KIZILBUKGAYRIMENKULYATIRIMORTAKLIGI,KZBGY,Kızılbük GYO,Kizilbük Gayrimenkul Yatirim Ortakligi A.S.,prefix
+LDRTURIZMAS,LIDER,LDR Turizm A.Ş.,LDR Turizm A.S.,exact_key
+LIDERFAKTORING,LIDFA,Lider Faktoring,Lider Faktoring A.S.,prefix
+LILAKAGIT,LILAK,Lila Kağıt,Lila Kagit Sanayi Ve Ticaret A.S.,prefix
+LIMAKDOGUANADOLU,LMKDC,Limak Doğu Anadolu,Limak Dogu Anadolu Cimento Sanayi ve Ticaret Anonim Sirketi,prefix
+LINKBILGISAYAR,LINK,Link Bilgisayar,Link Bilgisayar Sistemleri Yazilimi ve Donanimi Sanayi ve Ticaret A.S.,prefix
+LOGOYAZSANVETICAS,LOGO,Logo Yaz. San. Ve Tic. A.Ş.,Logo Yazilim Sanayi ve Ticaret A.S.,fuzzy_0.756
+LOKMANHEKIM,LKMNH,Lokman Hekim,"Lokman Hekim Engürüsag Saglik, Turizm, Egitim Hizmetleri ve Insaat Taahhüt A.S.",prefix
+LORASHOLDINGAS,LRSHO,Loras Holding AS,Loras Holding A.S.,exact_key
+LYDIAHOLDINGAS,LYDHO,Lydia Holding AS,Lydia Holding A.S.,exact_key
+LYDIAYESILENERJIKAYNAKLARIAS,LYDYE,Lydia Yesil Enerji Kaynaklari AS,Lydia Yesil Enerji Kaynaklari A.S.,exact_key
+LUKSKADIFETICVESAN,LUKSK,Lüks Kadife Tic. ve San.,Lüks Kadife Ticaret ve Sanayi A.S.,fuzzy_0.844
+MLPSAGLIK,MPARK,MLP Sağlık,MLP Saglik Hizmetleri A.S.,prefix
+MAKIMMAKINATEKNOLOJILERI,MAKIM,Makim Makina Teknolojileri,Makim Makina Teknolojileri Sanayi Ve Ticaret A.S.,prefix
+MANASENERJIYONETIMISAN,MANAS,Manas Enerji Yönetimi San.,Manas Enerji Yonetimi Sanayi Ve Ticaret Anonim Sirketi,prefix
+MARGUNENERJI,MAGEN,Margün Enerji,Margün Enerji Üretim Sanayi ve Ticaret A.S.,prefix
+MARKAYATIRIM,MARKA,Marka Yatırım,Marka Yatirim Holding A.S.,prefix
+MARMARISALTINYUNUS,MAALT,Marmaris Altınyunus,Marmaris Altinyunus Turistik Tesisler A.S.,prefix
+MARSHALLBOYAVEVERNIKSAN,MRSHL,Marshall Boya Ve Vernik San.,Marshall Boya Ve Vernik Sanayii A.S.,prefix
+MARTIGAYRIMENKULYATIRIMORTAKLIGI,MRGYO,Martı GYO,Marti Gayrimenkul Yatirim Ortakligi A.S.,prefix
+MARTIOTELISLETMELERIAS,MARTI,Martı Otel İşletmeleri A.Ş.,Marti Otel Isletmeleri A.S.,exact_key
+MATRIKSBILGI,SMART,Matriks Bilgi,Smartiks Yazilim A.S.,fuzzy_0.690
+MAVIGIYIMSANAYI,MAVI,Mavi Giyim Sanayi,Mavi Giyim Sanayi ve Ticaret A.S.,prefix
+MAZHARZORLU,MZHLD,Mazhar Zorlu,Mazhar Zorlu Holding A.S.,prefix
+MACKOLIKINTERNETHIZMETLERI,MACKO,Maçkolik İnternet Hizmetleri,Mackolik Internet Hizmetleri Ticaret A.S.,prefix
+MEDITERATIBBIMALZEMESANAYI,MEDTR,Meditera Tıbbi Malzeme Sanayi,Meditera Tibbi Malzeme Sanayi ve Ticaret Anonim Sirketi,prefix
+MEGAMETAL,MEGMT,Mega Metal,Mega Metal Sanayi ve Ticaret A.S.,prefix
+MEGAPOLIETILENKOPUK,MEGAP,Mega Polietilen Köpük,Mega Polietilen Köpük Sanayi ve Ticaret Anonim Sirketi,prefix
+MENDERESTEKSTIL,MNDRS,Menderes Tekstil,Menderes Tekstil Sanayi ve Ticaret Anonim Sirketi,prefix
+MEPETMETRO,MEPET,Mepet Metro,Mepet Metro Petrol ve Tesisleri Sanayi Ticaret A.S.,prefix
+MERCANKIMYASANAYI,MERCN,Mercan Kimya Sanayi,Mercan Kimya Sanayi Ve Ticaret Anonim Sirketi,prefix
+MERITTURIZMYATIRIMVEISLETME,MERIT,Merit Turizm Yatırım ve İşletme,Merit Turizm Yatirim ve Isletme Anonim Sirketi,prefix
+MERKOGIDASANVETICAS,MERKO,Merko Gıda San. Ve Tic. A.Ş.,Merko Gida Sanayi ve Ticaret A.S.,fuzzy_0.844
+METROTICVEMALIYATAS,METRO,Metro Tic. Ve Mali Yat. A.Ş.,Metro Ticari ve Mali Yatirimlar Holding A.S.,fuzzy_0.691
+METROYATIRIMORTAKLIGI,MTRYO,Metro Yatırım Ortaklığı,Metro Yatirim Ortakligi A.S.,prefix
+MHRGAYRIMENKUL,MHRGY,Mhr Gayrimenkul,MHR Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
+MIATEKNOLOJI,MIATK,Mia Teknoloji,MIA Teknoloji Anonim Sirketi,prefix
+MIGROS,MGROS,Migros,Migros Ticaret A.S.,prefix
+MISTRALGAYRIMENKULYATIRIMORTAKLIGI,MSGYO,Mistral GYO,Mistral Gayrimenkul Yatirim Ortakligi A.S.,prefix
+MMCSANVETICARIYATAS,MMCAS,Mmc San. Ve Ticari Yat. A.Ş.,MMC Sanayi Ve Ticari Yatirimlar A.S.,fuzzy_0.792
+MOBILTELILETISIMHIZMETLERI,MOBTL,Mobiltel İletişim Hizmetleri,Mobiltel Iletisim Hizmetleri Sanayi ve Ticaret A.S.,prefix
+MOGANENERJI,MOGAN,Mogan Enerji,Mogan Enerji Yatirim Holding Anonim Sirketi,prefix
+MOPASMARKETCILIK,MOPAS,Mopas Marketcilik,Mopas Marketcilik Gida Sanayi ve Ticaret Anonim Sirketi,prefix
+NASMEDOZELSAGLIKHIZMETLERI,EGEPO,Nasmed Özel Sağlık Hizmetleri,Nasmed Özel Saglik Hizmetleri Ticaret Anonim Sirketi,prefix
+NATURELYENILENEBILIRENERJI,NATEN,Naturel Yenilenebilir Enerji,Naturel Yenilenebilir Enerji Ticaret Anonim Sirketi,prefix
+NATURELGAZSANAYI,NTGAZ,Naturelgaz Sanayi,Naturelgaz Sanayi ve Ticaret A.S.,prefix
+NETHOLDINGAS,NTHOL,Net Holding A.Ş.,Net Holding A.S.,exact_key
+NETASTELEKOM,NETAS,Netaş Telekom,Netas Telekomünikasyon A.S.,prefix
+NIGBASBETONSANVETICAS,NIBAS,Niğbaş Beton San. Ve Tic. A.Ş.,Nigbas Nigde Beton Sanayi Ve Ticaret A.S.,fuzzy_0.778
+NUHCIMENTO,NUHCM,Nuh Çimento,Nuh Çimento Sanayi A.S.,prefix
+NUROLGAYRIMENKULYATIRIMORTAKLIGI,NUGYO,Nurol GYO,Nurol Gayrimenkul Yatirim Ortakligi A.S.,prefix
+ODASELEKTRIK,ODAS,ODAŞ Elektrik,Odas Elektrik Üretim Sanayi Ticaret A.S.,prefix
+OYAKYATIRIMORTAKLIGI,OYAYO,OYAK YO,Oyak Yatirim Ortakligi AS,prefix
+OBAMAKARNA,OBAMS,Oba Makarna,Oba Makarnacilik Sanayi ve Ticaret A.S.,prefix
+OBASEBILGISAYARVEDANISMANLIK,OBASE,Obase Bilgisayar ve Danışmanlık,Obase Bilgisayar ve Danismanlik Hizmetleri Ticaret A.S.,prefix
+ODINETEKNOLOJI,ODINE,Odine Teknoloji,Odine Solutions Teknoloji Ticaret ve Sanayi A.S.,token_subset
+OFISYEMGIDA,OFSYM,Ofis Yem Gıda,Ofis Yem Gida Sanayi ve Ticaret A.S.,prefix
+ONCOSEMONKOLOJIKSISTEMLER,ONCSM,Oncosem Onkolojik Sistemler,Oncosem Onkolojik Sistemler Sanayi Ve Ticaret Anonim Sirketi,prefix
+ONURYUKSEKTEKNOLOJI,ONRYT,Onur Yüksek Teknoloji,Onur Yuksek Teknoloji Anonim Sirketi,prefix
+ORGEENERJIELEKTRIK,ORGE,Orge Enerji Elektrik,Orge Enerji Elektrik Taahhüt Anonim Sirketi,prefix
+ORMA,ORMA,Orma,Orma Orman Mahsulleri Integre Sanayi Ve Ticaret A.S.,prefix
+ORCAYORTAKOYCAYSANVETIC,ORCAY,Orçay Ortaköy Çay San. ve Tic.,Orçay Ortaköy Çay Sanayi ve Ticaret Anonim Sirketi,fuzzy_0.877
+OSMANLIYATIRIM,OSMEN,Osmanlı Yatırım,Osmanli Yatirim Menkul Degerler A.S.,prefix
+OSTIM,OSTIM,Ostim,Ostim Endüstriyel Yatirimlar ve Isletme A.S.,prefix
+OTOKAR,OTKAR,Otokar,Otokar Otomotiv ve Savunma Sanayi A.S.,prefix
+OTTOHOLDING,OTTO,Otto Holding,Otto Holding A.S.,prefix
+OYAKYATIRIM,KUYAS,Oyak Yatırım,Kuyas Yatirim A.S.,fuzzy_0.800
+OYAKCIMENTO,OYAKC,Oyak Çimento,OYAK Çimento Fabrikalari A.S.,prefix
+OYLUMSINAIYATIRIMLAR,OYLUM,Oylum Sınai Yatırımlar,Oylum Sinai Yatirimlar Anonim Sirketi,prefix
+PASIFIKTEKNOLOJIAS,PATEK,PASİFİK TEKNOLOJİ A.Ş.,Pasifik Teknoloji A.S.,exact_key
+PCILETISIMVEMEDYAHIZMETLERI,PCILT,PC İletişim ve Medya Hizmetleri,PC Iletisim ve Medya Hizmetleri Sanayi Ticaret A.S.,prefix
+PAMUKOVAYENILENEBILIRELEKTRIK,PAMEL,Pamukova Yenilenebilir Elektrik,Pamukova Yenilenebilir Elektrik Uretim A.S.,prefix
+PANELSANCATICEPHESISTEMLERI,PNLSN,Panelsan Çatı Cephe Sistemleri,Panelsan Cati Cephe Sistemleri Sanayi Ve Ticaret A.S.,prefix
+PANORAGAYRIMENKULYATIRIMORTAKLIGI,PAGYO,Panora GYO,Panora Gayrimenkul Yatirim Ortakligi A.S.,prefix
+PAPILONSAVUNMA,PAPIL,Papilon Savunma,Papilon Savunma Teknoloji ve Ticaret A.S.,prefix
+PARDUSGIRISIMSERMAYESIYATIRIM,PRDGS,Pardus Girişim Sermayesi Yatırım,Pardus Girisim Sermayesi Yatirim Ortakligi Anonim Sirketi,prefix
+PARKELEKTRIK,PRKME,Park Elektrik,Park Elektrik Üretim Madencilik Sanayi ve Ticaret A.S.,prefix
+PARSANMAKINAPARCALARISANAYII,PARSN,Parsan Makina Parçaları Sanayii,Parsan Makina Parçalari Sanayii A.S.,prefix
+PASIFIKEURASIALOJISTIK,PASEU,Pasifik Eurasia Lojistik,Pasifik Eurasia Lojistik Dis Ticaret A.S.,prefix
+PASIFIKGAYRIMENKULYATIRIMORTAKLIGI,PSGYO,Pasifik GYO,Pasifik Gayrimenkul Yatirim Ortakligi A.S.,prefix
+PEGASUSHAVATASIMACILIGI,PGSUS,Pegasus Hava Taşımacılığı,Pegasus Hava Tasimaciligi Anonim Sirketi,prefix
+PEKERGAYRIMENKULYATIRIMORTAKLIGI,PEKGY,Peker GYO,Peker Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
+PENGUENGIDASANAS,PENGD,Penguen Gıda San. A.Ş.,Penguen Gida Sanayi A.S.,fuzzy_0.914
+PENTATEKNOLOJI,PENTA,Penta Teknoloji,Penta Teknoloji Urunleri Dagitim Ticaret A.S.,prefix
+PERGAMONSTATUS,PSDTC,Pergamon Status,Pergamon Status Dis Ticaret A.S.,prefix
+PETKIM,PETKM,Petkim,Petkim Petrokimya Holding Anonim Sirketi,prefix
+PETROKENTTURIZMAS,PKENT,Petrokent Turizm A.Ş.,Petrokent Turizm A.S.,exact_key
+PLASTIKKART,PKART,Plastikkart,Plastikkart Akilli Kart Iletisim Sistemleri Sanayi ve Ticaret A.S.,prefix
+PLATFORMTURIZMTASIMACILIKGIDA,PLTUR,Platform Turizm Taşımacılık Gıda,Platform Turizm Tasimacilik Gida Insaat Temizlik Hizmetleri Sanayi ve Ticaret Anonim Sirketi,prefix
+POLISANHOLDINGAS,POLHO,Polisan Holding A.Ş.,Polisan Holding A.S.,exact_key
+POLITEKNIKMETAL,POLTK,Politeknik Metal,Politeknik Metal Sanayi ve Ticaret Anonim Sirketi,prefix
+PRIZMAPRES,PRZMA,Prizma Pres,Prizma Pres Matbaacilik Yayincilik Sanayi ve Ticaret A.S.,prefix
+PINARETVEUNSANAS,PETUN,Pınar Et Ve Un San. A.Ş.,Pinar Entegre Et ve Un Sanayii A.S.,fuzzy_0.744
+PINARSUSANVETICAS,PINSU,Pınar Su San. Ve Tic. A.Ş.,Pinar Su ve Icecek Sanayi ve Ticaret A.S.,fuzzy_0.696
+PINARSUTMAMULLERI,PNSUT,Pınar Süt Mamulleri,Pinar Süt Mamülleri Sanayii A.S.,prefix
+QNBFINANS,QNBFK,QNB Finans,QNB Finansal Kiralama A.S.,prefix
+QNBBANK,QNBTR,Qnb Bank,QNB Bank A.S.,prefix
+QUAGRANITEHAYALYAPIVEURUNLERI,QUAGR,Qua Granite Hayal Yapı ve Ürünleri,QUA Granite Hayal Yapi ve Ürünleri Sanayi Ticaret A.S.,prefix
+RTA,RTALB,RTA,RTA Laboratuvarlari Biyolojik Urunler Ilac ve Makine Sanayi Ticaret A.S.,prefix
+RAINBOWPOLIKARBONATSANTIC,RNPOL,Rainbow Polikarbonat San. Tic.,Rainbow Polikarbonat Sanayi Ticaret Anonim Sirketi,fuzzy_0.889
+RALYATIRIM,RALYH,Ral Yatırım,Ral Yatirim Holding A.S.,prefix
+RAYSIGORTAAS,RAYSG,Ray Sigorta A.Ş.,Ray Sigorta Anonim Sirketi,exact_canonical
+REEDERTEKNOLOJI,REEDR,Reeder Teknoloji,Reeder Teknoloji Sanayi ve Ticaret Anonim Sirketi,prefix
+REYSASGAYRIMENKULYATIRIMORTAKLIGI,RYGYO,Reysaş GYO,Reysas Gayrimenkul Yatirim Ortakligi A.S.,prefix
+RODRIGO,RODRG,Rodrigo,Rodrigo Tekstil Sanayi ve Ticaret A.S.,prefix
+RUBENISTEKSTIL,RUBNS,Rubenis Tekstil,Rubenis Tekstil Sanayi Ticaret A.S.,prefix
+RUZYMADENCILIKVEENERJIYATIRIMLARISANAYIVETI,RUZYE,Ruzy Madencilik ve Enerji Yatirimlari Sanayi ve Ti,Ruzy Madencilik ve Enerji Yatirimlari Sanayi ve Ticaret A.S.,prefix
+RONESANSGAYRIMENKULYATIRIMORTAKLIGI,RYGYO,Rönesans GYO,Reysas Gayrimenkul Yatirim Ortakligi A.S.,fuzzy_0.946
+SANEL,SANEL,SAN-EL,San-el Mühendislik Elektrik Taahhüt Sanayi ve Ticaret A.S.,prefix
+SASAPOLYESTER,SASA,SASA Polyester,Sasa Polyester Sanayi A.S.,prefix
+SDTUZAYVESAVUNMATEKNOLOJILERI,SDTTR,SDT Uzay ve Savunma Teknolojileri,SDT Uzay ve Savunma Teknolojileri Anonim Sirketi,prefix
+SAFKAREGESOGUTMACILIK,SAFKR,Safkar Ege Soğutmacılık,Safkar Ege Sogutmacilik Klima Soguk Hava Tesisleri Ihracat Ithalat Sanayi ve Ticaret Anonim Sirketi,prefix
+SANICAISISANAYI,SNICA,Sanica Isı Sanayi,Sanica Isi Sanayi A.S.,prefix
+SANIFOAM,SANFM,Sanifoam,Sanifoam Endustri ve Tuketim Urunleri Sanayi Ticaret A.S.,prefix
+SANKOPAZARLAMA,SANKO,Sanko Pazarlama,Sanko Pazarlama Ithalat Ihracat Anonim Sirketi,prefix
+SARAYMATBAACILIK,SAMAT,Saray Matbaacılık,Saray Matbaacilik Kagitçilik kirtasiyecilik Ticaret Ve Sanayi A.S.,prefix
+SARKUYSANELEKTROLITBAKIRSANAYI,SARKY,Sarkuysan Elektrolit Bakır Sanayi,Sarkuysan Elektrolitik Bakir Sanayi ve Ticaret A.S.,fuzzy_0.868
+SAYYENILENEBILIRENERJIEKIPMANLARI,SAYAS,Say Yenilenebilir Enerji Ekipmanları,Say Yenilenebilir Enerji Ekipmanlari Sanayi ve Ticaret A.S.,prefix
+SEKUROPLASTIKAMBALAJ,SEKUR,Sekuro Plastik Ambalaj,Sekuro Plastik Ambalaj Sanayi A.S.,prefix
+SELVAGIDA,SELVA,Selva Gıda,Selva Gida Sanayi A.S.,prefix
+SELCUKECZADEPOSU,SELEC,Selçuk Ecza Deposu,Selçuk Ecza Deposu Ticaret ve Sanayi A.S.,prefix
+SERANITGRANITSERAMIKSANAYIVETICARETAS,SERNT,Seranit Granit Seramik Sanayi ve Ticaret AS,Seranit Granit Seramik Sanayi ve Ticaret Anonim Sirketi,exact_canonical
+SERVETGAYRIMENKULYATIRIMORTAKLIGI,SRVGY,Servet GYO,Servet Gayrimenkul Yatirim Ortakligi A.S.,prefix
+SEYITLERKIMYA,SEYKM,Seyitler Kimya,Seyitler Kimya Sanayi A.S.,prefix
+SEGMENKARDESLER,SEGMN,Seğmen Kardeşler,Segmen Kardesler Gida Üretim ve Ambalaj Sanayi Anonim Sirketi,prefix
+SILVERLINEENDUSTRI,SILVR,Silverline Endüstri,Silverline Endustri ve Ticaret A.S.,prefix
+SINPASGAYRIMENKULYATIRIMORTAKLIGI,SNGYO,Sinpaş GYO,Sinpas Gayrimenkul Yatirim Ortakligi A.S.,prefix
+SKYALPFINANSALTEKNOLOJILERVEDANISMANLIKAS,SKYLP,Skyalp Finansal Teknolojiler ve Danismanlik AS,Skyalp Finansal Teknolojiler ve Danismanlik A.S.,exact_key
+SMARTGUNESENERJISI,SMRTG,Smart Güneş Enerjisi,Smart Günes Enerjisi Teknolojileri Arastirma ve Gelistirme Üretim Sanayi ve Ticaret A.S.,prefix
+SMARTIKSYAZILIM,SMART,Smartiks Yazılım,Smartiks Yazilim A.S.,prefix
+SODASSODYUM,SODSN,Sodaş Sodyum,Sodas Sodyum Sanayii A.S.,prefix
+SUMASSUNITAHTA,SUMAS,Sumaş Suni Tahta,Sumas Suni Tahta ve Mobilya Sanayi A.S.,prefix
+SUMERVARLIKYONETIMAS,SMRVA,Sumer Varlik Yonetim AS,Sumer Varlik Yonetim A.S.,exact_key
+SUNTEKSTIL,SUNTK,Sun Tekstil,Sun Tekstil Sanayi ve Ticaret A.S.,prefix
+SURTATILGAYRIMENKULYATIRIMORTAKLIGI,SURGY,Sur Tatil GYO,Sur Tatil Evleri Gayrimenkul Yatirim Ortakligi Anonim Sirketi,token_subset
+SUWENTEKSTIL,SUWEN,Suwen Tekstil,Suwen Tekstil Sanayi Pazarlama A.S.,prefix
+SOKEDEGIRMENCILIKSANAYI,SOKE,Söke Değirmencilik Sanayi,Söke Degirmencilik Sanayi ve Ticaret A.S.,prefix
+SONMEZFILAMENT,SONME,Sönmez Filament,Sönmez Filament Sentetik Iplik ve Elyaf Sanayi A.S.,prefix
+SONMEZPAMUKLUSANAS,SNPAM,Sönmez Pamuklu San. A.Ş.,Sönmez Pamuklu Sanayii A.S.,fuzzy_0.900
+TAVHAVALIMANLARI,TAVHL,TAV Havalimanları,TAV Havalimanlari Holding A.S.,prefix
+TGS,TGSAS,TGS,TGS Dis Ticaret Anonim Sirketi,prefix
+TSKBGAYRIMENKULYATIRIMORTAKLIGI,TSGYO,TSKB GYO,TSKB Gayrimenkul Yatirim Ortakligi A.S,prefix
+TABGIDA,TABGD,Tab Gıda,Tab Gida Sanayi ve Ticaret A.S.,prefix
+TAPDIOKSIJENOZELSAGLIKVEEGITIMHIZ,TNZTP,Tapdi Oksijen Özel Sağlık ve Eğitim Hiz.,Tapdi Oksijen Özel Saglik ve Egitim Hizmetleri Sanayi Ticaret A.S.,prefix
+TARKIMBITKIKORUMA,TARKM,Tarkim Bitki Koruma,Tarkim Bitki Koruma Sanayi ve Ticaret A.S.,prefix
+TATGIDA,TATGD,Tat Gıda,Tat Gida Sanayi A.S.,prefix
+TATLIPINARENERJI,TATEN,Tatlıpınar Enerji,Tatlipinar Enerji Uretim A.S.,prefix
+TEKARTINSAAT,TEKTU,Tek-Art İnşaat,Tek-Art Insaat Ticaret Turizm Sanayi ve Yatirimlar Anonim Sirketi,prefix
+TEKFENHOLDING,TKFEN,Tekfen Holding,Tekfen Holding Anonim Sirketi,prefix
+TEKNOSA,TKNSA,Teknosa,Teknosa Iç ve Dis Ticaret Anonim Sirketi,prefix
+TEMAPOL,TMPOL,Temapol,Temapol Polimer Plastik ve Insaat Sanayi Ticaret Anonim Sirketi,prefix
+TERAFINANSALYATIRIMLARHOLDINGAS,TRHOL,Tera Finansal Yatirimlar Holding AS,Tera Finansal Yatirimlar Holding A.S.,exact_key
+TERAPORTFOYYONETIMIAS,SMRVA,Tera Portfoy Yonetimi AS,Sumer Varlik Yonetim A.S.,fuzzy_0.634
+TERAYATIRIMMENKULDEGERLER,TERA,Tera Yatırım Menkul Değerler,Tera Yatirim Menkul Degerler A.S.,prefix
+TOFAS,TOASO,Tofaş,Tofas Türk Otomobil Fabrikasi Anonim Sirketi,prefix
+TORUNLARGAYRIMENKULYATIRIMORTAKLIGI,TRGYO,Torunlar GYO,Torunlar Gayrimenkul Yatirim Ortakligi A.S.,prefix
+TRABZONLIMANISLETMECILIGI,TLMAN,Trabzon Liman İşletmeciliği,Trabzon Liman Isletmeciligi Anonim Sirketi,prefix
+TRABZONSPORSPORTIF,TSPOR,Trabzonspor Sportif,Trabzonspor Sportif Yatirim ve Futbol Isletmeciligi Ticaret A.S.,prefix
+TRENDGAYRIMENKULYATORT,TDGYO,Trend Gayrımenkul Yat. Ort.,Trend Gayrimenkul Yatirim Ortakligi A.S.,fuzzy_0.833
+TUKASGIDA,TUKAS,Tukaş Gıda,Tukas Gida Sanayi ve Ticaret A.S.,prefix
+TURCASPETROLAS,TRCAS,Turcas Petrol A.Ş.,Turcas Holding A.S.,fuzzy_0.690
+TUREKSTURIZM,TUREX,Tureks Turizm,Tureks Turizm Tasimacilik Anonim Sirketi,prefix
+TUREKSTURUNCMADENCILIK,MARBL,Tureks Turunç Madencilik,Tureks Turunc Madencilik Ic ve Dis Ticaret A.S.,prefix
+TURKALTINISLETMELERIAS,TRALT,Turk Altin Isletmeleri AS,Turk Altin Isletmeleri A.S.,exact_key
+TURKCELLILETISIMHIZMETLERI,TCELL,Turkcell İletişim Hizmetleri,Turkcell Iletisim Hizmetleri A.S.,prefix
+TUGCELIK,TUCLK,Tuğçelik,Tugçelik Alüminyum Ve Metal Mamulleri Sanayi Ve Ticaret A.S.,prefix
+TUMOSANMOTOR,TMSN,Tümosan Motor,Tümosan Motor ve Traktör Sanayi A.S.,prefix
+TURKPRYSMIAN,PRKAB,Türk Prysmian,Türk Prysmian Kablo ve Sistemleri Anonim Sirketi,prefix
+TURKTELEKOMUNIKASYON,TTKOM,Türk Telekomunikasyon,Türk Telekomünikasyon Anonim Sirketi,prefix
+TURKTRAKTOR,TTRAK,Türk Traktör,Türk Traktör ve Ziraat Makineleri A.S.,prefix
+TURKTUBORG,TBORG,Türk Tuborg,Türk Tuborg Bira ve Malt Sanayii A.S.,prefix
+TURKILAC,TRILC,Türk İlaç,Turk Ilac Ve Serum Sanayi Anonim Sirketi,prefix
+TURKERPROJEGAYRIMENKUL,TURGG,Türker Proje Gayrimenkul,Türker Proje Gayrimenkul ve Yatirim Gelistirme A.S.,prefix
+TURKIYEHALKBANKASI,HALKB,Türkiye Halk Bankası,Türkiye Halk Bankasi A.S.,prefix
+TURKIYEKALKINMAVEYATIRIM,KLNMA,Türkiye Kalkınma ve Yatırım,Türkiye Kalkinma ve Yatirim Bankasi A.S.,prefix
+TURKIYESIGORTA,TURSG,Türkiye Sigorta,Türkiye Sigorta A.S.,prefix
+TURKIYEISBANKASI,ISBTR,Türkiye İş Bankası,Türkiye Is Bankasi A.S.,fuzzy_1.000
+TURKIYEISBANKASIA,ISBTR,Türkiye İş Bankası A,Türkiye Is Bankasi A.S.,fuzzy_1.000
+TURKIYEISBANKASIB,ISBTR,Türkiye İş Bankası B,Türkiye Is Bankasi A.S.,fuzzy_0.947
+UFUKYATIRIM,UFUK,Ufuk Yatırım,UFUK Yatirim Yonetim ve Gayrimenkul A.S.,prefix
+ULUSALFAKTORING,ULUFA,Ulusal Faktoring,Ulusal Faktoring A.S.,prefix
+ULUSOYELEKTRIK,ULUSE,Ulusoy Elektrik,Ulusoy Elektrik Imalat Taahhüt ve Ticaret A.S.,prefix
+ULUSOYUN,ULUUN,Ulusoy Un,Ulusoy Un Sanayi ve Ticaret A.S.,prefix
+USAKSERAMIKSANAS,USAK,Uşak Seramik San. A.Ş.,Usak Seramik Sanayi A.S.,fuzzy_0.914
+VBTYAZILIM,VBTYZ,VBT Yazılım,VBT Yazilim Anonim Sirketi,prefix
+VAKKO,VAKKO,Vakko,Vakko Tekstil ve Hazir Giyim Sanayi Isletmeleri A.S.,prefix
+VAKIFGAYRIMENKULYATIRIMORTAKLIGI,VKGYO,Vakıf GYO,Vakif Gayrimenkul Yatirim Ortakligi AS,prefix
+VAKIFLEASING,VAKFA,Vakıf Leasing,Vakif Faktoring A.S.,fuzzy_0.714
+VAKIFMENKUL,VKFYO,Vakıf Menkul,Vakif Menkul Kiymet Yatirim Ortakligi A.S.,prefix
+VAKIFBANK,AKBNK,Vakıfbank,Akbank T.A.S.,fuzzy_0.706
+VANET,VANGD,Vanet,Vanet Gida Sanayi Iç Ve Dis Ticaret Anonim Sirketi,prefix
+VERAKONSEPTGAYRIMENKUL,VRGYO,Vera Konsept Gayrimenkul,Vera Konsept Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
+VERUSAHOLDING,VERUS,Verusa Holding,Verusa Holding A.S.,prefix
+VERUSATURK,VERTU,Verusaturk,Verusaturk Girisim Sermayesi Yatirim Ortakligi A.S.,prefix
+VESTELBEYAZ,VESBE,Vestel Beyaz,Vestel Beyaz Esya Sanayi ve Ticaret A.S.,prefix
+VESTELELEKTRONIK,VESTL,Vestel Elektronik,Vestel Elektronik Sanayi ve Ticaret Anonim Sirketi,prefix
+VIKINGKAGITVESELULOZ,VKING,Viking Kağıt ve Selülöz,Viking Kagit ve Selüloz A.S.,prefix
+YEOTEKNOLOJIENERJI,YEOTK,YEO Teknoloji Enerji,Yeo Teknoloji Enerji Ve Endustri Anonim Sirketi,prefix
+YAPRAKSUT,YAPRK,Yaprak Süt,Yaprak Süt ve Besi Çiftlikleri Sanayi ve Ticaret A.S.,prefix
+YAPIKREDI,YKBNK,Yapı Kredi,Yapi ve Kredi Bankasi A.S.,token_subset
+YATAS,YATAS,Yataş,Yatas Yatak ve Yorgan Sanayi ve Ticaret A.S.,prefix
+YAYLAAGROGIDASANAYI,YYLGD,Yayla Agro Gıda Sanayi,Yayla Agro Gida Sanayi ve Ticaret A.S.,prefix
+YAYLAENERJI,YAYLA,Yayla Enerji,Yayla Enerji Üretim Turizm ve Insaat Ticaret A.S.,prefix
+YENIGIMAT,YGGYO,Yeni Gimat,Yeni Gimat Gayrimenkul Yatirim Ortakligi A.S.,prefix
+YESILYAPI,YYAPI,Yeşil Yapı,Yesil Yapi Endüstrisi A.S.,prefix
+YESILYATIRIM,YESIL,Yeşil Yatırım,Yesil Yatirim Holding Anonim Sirketi,prefix
+YIBITASYOZGAT,YBTAS,Yibitaş Yozgat,Yibitas Yozgat Isçi Birligi Insaat Malzemeleri Ticaret ve Sanayi A.S.,prefix
+YIGITAKU,YIGIT,Yiğit Akü,Yigit Aku Malzemeleri Nakliyat Turizm Insaat Sanayi ve Ticaret A.S.,prefix
+YONGAMOBILYA,YONGA,Yonga Mobilya,Yonga Mobilya Sanayi ve Ticaret A.S.,prefix
+YUKSELENCELIK,YKSLN,Yükselen Çelik,Yukselen Celik Anonim Sirketi,prefix
+YUNSAYUNLUSANVETICAS,YUNSA,Yünsa Yünlü San. Ve Tic. A.Ş.,Yünsa Yünlü Sanayi ve Ticaret A.S.,fuzzy_0.851
+ZEDURENERJI,ZEDUR,Zedur Enerji,Zedur Enerji Elektrik Üretim Anonim Sirketi,prefix
+ZIRAATGAYRIMENKULYATIRIMORTAKLIGI,ZRGYO,Ziraat GYO,Ziraat Gayrimenkul Yatirim Ortakligi A.S.,prefix
+ZORLUENERJI,ZOREN,Zorlu Enerji,Zorlu Enerji Elektrik Üretim A.S.,prefix
+CATESELEKTRIK,CATES,Çates Elektrik,Çates Elektrik Üretim Anonim Sirketi,prefix
+CELEBIHAVASERVISIAS,CLEBI,Çelebi Hava Servisi A.Ş.,Çelebi Hava Servisi A.S.,exact_key
+CELIKHALATVETELSANAS,CELHA,Çelik Halat Ve Tel San. A.Ş.,Çelik Halat ve Tel Sanayii A.S.,fuzzy_0.909
+CEMAS,CEMAS,Çemaş,Çemas Döküm Sanayi A.S.,prefix
+CEMTASCELIKMAKINA,CEMTS,Çemtaş Çelik Makina,Çemtas Çelik Makina Sanayi ve Ticaret A.S.,prefix
+CIMBETONAS,NUHCM,Çimbeton A.Ş.,Nuh Çimento Sanayi A.S.,fuzzy_0.643
+CIMENTASIZMIRTAS,CMENT,Çimentaş İzmir T.A.Ş.,Çimentas Izmir Çimento Fabrikasi Türk A.S.,fuzzy_0.667
+CIMSACIMENTO,CIMSA,Çimsa Çimento,Çimsa Çimento Sanayi ve Ticaret A.S.,prefix
+CUHADAROGLUMETAL,CUSAN,Çuhadaroğlu Metal,Cuhadaroglu Metal Sanayi ve Pazarlama A.S.,prefix
+OZAKGAYRIMENKULYATIRIMORTAKLIGI,OZKGY,Özak GYO,Ozak Gayrimenkul Yatirim Ortakligi A.S.,prefix
+OZATADENIZCILIK,OZATD,Özata Denizcilik,Özata Denizcilik Sanayi ve Ticaret Anonim Sirketi,prefix
+OZDERICIGAYRIMENKULYATIRIMORTAKLIGI,OZGYO,Özderici GYO,Ozderici Gayrimenkul Yatirim Ortakligi A.S.,prefix
+OZSUBALIKURETIM,OZSUB,Özsu Balık Üretim,Özsu Balik Üretim Anonim Sirketi,prefix
+OZYASARTEL,OZYSR,Özyaşar Tel,Ozyasar Tel ve Galvanizleme Sanayi Anonim Sirketi,prefix
+UNLUYATIRIM,UNLU,Ünlü Yatırım,ÜNLÜ Yatirim Holding A.S.,prefix
+IDEALISTGAYRIMENKULYATIRIMORTAKLIGI,IDGYO,İdealist GYO,Idealist Gayrimenkul Yatirim Ortakligi A.S.,prefix
+IHLASEVALETLERIIMALAT,IHEVA,İhlas Ev Aletleri İmalat,Ihlas Ev Aletleri Imalat Sanayi ve Ticaret A.S.,prefix
+IHLASGAYRIMENKUL,IHLGM,İhlas Gayrımenkul,Ihlas Gayrimenkul Proje Gelistirme ve Ticaret A.S.,prefix
+IHLASGAZETECILIKAS,IHGZT,İhlas Gazetecilik A.Ş,Ihlas Gazetecilik A.S.,exact_key
+IHLASHABERAJANSI,IHAAS,İhlas Haber Ajansı,Ihlas Haber Ajansi A.S.,prefix
+IHLASHOLDING,IHLAS,İhlas Holding,Ihlas Holding A.S.,prefix
+IHLASYAYIN,IHYAY,İhlas Yayın,Ihlas Yayin Holding A.S.,prefix
+IMASMAKINASANAYI,IMASM,İmaş Makina Sanayi,Imas Makina Sanayi A.S.,prefix
+INDEKSBILGISAYARSISTEMLERI,INDES,İndeks Bilgisayar Sistemleri,Indeks Bilgisayar Sistemleri Mühendislik Sanayi ve Ticaret Anonim Sirketi,prefix
+INFOYATIRIMAS,INFO,İnfo Yatırım A.Ş.,Info Yatirim Menkul Degerler A.S.,token_subset
+INTEMA,INTEM,İntema,Intema Insaat ve Tesisat Malzemeleri Yatirim ve Pazarlama A.S.,prefix
+ISKENDERUNDEMIRCELIK,ISDMR,İskenderun Demir Çelik,Iskenderun Demir ve Çelik A.S.,exact_canonical
+IZDEMIRENERJI,IZENR,İzdemir Enerji,IZDEMIR Enerji Elektrik Uretim A.S.,prefix
+IZMIRDEMIRCELIK,IZMDC,İzmir Demir Çelik,Izmir Demir Çelik Sanayi Anonim Sirketi,prefix
+IZMIRFIRCA,IZFAS,İzmir Fırça,Izmir Firça Sanayi ve Ticaret Anonim Sirketi,prefix
+ISFINANSALKIRALAMA,ISFIN,İş Finansal Kiralama,Is Finansal Kiralama Anonim Sirketi,prefix
+ISGAYRIMENKULYATIRIMORTAKLIGI,ISGYO,İş GYO,Is Gayrimenkul Yatirim Ortakligi A.S.,prefix
+ISGIRISIM,ISGSY,İş Girişim,Is Girisim Sermayesi Yatirim Ortakligi AS,prefix
+ISYATIRIMMENKULDEGERLER,ISMEN,İş Yatırım Menkul Değerler,Is Yatirim Menkul Degerler Anonim Sirketi,prefix
+ISBIRHOLDING,ISBIR,İşbir Holding,Isbir Holding A.S.,prefix
+ISBIRSENTETIKDOKUMASANAYI,ISSEN,İşbir Sentetik Dokuma Sanayi,Isbir Sentetik Dokuma Sanayi A.S.,prefix
+SEKERGAYRIMENKULYATIRIMORTAKLIGI,SEGYO,Şeker GYO,Seker Gayrimenkul Yatirim Ortakligi A.S.,prefix
+SEKERYATIRIM,SKYMD,Şeker Yatırım,Seker Yatirim Menkul Degerler A.S.,prefix
+SEKERBANKTAS,SKBNK,Şekerbank T.A.Ş.,Sekerbank T.A.S.,exact_key
+SOKMARKETLER,SOKM,Şok Marketler,Sok Marketler Ticaret A.S.,prefix

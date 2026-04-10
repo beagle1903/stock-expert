@@ -1,0 +1,232 @@
+from __future__ import annotations
+
+import json
+from datetime import date, timedelta
+
+from stock_expert.config import Settings
+from stock_expert.database import (
+    get_latest_weights,
+    get_market_snapshots_for_date,
+    get_prices_between,
+    get_prices_for_date,
+    get_recent_picks,
+    get_top_movers,
+    init_db,
+    insert_weights,
+    replace_picks_for_date,
+    upsert_signals,
+)
+from stock_expert.models import PickRow, SignalRow, Weights
+from stock_expert.signals import classify_risk, compute_momentum, compute_volume_spike, score_signal
+
+
+def group_bars_by_ticker(bars):
+    grouped = {}
+    for bar in sorted(bars, key=lambda item: (item.ticker, item.date)):
+        grouped.setdefault(bar.ticker, []).append(bar)
+    return grouped
+
+
+def default_weights(day: date) -> Weights:
+    return Weights(date=day, momentum_weight=0.6, volume_weight=0.4)
+
+
+def ensure_base_state(settings: Settings, as_of: date) -> None:
+    init_db(settings)
+    latest = get_latest_weights(settings)
+    if latest is None:
+        insert_weights(settings, default_weights(as_of))
+
+
+def build_signals(settings: Settings, as_of: date) -> list[SignalRow]:
+    price_rows = get_prices_between(settings, as_of - timedelta(days=4), as_of)
+    grouped_prices = group_bars_by_ticker(price_rows)
+    signals: list[SignalRow] = []
+    for ticker, history in grouped_prices.items():
+        signals.append(
+            SignalRow(
+                ticker=ticker,
+                date=as_of,
+                momentum=compute_momentum(history),
+                volume_spike=compute_volume_spike(history),
+            )
+        )
+    return signals
+
+
+def passes_risk_filter(settings: Settings, signal: SignalRow, as_of: date) -> bool:
+    prices = group_bars_by_ticker(get_prices_between(settings, as_of - timedelta(days=4), as_of)).get(signal.ticker, [])
+    if not prices:
+        return False
+    latest = prices[-1]
+    traded_value = latest.close_price * latest.volume
+    return traded_value >= settings.low_liquidity_threshold
+
+
+def generate_picks(settings: Settings, as_of: date, pick_count: int | None = None) -> list[PickRow]:
+    ensure_base_state(settings, as_of)
+    signals = build_signals(settings, as_of)
+    if not signals:
+        replace_picks_for_date(settings, [], as_of)
+        return []
+    upsert_signals(settings, signals)
+    weights = get_latest_weights(settings) or default_weights(as_of)
+    ranked: list[PickRow] = []
+    for signal in signals:
+        if not passes_risk_filter(settings, signal, as_of):
+            continue
+        ranked.append(
+            PickRow(
+                date=as_of,
+                ticker=signal.ticker,
+                score=round(score_signal(signal, weights), 4),
+                momentum=round(signal.momentum, 4),
+                volume=round(signal.volume_spike, 4),
+                risk=classify_risk(signal.momentum, signal.volume_spike),
+            )
+        )
+    ranked.sort(key=lambda row: row.score, reverse=True)
+    limited = ranked[: (pick_count or settings.default_pick_count)]
+    replace_picks_for_date(settings, limited, as_of)
+    return limited
+
+
+def daily_summary(settings: Settings, as_of: date) -> str:
+    init_db(settings)
+    bars = get_prices_for_date(settings, as_of)
+    snapshots = get_market_snapshots_for_date(settings, as_of)
+    if not bars:
+        return "\n".join(
+            [
+                f"Daily Market Summary - {as_of.isoformat()}",
+                "Source: sqlite",
+                "No market data found for this date.",
+                "Import daily CSV files first with `import-daily-csv --date ...`.",
+            ]
+        )
+    movers = sorted(bars, key=lambda row: (row.close_price - row.open_price) / row.open_price, reverse=True)
+    advancers = sum(1 for row in bars if row.close_price > row.open_price)
+    decliners = sum(1 for row in bars if row.close_price <= row.open_price)
+
+    lines = [
+        f"Daily Market Summary - {as_of.isoformat()}",
+        "Source: sqlite",
+        "Mode: imported daily CSV",
+        f"Universe: {len(bars)} stocks | Advancers: {advancers} | Decliners: {decliners}",
+        "",
+        "Top Movers:",
+    ]
+
+    for row in movers[:5]:
+        intraday_return = ((row.close_price - row.open_price) / row.open_price) * 100
+        lines.append(f"- {row.ticker}: {intraday_return:+.2f}%")
+
+    if snapshots:
+        lines.append("")
+        lines.append("Technical Leaders:")
+        leaders = [item for item in snapshots if item.technical_daily in {"Güçlü Al", "Al"}][:5]
+        if leaders:
+            for item in leaders:
+                lines.append(f"- {item.company_name}: {item.technical_daily}")
+        else:
+            lines.append("- No daily technical leaders found")
+
+    return "\n".join(lines)
+
+
+def picks_output(settings: Settings, as_of: date) -> str:
+    picks = generate_picks(settings, as_of)
+    payload = [
+        {
+            "ticker": pick.ticker,
+            "score": pick.score,
+            "signals": {
+                "momentum": pick.momentum,
+                "volume": pick.volume,
+            },
+            "risk": pick.risk,
+            "horizon": pick.horizon,
+        }
+        for pick in picks
+    ]
+    return json.dumps(payload, indent=2)
+
+
+def classify_missed_mover(settings: Settings, mover: dict[str, object]) -> tuple[str, str]:
+    intraday_return = abs(float(mover["intraday_return"]))
+    traded_value = float(mover["close_price"]) * float(mover["volume"])
+    if traded_value < settings.low_liquidity_threshold:
+        return "non_actionable", "low_liquidity"
+    if intraday_return > settings.max_abs_momentum:
+        return "non_actionable", "extreme_volatility"
+    return "actionable", "not_selected_by_score"
+
+
+def review_output(settings: Settings, as_of: date) -> str:
+    ensure_base_state(settings, as_of)
+    for offset in range(settings.review_window_days):
+        generate_picks(settings, as_of - timedelta(days=offset))
+
+    recent = get_recent_picks(settings, as_of, settings.review_window_days)
+    returns = [
+        (row["close_price"] - row["open_price"]) / row["open_price"]
+        for row in recent
+        if row["open_price"]
+    ]
+    avg_return = round(sum(returns) / len(returns), 4) if returns else 0.0
+    win_rate = round(sum(1 for value in returns if value > 0) / len(returns), 4) if returns else 0.0
+
+    picked_pairs = {(row["date"], row["ticker"]) for row in recent}
+    missed_top_movers = []
+    missed_actionable = []
+    missed_non_actionable = []
+    for mover in get_top_movers(settings, as_of, settings.review_window_days, limit=12):
+        pair = (mover["date"], mover["ticker"])
+        if pair in picked_pairs:
+            continue
+        entry = {
+            "ticker": mover["ticker"],
+            "date": mover["date"],
+            "intraday_return": round(mover["day_return"], 4),
+            "close_price": round(mover["close_price"], 4),
+            "volume": mover["volume"],
+        }
+        bucket, reason = classify_missed_mover(settings, entry)
+        review_entry = {
+            "ticker": entry["ticker"],
+            "date": entry["date"],
+            "intraday_return": entry["intraday_return"],
+            "reason": reason,
+        }
+        missed_top_movers.append(review_entry)
+        if bucket == "actionable":
+            missed_actionable.append(review_entry)
+        else:
+            missed_non_actionable.append(review_entry)
+        if len(missed_top_movers) >= 12:
+            break
+
+    current = get_latest_weights(settings) or default_weights(as_of)
+    next_momentum_weight = round(min(current.momentum_weight + 0.03, 0.9), 2)
+    next_volume_weight = round(max(1.0 - next_momentum_weight, 0.1), 2)
+    next_weights = Weights(
+        date=as_of,
+        momentum_weight=next_momentum_weight,
+        volume_weight=next_volume_weight,
+    )
+    insert_weights(settings, next_weights)
+
+    payload = {
+        "performance": {
+            "avg_return": avg_return,
+            "win_rate": win_rate,
+        },
+        "missed_top_movers": missed_top_movers,
+        "missed_actionable": missed_actionable,
+        "missed_non_actionable": missed_non_actionable,
+        "adjustments": {
+            "momentum_weight": next_weights.momentum_weight,
+            "volume_weight": next_weights.volume_weight,
+        },
+    }
+    return json.dumps(payload, indent=2)

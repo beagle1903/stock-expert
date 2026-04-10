@@ -1,0 +1,1 @@
+"""Stock Expert CLI package."""
