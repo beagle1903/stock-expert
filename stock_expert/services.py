@@ -17,7 +17,16 @@ from stock_expert.database import (
     upsert_signals,
 )
 from stock_expert.models import PickRow, SignalRow, Weights
-from stock_expert.signals import classify_risk, compute_momentum, compute_volume_spike, score_signal
+from stock_expert.signals import (
+    classify_risk,
+    compute_liquidity,
+    compute_ma_trend,
+    compute_medium_momentum,
+    compute_momentum,
+    compute_short_momentum,
+    compute_volume_spike,
+    score_signal,
+)
 
 
 def group_bars_by_ticker(bars):
@@ -39,23 +48,32 @@ def ensure_base_state(settings: Settings, as_of: date) -> None:
 
 
 def build_signals(settings: Settings, as_of: date) -> list[SignalRow]:
-    price_rows = get_prices_between(settings, as_of - timedelta(days=4), as_of)
+    price_rows = get_prices_between(settings, as_of - timedelta(days=14), as_of)
     grouped_prices = group_bars_by_ticker(price_rows)
     signals: list[SignalRow] = []
     for ticker, history in grouped_prices.items():
+        short_momentum = compute_short_momentum(history)
+        medium_momentum = compute_medium_momentum(history)
+        ma_trend = compute_ma_trend(history)
+        liquidity = compute_liquidity(history, settings.low_liquidity_threshold)
+        volume_spike = compute_volume_spike(history)
         signals.append(
             SignalRow(
                 ticker=ticker,
                 date=as_of,
                 momentum=compute_momentum(history),
-                volume_spike=compute_volume_spike(history),
+                volume_spike=round((0.7 * volume_spike) + (0.3 * liquidity), 4),
+                short_momentum=short_momentum,
+                medium_momentum=medium_momentum,
+                ma_trend=ma_trend,
+                liquidity=liquidity,
             )
         )
     return signals
 
 
 def passes_risk_filter(settings: Settings, signal: SignalRow, as_of: date) -> bool:
-    prices = group_bars_by_ticker(get_prices_between(settings, as_of - timedelta(days=4), as_of)).get(signal.ticker, [])
+    prices = group_bars_by_ticker(get_prices_between(settings, as_of - timedelta(days=14), as_of)).get(signal.ticker, [])
     if not prices:
         return False
     latest = prices[-1]
@@ -84,6 +102,8 @@ def generate_picks(settings: Settings, as_of: date, pick_count: int | None = Non
                 score=round(score_signal(signal, weights), 4),
                 momentum=round(signal.momentum, 4),
                 volume=round(signal.volume_spike, 4),
+                ma_trend=round(signal.ma_trend, 4),
+                liquidity=round(signal.liquidity, 4),
                 risk=classify_risk(signal.momentum, signal.volume_spike),
             )
         )
@@ -158,6 +178,8 @@ def picks_output(settings: Settings, as_of: date) -> str:
             "signals": {
                 "momentum": pick.momentum,
                 "volume": pick.volume,
+                "ma_trend": pick.ma_trend,
+                "liquidity": pick.liquidity,
             },
             "risk": pick.risk,
             "horizon": pick.horizon,

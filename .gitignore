@@ -8,5 +8,6 @@ __pycache__/
 venv/
 
 data/stock_expert.db
+data/stock_expert_*.db
 data/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/
 data/ticker_map_unmatched.csv

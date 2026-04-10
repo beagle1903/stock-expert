@@ -19,6 +19,10 @@ class SignalRow:
     date: date
     momentum: float
     volume_spike: float
+    short_momentum: float = 0.0
+    medium_momentum: float = 0.0
+    ma_trend: float = 0.0
+    liquidity: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -29,6 +33,8 @@ class PickRow:
     momentum: float
     volume: float
     risk: str
+    ma_trend: float = 0.0
+    liquidity: float = 0.0
     horizon: str = "intraday"
 
 

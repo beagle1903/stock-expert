@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +18,33 @@ class Settings:
     max_volume_spike: float = 4.0
 
 
+def _sanitize_branch_name(branch_name: str) -> str:
+    cleaned = "".join(ch if ch.isalnum() else "_" for ch in branch_name.strip().lower())
+    return cleaned.strip("_")
+
+
+def _default_db_path(base_dir: Path, data_dir: Path) -> Path:
+    override = os.environ.get("STOCK_EXPERT_DB_PATH", "").strip()
+    if override:
+        return Path(override).expanduser()
+    try:
+        branch_name = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=base_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        branch_name = ""
+    if not branch_name or branch_name == "main":
+        return data_dir / "stock_expert.db"
+    sanitized = _sanitize_branch_name(branch_name)
+    if not sanitized:
+        return data_dir / "stock_expert.db"
+    return data_dir / f"stock_expert_{sanitized}.db"
+
+
 def get_settings() -> Settings:
     base_dir = Path(__file__).resolve().parent.parent
     data_dir = base_dir / "data"
@@ -23,5 +52,5 @@ def get_settings() -> Settings:
     return Settings(
         base_dir=base_dir,
         data_dir=data_dir,
-        db_path=data_dir / "stock_expert.db",
+        db_path=_default_db_path(base_dir, data_dir),
     )

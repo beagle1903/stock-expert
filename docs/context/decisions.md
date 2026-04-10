@@ -12,6 +12,7 @@
 - Daily CSV imports are the main runtime market-data source
 - `data/ticker_map.csv` is used to persist company-name to ticker mappings across imports
 - Yahoo import remains available as a secondary path
+- `main` uses `data/stock_expert.db`; non-`main` branches default to branch-specific SQLite files unless `STOCK_EXPERT_DB_PATH` is set
 - `review` recalculates the rolling 7-day window
 - `review` currently updates weights on every run for the same date
 - Missed movers are grouped into `missed_top_movers`, `missed_actionable`, and `missed_non_actionable`

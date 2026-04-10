@@ -43,6 +43,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | Date | Decision | Why It Matters |
 | --- | --- | --- |
 | 2026-04-09 | Added `memory.md` as a durable repo memory file for human and agent collaboration. | Preserves hard-won context across sessions without relying on chat history. |
+| 2026-04-10 | Non-`main` git branches now default to branch-specific SQLite files like `data/stock_expert_codex_add_indicators.db`; `main` keeps `data/stock_expert.db`. | Prevents branch experiments from contaminating the primary database and makes branch-to-branch comparisons safer. |
 
 ## Workflows
 
@@ -72,6 +73,7 @@ Document repeatable ways of doing things in this repo.
 - This workspace root is `C:\Users\burha\Documents\dev\stock expert`.
 - The old path `C:\Users\burha\Documents\stock expert` is obsolete and should not be used for ongoing work.
 - Some links in root docs may still point at the old absolute path and should be treated carefully if referenced directly.
+- `STOCK_EXPERT_DB_PATH` overrides the default SQLite path when a task needs an explicit database target.
 
 ## Data Sources And External Dependencies
 
