@@ -71,6 +71,8 @@ def generate_picks(settings: Settings, as_of: date, pick_count: int | None = Non
         return []
     upsert_signals(settings, signals)
     weights = get_latest_weights(settings) or default_weights(as_of)
+    latest_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, as_of)}
+    snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     ranked: list[PickRow] = []
     for signal in signals:
         if not passes_risk_filter(settings, signal, as_of):
@@ -85,7 +87,20 @@ def generate_picks(settings: Settings, as_of: date, pick_count: int | None = Non
                 risk=classify_risk(signal.momentum, signal.volume_spike),
             )
         )
-    ranked.sort(key=lambda row: row.score, reverse=True)
+    ranked.sort(
+        key=lambda row: (
+            row.score,
+            snapshots.get(row.ticker).daily_change_pct if row.ticker in snapshots else float("-inf"),
+            (
+                latest_prices[row.ticker].close_price * latest_prices[row.ticker].volume
+                if row.ticker in latest_prices
+                else float("-inf")
+            ),
+            row.momentum,
+            row.volume,
+        ),
+        reverse=True,
+    )
     limited = ranked[: (pick_count or settings.default_pick_count)]
     replace_picks_for_date(settings, limited, as_of)
     return limited
