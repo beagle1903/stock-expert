@@ -322,6 +322,28 @@ def get_prices_between(settings: Settings, start_date: date, end_date: date) -> 
     ]
 
 
+def get_recent_price_history(settings: Settings, as_of: date, bars: int) -> list[PriceBar]:
+    with connect(settings) as conn:
+        date_rows = list(
+            conn.execute(
+                """
+                SELECT DISTINCT date
+                FROM stocks
+                WHERE date <= ?
+                ORDER BY date DESC
+                LIMIT ?
+                """,
+                (as_of.isoformat(), bars),
+            )
+        )
+    if not date_rows:
+        return []
+    if date_rows[0]["date"] != as_of.isoformat():
+        return []
+    start_date = date.fromisoformat(date_rows[-1]["date"])
+    return get_prices_between(settings, start_date, as_of)
+
+
 def get_market_snapshots_for_date(settings: Settings, target_date: date) -> list[MarketSnapshot]:
     with connect(settings) as conn:
         rows = list(
