@@ -55,6 +55,7 @@ ASELSAN,ASELS,Aselsan,ASELSAN Elektronik Sanayi ve Ticaret Anonim Sirketi,prefix
 ASTORENERJI,ASTOR,Astor Enerji,Astor Enerji A.S.,prefix
 ATAGAYRIMENKULYATIRIMORTAKLIGI,ATAGY,Ata GYO,Ata Gayrimenkul Yatirim Ortakligi A.S.,prefix
 ATAKEYPATATES,ATAKP,Atakey Patates,Atakey Patates Gida Sanayi ve Ticaret A.S.,prefix
+ATATURIZMISLETMECILIKTASIMACILIK,ATATR,Ata Turizm Isletmecilik Tasimacilik,Ata Turizm Isletmecilik Tasimacilik,manual
 ATAKULEGAYRIMENKULYATIRIMORTAKLIGI,AGYO,Atakule GYO,Atakule Gayrimenkul Yatirim Ortakligi A.S.,prefix
 ATLANTISHOLDING,ATSYH,Atlantis Holding,Atlantis Yatirim Holding A.S.,token_subset
 ATPTICARIBILGISAYARAGIVEELEKTRIK,HTTBT,Atp Ticari Bilgisayar Ağı ve Elektrik,Hitit Bilgisayar Hizmetleri A.S.,fuzzy_0.656
@@ -326,6 +327,7 @@ MERCANKIMYASANAYI,MERCN,Mercan Kimya Sanayi,Mercan Kimya Sanayi Ve Ticaret Anoni
 MERITTURIZMYATIRIMVEISLETME,MERIT,Merit Turizm Yatırım ve İşletme,Merit Turizm Yatirim ve Isletme Anonim Sirketi,prefix
 MERKOGIDASANVETICAS,MERKO,Merko Gıda San. Ve Tic. A.Ş.,Merko Gida Sanayi ve Ticaret A.S.,fuzzy_0.844
 METROTICVEMALIYATAS,METRO,Metro Tic. Ve Mali Yat. A.Ş.,Metro Ticari ve Mali Yatirimlar Holding A.S.,fuzzy_0.691
+METROPALKURUMSALHIZMETLER,MCARD,Metropal Kurumsal Hizmetler,Metropal Kurumsal Hizmetler,manual
 METROYATIRIMORTAKLIGI,MTRYO,Metro Yatırım Ortaklığı,Metro Yatirim Ortakligi A.S.,prefix
 MHRGAYRIMENKUL,MHRGY,Mhr Gayrimenkul,MHR Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
 MIATEKNOLOJI,MIATK,Mia Teknoloji,MIA Teknoloji Anonim Sirketi,prefix
