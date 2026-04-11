@@ -7,8 +7,8 @@ from stock_expert.config import Settings
 from stock_expert.database import (
     get_latest_weights,
     get_market_snapshots_for_date,
-    get_prices_between,
     get_prices_for_date,
+    get_recent_price_history,
     get_recent_picks,
     get_top_movers,
     init_db,
@@ -48,7 +48,7 @@ def ensure_base_state(settings: Settings, as_of: date) -> None:
 
 
 def build_signals(settings: Settings, as_of: date) -> list[SignalRow]:
-    price_rows = get_prices_between(settings, as_of - timedelta(days=14), as_of)
+    price_rows = get_recent_price_history(settings, as_of, bars=10)
     grouped_prices = group_bars_by_ticker(price_rows)
     signals: list[SignalRow] = []
     for ticker, history in grouped_prices.items():
@@ -73,7 +73,7 @@ def build_signals(settings: Settings, as_of: date) -> list[SignalRow]:
 
 
 def passes_risk_filter(settings: Settings, signal: SignalRow, as_of: date) -> bool:
-    prices = group_bars_by_ticker(get_prices_between(settings, as_of - timedelta(days=14), as_of)).get(signal.ticker, [])
+    prices = group_bars_by_ticker(get_recent_price_history(settings, as_of, bars=1)).get(signal.ticker, [])
     if not prices:
         return False
     latest = prices[-1]
