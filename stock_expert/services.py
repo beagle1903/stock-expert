@@ -195,7 +195,7 @@ def review_output(settings: Settings, as_of: date) -> str:
     missed_top_movers = []
     missed_actionable = []
     missed_non_actionable = []
-    for mover in get_top_movers(settings, review_date, 1, limit=12):
+    for mover in get_top_movers(settings, review_date, 1, limit=50):
         pair = (mover["date"], mover["ticker"])
         if pair in picked_pairs:
             continue
