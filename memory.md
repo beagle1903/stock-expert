@@ -89,7 +89,7 @@ When the user says "do the routine", check for new data, import it, then run `da
 - `import-daily-folder` requires the `--folder` flag; a positional folder path is rejected.
 - Dated data folders can be ahead of the current calendar date, so verify the folder name and import snapshot date explicitly.
 - A local `.env` can pin `STOCK_EXPERT_DB_PATH` and takes effect before branch-based default DB selection.
-- `review --date YYYY-MM-DD` reviews missed movers for the previous calendar day only, not a rolling multi-day window.
+- `review --date YYYY-MM-DD` reviews missed movers for the previous calendar day only for now, not a rolling multi-day window; trading-day lookup can be revisited later.
 
 ## Data Sources And External Dependencies
 

@@ -13,7 +13,7 @@
 - `data/ticker_map.csv` is used to persist company-name to ticker mappings across imports
 - Yahoo import remains available as a secondary path
 - `main` uses `data/stock_expert.db`; non-`main` branches default to branch-specific SQLite files unless `STOCK_EXPERT_DB_PATH` is set
-- `review --date YYYY-MM-DD` reports missed movers for the previous calendar day only
+- `review --date YYYY-MM-DD` reports missed movers for the previous calendar day only for now; trading-day lookup can be revisited later
 - `review` currently updates weights on every run for the same date
 - Missed movers are grouped into `missed_top_movers`, `missed_actionable`, and `missed_non_actionable`
 - KAP is not part of the active runtime workflow
