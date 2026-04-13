@@ -6,6 +6,7 @@ __pycache__/
 .mypy_cache/
 .venv/
 venv/
+.env
 
 data/stock_expert.db
 data/stock_expert_*.db

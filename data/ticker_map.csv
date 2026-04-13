@@ -28,6 +28,7 @@ AKINTEKSTILAS,ATEKS,Akın Tekstil A.Ş.,Akin Tekstil Anonim Sirketi,exact_canoni
 ALARKOCARRIERSANVETICAS,ALCAR,Alarko Carrier San. Ve Tic. A.Ş.,Alarko Carrier Sanayi ve Ticaret A.S.,fuzzy_0.868
 ALARKOGAYRIMENKULYATIRIMORTAKLIGI,ALGYO,Alarko GYO,Alarko Gayrimenkul Yatirim Ortakligi A.S.,prefix
 ALARKOHOLDING,ALARK,Alarko Holding,Alarko Holding A.S.,prefix
+ALBARAKASTARTUPGIRISIMYF,APYVC,Albaraka Start-Up Girişim YF,Albaraka Start-Up Girişim YF,manual_alias
 ALBARAKAPORTFOYGAYRIMENKULYATIRIMORTAKLIGI,ALGYO,Albaraka Portföy GYO,Alarko Gayrimenkul Yatirim Ortakligi A.S.,fuzzy_0.878
 ALBARAKATURKKATILIMBANKASIAS,ALBRK,Albaraka Türk Katılım Bankası A.Ş.,Albaraka Türk Katilim Bankasi A.S.,exact_key
 ALCATELLUCENT,ALCTL,Alcatel Lucent,Alcatel Lucent Teletas Telekomünikasyon A.S.,prefix

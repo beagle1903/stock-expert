@@ -200,11 +200,11 @@ def classify_missed_mover(settings: Settings, mover: dict[str, object]) -> tuple
 
 
 def review_output(settings: Settings, as_of: date) -> str:
+    review_date = as_of - timedelta(days=1)
     ensure_base_state(settings, as_of)
-    for offset in range(settings.review_window_days):
-        generate_picks(settings, as_of - timedelta(days=offset))
+    generate_picks(settings, review_date)
 
-    recent = get_recent_picks(settings, as_of, settings.review_window_days)
+    recent = get_recent_picks(settings, review_date, 1)
     returns = [
         (row["close_price"] - row["open_price"]) / row["open_price"]
         for row in recent
@@ -217,7 +217,7 @@ def review_output(settings: Settings, as_of: date) -> str:
     missed_top_movers = []
     missed_actionable = []
     missed_non_actionable = []
-    for mover in get_top_movers(settings, as_of, settings.review_window_days, limit=12):
+    for mover in get_top_movers(settings, review_date, 1, limit=12):
         pair = (mover["date"], mover["ticker"])
         if pair in picked_pairs:
             continue
@@ -254,6 +254,7 @@ def review_output(settings: Settings, as_of: date) -> str:
     insert_weights(settings, next_weights)
 
     payload = {
+        "review_date": review_date.isoformat(),
         "performance": {
             "avg_return": avg_return,
             "win_rate": win_rate,

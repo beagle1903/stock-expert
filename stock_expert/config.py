@@ -23,10 +23,28 @@ def _sanitize_branch_name(branch_name: str) -> str:
     return cleaned.strip("_")
 
 
+def _load_dotenv(base_dir: Path) -> None:
+    env_path = base_dir / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
 def _default_db_path(base_dir: Path, data_dir: Path) -> Path:
     override = os.environ.get("STOCK_EXPERT_DB_PATH", "").strip()
     if override:
-        return Path(override).expanduser()
+        override_path = Path(override).expanduser()
+        if not override_path.is_absolute():
+            override_path = base_dir / override_path
+        return override_path
     try:
         branch_name = subprocess.run(
             ["git", "branch", "--show-current"],
@@ -47,6 +65,7 @@ def _default_db_path(base_dir: Path, data_dir: Path) -> Path:
 
 def get_settings() -> Settings:
     base_dir = Path(__file__).resolve().parent.parent
+    _load_dotenv(base_dir)
     data_dir = base_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     return Settings(
