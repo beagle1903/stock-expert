@@ -51,10 +51,18 @@ Document repeatable ways of doing things in this repo.
 
 ### Common Commands
 
-- `python -m stock_expert import-daily-csv --date 2026-04-05`
-- `python -m stock_expert daily`
-- `python -m stock_expert picks`
-- `python -m stock_expert review`
+- `D:\miniconda3\python.exe -m stock_expert import-daily-csv --date 2026-04-05`
+- `D:\miniconda3\python.exe -m stock_expert import-daily-folder --folder data\YYYYMMDD`
+- `D:\miniconda3\python.exe -m stock_expert daily --date YYYY-MM-DD`
+- `D:\miniconda3\python.exe -m stock_expert picks --date YYYY-MM-DD`
+- `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD`
+
+### Daily CSV Routine
+
+1. Check the newest dated folder under `data\`.
+2. Confirm it contains `fiyat.csv`, `performans.csv`, `teknik.csv`, and `temel.csv`.
+3. Import with `D:\miniconda3\python.exe -m stock_expert import-daily-folder --folder data\YYYYMMDD`.
+4. Run `daily`, `picks`, and `review` with the imported snapshot date.
 
 ### Data Inputs
 
@@ -74,6 +82,9 @@ Document repeatable ways of doing things in this repo.
 - The old path `C:\Users\burha\Documents\stock expert` is obsolete and should not be used for ongoing work.
 - Some links in root docs may still point at the old absolute path and should be treated carefully if referenced directly.
 - `STOCK_EXPERT_DB_PATH` overrides the default SQLite path when a task needs an explicit database target.
+- `python` may not be on PATH in this workspace shell; use `D:\miniconda3\python.exe` for CLI runs.
+- `import-daily-folder` requires the `--folder` flag; a positional folder path is rejected.
+- Dated data folders can be ahead of the current calendar date, so verify the folder name and import snapshot date explicitly.
 
 ## Data Sources And External Dependencies
 
