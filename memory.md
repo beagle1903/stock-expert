@@ -58,10 +58,13 @@ Document repeatable ways of doing things in this repo.
 
 ### Daily CSV Routine
 
+When the user says "do the routine", check for new data, import it, then run `daily`, `picks`, and `review`.
+
 1. Check the newest dated folder under `data\`.
 2. Confirm it contains `fiyat.csv`, `performans.csv`, `teknik.csv`, and `temel.csv`.
 3. Import with `D:\miniconda3\python.exe -m stock_expert import-daily-folder --folder data\YYYYMMDD`.
 4. Run `daily`, `picks`, and `review` with the imported snapshot date.
+5. Run CLI commands from the repo root unless the package is installed in the active environment.
 
 ### Data Inputs
 
@@ -84,6 +87,8 @@ Document repeatable ways of doing things in this repo.
 - `python` may not be on PATH in this workspace shell; use `D:\miniconda3\python.exe` for CLI runs.
 - `import-daily-folder` requires the `--folder` flag; a positional folder path is rejected.
 - Dated data folders can be ahead of the current calendar date, so verify the folder name and import snapshot date explicitly.
+- A local `.env` can pin `STOCK_EXPERT_DB_PATH` and takes effect before branch-based default DB selection.
+- `review --date YYYY-MM-DD` reviews missed movers for the previous calendar day only, not a rolling multi-day window.
 
 ## Data Sources And External Dependencies
 
