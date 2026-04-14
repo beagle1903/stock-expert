@@ -81,6 +81,17 @@ def passes_risk_filter(settings: Settings, signal: SignalRow, as_of: date) -> bo
     return traded_value >= settings.low_liquidity_threshold
 
 
+def apply_same_day_chase_penalty(settings: Settings, raw_score: float, daily_change_pct: float | None) -> float:
+    if daily_change_pct is None or daily_change_pct <= settings.same_day_chase_threshold_pct:
+        return raw_score
+    excess_pct = daily_change_pct - settings.same_day_chase_threshold_pct
+    penalty = min(
+        excess_pct * settings.same_day_chase_penalty_per_pct,
+        settings.max_same_day_chase_penalty,
+    )
+    return max(raw_score - penalty, 0.0)
+
+
 def generate_picks(settings: Settings, as_of: date, pick_count: int | None = None) -> list[PickRow]:
     ensure_base_state(settings, as_of)
     signals = build_signals(settings, as_of)
@@ -95,11 +106,14 @@ def generate_picks(settings: Settings, as_of: date, pick_count: int | None = Non
     for signal in signals:
         if not passes_risk_filter(settings, signal, as_of):
             continue
+        snapshot = snapshots.get(signal.ticker)
+        daily_change_pct = snapshot.daily_change_pct if snapshot else None
+        score = apply_same_day_chase_penalty(settings, score_signal(signal, weights), daily_change_pct)
         ranked.append(
             PickRow(
                 date=as_of,
                 ticker=signal.ticker,
-                score=round(score_signal(signal, weights), 4),
+                score=round(score, 4),
                 momentum=round(signal.momentum, 4),
                 volume=round(signal.volume_spike, 4),
                 ma_trend=round(signal.ma_trend, 4),

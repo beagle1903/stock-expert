@@ -16,6 +16,9 @@ class Settings:
     low_liquidity_threshold: float = 1_000_000
     max_abs_momentum: float = 0.15
     max_volume_spike: float = 4.0
+    same_day_chase_threshold_pct: float = 8.0
+    same_day_chase_penalty_per_pct: float = 0.03
+    max_same_day_chase_penalty: float = 0.12
 
 
 def _sanitize_branch_name(branch_name: str) -> str:
