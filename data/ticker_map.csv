@@ -12,6 +12,7 @@ AGESAHAYATVEEMEKLILIK,AGESA,Agesa Hayat ve Emeklilik,AgeSA Hayat ve Emeklilik An
 AGROTECHTEKNOLOJI,AGROT,Agrotech Teknoloji,Agrotech Yuksek Teknoloji Ve Yatirim Anonim Sirketi,token_subset
 AHESGAYRIMENKULYATIRIMORTAKLIGI,AHSGY,Ahes GYO,Ahes Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
 AHLATCIDOGALGAZDAGITIMENERJI,AHGAZ,Ahlatcı Doğal Gaz Dağıtım Enerji,Ahlatci Dogal Gaz Dagitim Enerji ve Yatirim A.S.,prefix
+ARFBIOYENILENEBILIR,ARFYE,Arf Bio Yenilenebilir,Arf Bio Yenilenebilir,manual
 AKBANKTAS,AKBNK,Akbank T.A.Ş,Akbank T.A.S.,exact_key
 AKDENIZYATIRIM,AKYHO,Akdeniz Yatırım,Akdeniz Yatirim Holding A.S.,prefix
 AKENERJI,AKENR,Akenerji,Akenerji Elektrik Üretim A.S.,prefix
@@ -149,6 +150,7 @@ DOGANSIRKETLERGRUBU,DOHOL,Doğan Şirketler Grubu,Dogan Sirketler Grubu Holding 
 DOGANLARMOBILYAGRUBU,DGNMO,Doğanlar Mobilya Grubu,Doganlar Mobilya Grubu Imalat Sanayi ve Ticaret Anonim Sirketi,prefix
 DOGUARASENERJI,ARASE,Doğu Aras Enerji,Dogu Aras Enerji Yatirimlari AS,prefix
 DOGUSANBORU,DOGUB,Doğusan Boru,Dogusan Boru Sanayii ve Ticaret A.S.,prefix
+DOGUSGYO,DGGYO,Doğuş GYO,Doğuş GYO,manual
 DOGUSGAYRIMENKULYATIRIMORTAKLIGI,DGGYO,Doğuş GYO,Dogus Gayrimenkul Yatirim Ortakligi A.S.,prefix
 DOGUSOTOMOTIVSERVIS,DOAS,Doğuş Otomotiv Servis,Dogus Otomotiv Servis ve Ticaret A.S.,prefix
 DUNYAHOLDINGAS,DUNYH,Dunya Holding AS,Dünya Holding Anonim Sirketi,exact_canonical
@@ -540,6 +542,7 @@ ISKENDERUNDEMIRCELIK,ISDMR,İskenderun Demir Çelik,Iskenderun Demir ve Çelik A
 IZDEMIRENERJI,IZENR,İzdemir Enerji,IZDEMIR Enerji Elektrik Uretim A.S.,prefix
 IZMIRDEMIRCELIK,IZMDC,İzmir Demir Çelik,Izmir Demir Çelik Sanayi Anonim Sirketi,prefix
 IZMIRFIRCA,IZFAS,İzmir Fırça,Izmir Firça Sanayi ve Ticaret Anonim Sirketi,prefix
+VISNEMADENCILIKURETIM,VSNMD,Visne Madencilik Uretim,Visne Madencilik Uretim,manual
 ISFINANSALKIRALAMA,ISFIN,İş Finansal Kiralama,Is Finansal Kiralama Anonim Sirketi,prefix
 ISGAYRIMENKULYATIRIMORTAKLIGI,ISGYO,İş GYO,Is Gayrimenkul Yatirim Ortakligi A.S.,prefix
 ISGIRISIM,ISGSY,İş Girişim,Is Girisim Sermayesi Yatirim Ortakligi AS,prefix
