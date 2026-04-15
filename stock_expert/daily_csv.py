@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from stock_expert.config import Settings
@@ -166,9 +166,24 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
     )
 
 
+def _previous_weekday(day: date) -> date:
+    previous = day - timedelta(days=1)
+    while previous.weekday() >= 5:
+        previous -= timedelta(days=1)
+    return previous
+
+
 def import_daily_csv_folder_command(settings: Settings, folder: str) -> str:
     folder_path = settings.base_dir / folder
-    snapshot_date = folder_path.name
-    if len(snapshot_date) == 8 and snapshot_date.isdigit():
-        snapshot_date = f"{snapshot_date[:4]}-{snapshot_date[4:6]}-{snapshot_date[6:]}"
-    return import_daily_csv_command(settings=settings, snapshot_date=snapshot_date, data_dir=folder)
+    folder_date = folder_path.name
+    target_trade_date = None
+    if len(folder_date) == 8 and folder_date.isdigit():
+        label_date = date(int(folder_date[:4]), int(folder_date[4:6]), int(folder_date[6:]))
+        target_trade_date = label_date
+        snapshot_date = _previous_weekday(label_date).isoformat()
+    else:
+        snapshot_date = folder_date
+    result = json.loads(import_daily_csv_command(settings=settings, snapshot_date=snapshot_date, data_dir=folder))
+    if target_trade_date is not None:
+        result["target_trade_date"] = target_trade_date.isoformat()
+    return json.dumps(result, indent=2)

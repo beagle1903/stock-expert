@@ -69,6 +69,31 @@ CREATE TABLE IF NOT EXISTS market_snapshots (
     beta REAL NOT NULL,
     PRIMARY KEY (date, ticker)
 );
+
+CREATE TABLE IF NOT EXISTS review_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    as_of_date TEXT NOT NULL,
+    review_date TEXT NOT NULL,
+    avg_return REAL NOT NULL,
+    win_rate REAL NOT NULL,
+    pick_count INTEGER NOT NULL,
+    wins INTEGER NOT NULL,
+    momentum_weight REAL NOT NULL,
+    volume_weight REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS review_pick_results (
+    review_run_id INTEGER NOT NULL,
+    ticker TEXT NOT NULL,
+    score REAL NOT NULL,
+    open_price REAL NOT NULL,
+    close_price REAL NOT NULL,
+    return_pct REAL NOT NULL,
+    won INTEGER NOT NULL,
+    PRIMARY KEY (review_run_id, ticker),
+    FOREIGN KEY (review_run_id) REFERENCES review_runs(id)
+);
 """
 
 
@@ -233,6 +258,30 @@ def get_latest_weights(settings: Settings) -> Weights | None:
     )
 
 
+def get_pick_results(settings: Settings, signal_date: date, target_date: date) -> list[sqlite3.Row]:
+    with connect(settings) as conn:
+        return list(
+            conn.execute(
+                """
+                SELECT
+                    p.date AS signal_date,
+                    ? AS target_date,
+                    p.ticker,
+                    p.score,
+                    s.open_price,
+                    s.close_price
+                FROM picks p
+                JOIN stocks s
+                  ON s.ticker = p.ticker
+                 AND s.date = ?
+                WHERE p.date = ?
+                ORDER BY p.score DESC
+                """,
+                (target_date.isoformat(), target_date.isoformat(), signal_date.isoformat()),
+            )
+        )
+
+
 def get_recent_picks(settings: Settings, as_of: date, days: int) -> list[sqlite3.Row]:
     start_date = (as_of - timedelta(days=days - 1)).isoformat()
     end_date = as_of.isoformat()
@@ -251,6 +300,61 @@ def get_recent_picks(settings: Settings, as_of: date, days: int) -> list[sqlite3
                 (start_date, end_date),
             )
         )
+
+
+def insert_review_run(
+    settings: Settings,
+    as_of: date,
+    review_date: date,
+    avg_return: float,
+    win_rate: float,
+    picks: Iterable[sqlite3.Row],
+    weights: Weights,
+) -> int:
+    pick_rows = list(picks)
+    wins = sum(1 for row in pick_rows if row["open_price"] and row["close_price"] > row["open_price"])
+    with connect(settings) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO review_runs (
+                as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                momentum_weight, volume_weight
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                as_of.isoformat(),
+                review_date.isoformat(),
+                avg_return,
+                win_rate,
+                len(pick_rows),
+                wins,
+                weights.momentum_weight,
+                weights.volume_weight,
+            ),
+        )
+        review_run_id = int(cursor.lastrowid)
+        conn.executemany(
+            """
+            INSERT INTO review_pick_results (
+                review_run_id, ticker, score, open_price, close_price, return_pct, won
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    review_run_id,
+                    row["ticker"],
+                    row["score"],
+                    row["open_price"],
+                    row["close_price"],
+                    (row["close_price"] - row["open_price"]) / row["open_price"] if row["open_price"] else 0.0,
+                    1 if row["open_price"] and row["close_price"] > row["open_price"] else 0,
+                )
+                for row in pick_rows
+            ],
+        )
+        return review_run_id
 
 
 def get_top_movers(settings: Settings, as_of: date, days: int, limit: int = 10) -> list[sqlite3.Row]:

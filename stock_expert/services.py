@@ -7,11 +7,12 @@ from stock_expert.config import Settings
 from stock_expert.database import (
     get_latest_weights,
     get_market_snapshots_for_date,
+    get_pick_results,
     get_prices_for_date,
     get_recent_price_history,
-    get_recent_picks,
     get_top_movers,
     init_db,
+    insert_review_run,
     insert_weights,
     replace_picks_for_date,
     upsert_signals,
@@ -38,6 +39,20 @@ def group_bars_by_ticker(bars):
 
 def default_weights(day: date) -> Weights:
     return Weights(date=day, momentum_weight=0.6, volume_weight=0.4)
+
+
+def previous_weekday(day: date) -> date:
+    previous = day - timedelta(days=1)
+    while previous.weekday() >= 5:
+        previous -= timedelta(days=1)
+    return previous
+
+
+def next_weekday(day: date) -> date:
+    next_day = day + timedelta(days=1)
+    while next_day.weekday() >= 5:
+        next_day += timedelta(days=1)
+    return next_day
 
 
 def ensure_base_state(settings: Settings, as_of: date) -> None:
@@ -185,21 +200,25 @@ def daily_summary(settings: Settings, as_of: date) -> str:
 
 def picks_output(settings: Settings, as_of: date) -> str:
     picks = generate_picks(settings, as_of)
-    payload = [
-        {
-            "ticker": pick.ticker,
-            "score": pick.score,
-            "signals": {
-                "momentum": pick.momentum,
-                "volume": pick.volume,
-                "ma_trend": pick.ma_trend,
-                "liquidity": pick.liquidity,
-            },
-            "risk": pick.risk,
-            "horizon": pick.horizon,
-        }
-        for pick in picks
-    ]
+    payload = {
+        "signal_date": as_of.isoformat(),
+        "target_trade_date": next_weekday(as_of).isoformat(),
+        "picks": [
+            {
+                "ticker": pick.ticker,
+                "score": pick.score,
+                "signals": {
+                    "momentum": pick.momentum,
+                    "volume": pick.volume,
+                    "ma_trend": pick.ma_trend,
+                    "liquidity": pick.liquidity,
+                },
+                "risk": pick.risk,
+                "horizon": pick.horizon,
+            }
+            for pick in picks
+        ],
+    }
     return json.dumps(payload, indent=2)
 
 
@@ -214,11 +233,12 @@ def classify_missed_mover(settings: Settings, mover: dict[str, object]) -> tuple
 
 
 def review_output(settings: Settings, as_of: date) -> str:
-    review_date = as_of - timedelta(days=1)
+    review_date = as_of
+    signal_date = previous_weekday(review_date)
     ensure_base_state(settings, as_of)
-    generate_picks(settings, review_date)
+    generate_picks(settings, signal_date)
 
-    recent = get_recent_picks(settings, review_date, 1)
+    recent = get_pick_results(settings, signal_date, review_date)
     returns = [
         (row["close_price"] - row["open_price"]) / row["open_price"]
         for row in recent
@@ -227,13 +247,12 @@ def review_output(settings: Settings, as_of: date) -> str:
     avg_return = round(sum(returns) / len(returns), 4) if returns else 0.0
     win_rate = round(sum(1 for value in returns if value > 0) / len(returns), 4) if returns else 0.0
 
-    picked_pairs = {(row["date"], row["ticker"]) for row in recent}
+    picked_tickers = {row["ticker"] for row in recent}
     missed_top_movers = []
     missed_actionable = []
     missed_non_actionable = []
     for mover in get_top_movers(settings, review_date, 1, limit=50):
-        pair = (mover["date"], mover["ticker"])
-        if pair in picked_pairs:
+        if mover["ticker"] in picked_tickers:
             continue
         entry = {
             "ticker": mover["ticker"],
@@ -266,8 +285,19 @@ def review_output(settings: Settings, as_of: date) -> str:
         volume_weight=next_volume_weight,
     )
     insert_weights(settings, next_weights)
+    review_run_id = insert_review_run(
+        settings=settings,
+        as_of=signal_date,
+        review_date=review_date,
+        avg_return=avg_return,
+        win_rate=win_rate,
+        picks=recent,
+        weights=next_weights,
+    )
 
     payload = {
+        "review_run_id": review_run_id,
+        "signal_date": signal_date.isoformat(),
         "review_date": review_date.isoformat(),
         "performance": {
             "avg_return": avg_return,

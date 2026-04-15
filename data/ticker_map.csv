@@ -70,6 +70,7 @@ AYES,AYES,Ayes,Ayes Celik Hasir Ve Cit Sanayi A.S.,prefix
 AYGAZAS,AYGAZ,Aygaz A.Ş.,Aygaz A.S.,exact_key
 AZTEKTEKNOLOJIURUNLERI,AZTEK,Aztek Teknoloji Ürünleri,Aztek Teknoloji Urunleri Ticaret Anonim Sirketi,prefix
 BIMMAGAZALAR,BIMAS,BIM Mağazalar,BIM Birlesik Magazalar A.S.,token_subset
+BIOTRENDYATIRIM,BIOEN,Biotrend Yatırım,Biotrend Yatırım,manual
 BMSBIRLESIKMETALSANAYI,BMSTL,BMS Birleşik Metal Sanayi,Bms Birlesik Metal Sanayi ve Ticaret A.S.,prefix
 BMSCELIK,BMSCH,BMS Çelik,Bms Celik Hasir Sanayi Ve Ticaret Anonim Sirketi,prefix
 BAGFASBANDIRMAGUBREFAB,BAGFS,Bagfaş Bandırma Gübre Fab.,Bagfas Bandirma Gubre Fabrikalari A.S.,prefix
@@ -310,6 +311,7 @@ LYDIAYESILENERJIKAYNAKLARIAS,LYDYE,Lydia Yesil Enerji Kaynaklari AS,Lydia Yesil 
 LUKSKADIFETICVESAN,LUKSK,Lüks Kadife Tic. ve San.,Lüks Kadife Ticaret ve Sanayi A.S.,fuzzy_0.844
 MLPSAGLIK,MPARK,MLP Sağlık,MLP Saglik Hizmetleri A.S.,prefix
 MAKIMMAKINATEKNOLOJILERI,MAKIM,Makim Makina Teknolojileri,Makim Makina Teknolojileri Sanayi Ve Ticaret A.S.,prefix
+MTE,MAKTK,MTE,MTE,manual
 MANASENERJIYONETIMISAN,MANAS,Manas Enerji Yönetimi San.,Manas Enerji Yonetimi Sanayi Ve Ticaret Anonim Sirketi,prefix
 MARGUNENERJI,MAGEN,Margün Enerji,Margün Enerji Üretim Sanayi ve Ticaret A.S.,prefix
 MARKAYATIRIM,MARKA,Marka Yatırım,Marka Yatirim Holding A.S.,prefix

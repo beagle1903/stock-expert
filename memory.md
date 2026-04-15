@@ -64,8 +64,9 @@ When the user says "do the routine", check for new data, import it, then run `da
 1. Check the newest dated folder under `data\`.
 2. Confirm it contains `fiyat.csv`, `performans.csv`, `teknik.csv`, and `temel.csv`.
 3. Import with `D:\miniconda3\python.exe -m stock_expert import-daily-folder --folder data\YYYYMMDD`.
-4. Run `daily`, `picks`, and `review` with the imported snapshot date.
-5. Run CLI commands from the repo root unless the package is installed in the active environment.
+4. Use the returned `snapshot_date` for `daily` and `picks`; `picks` will label the next weekday as `target_trade_date`.
+5. Run `review` only for a market date that has realized data imported; it evaluates picks from the previous weekday signal date against that market date.
+6. Run CLI commands from the repo root unless the package is installed in the active environment.
 
 ### Data Inputs
 
@@ -88,8 +89,9 @@ When the user says "do the routine", check for new data, import it, then run `da
 - `python` may not be on PATH in this workspace shell; use `D:\miniconda3\python.exe` for CLI runs.
 - `import-daily-folder` requires the `--folder` flag; a positional folder path is rejected.
 - Dated data folders can be ahead of the current calendar date, so verify the folder name and import snapshot date explicitly.
+- Daily data folder names represent the target weekday/work day for the picks; `import-daily-folder` stores the CSV contents under the previous weekday/work day `snapshot_date`/signal date and returns both dates.
 - A local `.env` can pin `STOCK_EXPERT_DB_PATH` and takes effect before branch-based default DB selection.
-- `review --date YYYY-MM-DD` reviews missed movers for the previous calendar day only for now, not a rolling multi-day window; trading-day lookup can be revisited later.
+- `review --date YYYY-MM-DD` evaluates realized market data for that date against picks generated from the previous weekday signal date.
 
 ## Data Sources And External Dependencies
 
