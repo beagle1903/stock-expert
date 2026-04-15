@@ -230,6 +230,7 @@ GULERYATIRIM,GLRYH,Güler Yatırım,Güler Yatirim Holding A.S.,prefix
 GUNDOGDUGIDA,GUNDG,Gündoğdu Gıda,Gundogdu Gida Sut Urunleri Sanayi ve Dis Ticaret Anonim Sirketi,prefix
 GIPTAOFISKIRTASIYE,GIPTA,Gıpta Ofis Kırtasiye,Gipta Ofis Kirtasiye ve Promosyon Ürünleri Imalat Sanayi A.S.,prefix
 HEDEFGIRISIM,HDFGS,HEDEF Girişim,Hedef Girisim Sermayesi Yatirim Ortakligi A.S.,prefix
+HEDEFPORTFOYYONETIMIAS,HTPSB,Hedef Portfoy Yonetimi AS,Hedef Portfoy Yonetimi AS,manual
 HACIOMERSABANCIHOLDING,SAHOL,Hacı Ömer Sabancı Holding,Haci Ömer Sabanci Holding A.S.,prefix
 HALKGAYRIMENKULYATIRIMORTAKLIGI,HLGYO,Halk GYO,Halk Gayrimenkul Yatirim Ortakligi A.S,prefix
 HAREKETPROJETASIMACILIGI,HRKET,Hareket Proje Taşımacılığı,Hareket Proje Tasimaciligi Ve Yuk Muhendisligi Anonim Sirketi,prefix
@@ -347,6 +348,7 @@ NATURELYENILENEBILIRENERJI,NATEN,Naturel Yenilenebilir Enerji,Naturel Yenilenebi
 NATURELGAZSANAYI,NTGAZ,Naturelgaz Sanayi,Naturelgaz Sanayi ve Ticaret A.S.,prefix
 NETHOLDINGAS,NTHOL,Net Holding A.Ş.,Net Holding A.S.,exact_key
 NETASTELEKOM,NETAS,Netaş Telekom,Netas Telekomünikasyon A.S.,prefix
+NETCADYAZILIM,NETCD,Netcad Yazilim,Netcad Yazilim,manual
 NIGBASBETONSANVETICAS,NIBAS,Niğbaş Beton San. Ve Tic. A.Ş.,Nigbas Nigde Beton Sanayi Ve Ticaret A.S.,fuzzy_0.778
 NUHCIMENTO,NUHCM,Nuh Çimento,Nuh Çimento Sanayi A.S.,prefix
 NUROLGAYRIMENKULYATIRIMORTAKLIGI,NUGYO,Nurol GYO,Nurol Gayrimenkul Yatirim Ortakligi A.S.,prefix
@@ -422,6 +424,7 @@ SELVAGIDA,SELVA,Selva Gıda,Selva Gida Sanayi A.S.,prefix
 SELCUKECZADEPOSU,SELEC,Selçuk Ecza Deposu,Selçuk Ecza Deposu Ticaret ve Sanayi A.S.,prefix
 SERANITGRANITSERAMIKSANAYIVETICARETAS,SERNT,Seranit Granit Seramik Sanayi ve Ticaret AS,Seranit Granit Seramik Sanayi ve Ticaret Anonim Sirketi,exact_canonical
 SERVETGAYRIMENKULYATIRIMORTAKLIGI,SRVGY,Servet GYO,Servet Gayrimenkul Yatirim Ortakligi A.S.,prefix
+SAVURGAYRIMENKULYATIRIM,SVGYO,Savur Gayrimenkul Yatirim,Savur Gayrimenkul Yatirim,manual
 SEYITLERKIMYA,SEYKM,Seyitler Kimya,Seyitler Kimya Sanayi A.S.,prefix
 SEGMENKARDESLER,SEGMN,Seğmen Kardeşler,Segmen Kardesler Gida Üretim ve Ambalaj Sanayi Anonim Sirketi,prefix
 SILVERLINEENDUSTRI,SILVR,Silverline Endüstri,Silverline Endustri ve Ticaret A.S.,prefix
