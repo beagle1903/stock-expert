@@ -55,10 +55,10 @@ def next_weekday(day: date) -> date:
     return next_day
 
 
-def ensure_base_state(settings: Settings, as_of: date) -> None:
+def ensure_base_state(settings: Settings, as_of: date, dry_run: bool = False) -> None:
     init_db(settings)
     latest = get_latest_weights(settings)
-    if latest is None:
+    if latest is None and not dry_run:
         insert_weights(settings, default_weights(as_of))
 
 
@@ -107,13 +107,21 @@ def apply_same_day_chase_penalty(settings: Settings, raw_score: float, daily_cha
     return max(raw_score - penalty, 0.0)
 
 
-def generate_picks(settings: Settings, as_of: date, pick_count: int | None = None) -> list[PickRow]:
-    ensure_base_state(settings, as_of)
+def generate_picks(
+    settings: Settings,
+    as_of: date,
+    pick_count: int | None = None,
+    dry_run: bool = False,
+    apply_chase_penalty: bool = True,
+) -> list[PickRow]:
+    ensure_base_state(settings, as_of, dry_run=dry_run)
     signals = build_signals(settings, as_of)
     if not signals:
-        replace_picks_for_date(settings, [], as_of)
+        if not dry_run:
+            replace_picks_for_date(settings, [], as_of)
         return []
-    upsert_signals(settings, signals)
+    if not dry_run:
+        upsert_signals(settings, signals)
     weights = get_latest_weights(settings) or default_weights(as_of)
     latest_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, as_of)}
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
@@ -123,7 +131,9 @@ def generate_picks(settings: Settings, as_of: date, pick_count: int | None = Non
             continue
         snapshot = snapshots.get(signal.ticker)
         daily_change_pct = snapshot.daily_change_pct if snapshot else None
-        score = apply_same_day_chase_penalty(settings, score_signal(signal, weights), daily_change_pct)
+        score = score_signal(signal, weights)
+        if apply_chase_penalty:
+            score = apply_same_day_chase_penalty(settings, score, daily_change_pct)
         ranked.append(
             PickRow(
                 date=as_of,
@@ -151,7 +161,8 @@ def generate_picks(settings: Settings, as_of: date, pick_count: int | None = Non
         reverse=True,
     )
     limited = ranked[: (pick_count or settings.default_pick_count)]
-    replace_picks_for_date(settings, limited, as_of)
+    if not dry_run:
+        replace_picks_for_date(settings, limited, as_of)
     return limited
 
 
@@ -198,9 +209,16 @@ def daily_summary(settings: Settings, as_of: date) -> str:
     return "\n".join(lines)
 
 
-def picks_output(settings: Settings, as_of: date) -> str:
-    picks = generate_picks(settings, as_of)
+def picks_output(
+    settings: Settings,
+    as_of: date,
+    dry_run: bool = False,
+    apply_chase_penalty: bool = True,
+) -> str:
+    picks = generate_picks(settings, as_of, dry_run=dry_run, apply_chase_penalty=apply_chase_penalty)
     payload = {
+        "dry_run": dry_run,
+        "chase_penalty": apply_chase_penalty,
         "signal_date": as_of.isoformat(),
         "target_trade_date": next_weekday(as_of).isoformat(),
         "picks": [
@@ -232,13 +250,46 @@ def classify_missed_mover(settings: Settings, mover: dict[str, object]) -> tuple
     return "actionable", "not_selected_by_score"
 
 
-def review_output(settings: Settings, as_of: date) -> str:
+def _pick_result_rows(picks: list[PickRow], prices_by_ticker: dict[str, object], target_date: date) -> list[dict[str, object]]:
+    rows = []
+    for pick in picks:
+        price = prices_by_ticker.get(pick.ticker)
+        if price is None:
+            continue
+        rows.append(
+            {
+                "signal_date": pick.date.isoformat(),
+                "target_date": target_date.isoformat(),
+                "ticker": pick.ticker,
+                "score": pick.score,
+                "open_price": price.open_price,
+                "close_price": price.close_price,
+            }
+        )
+    return rows
+
+
+def review_output(
+    settings: Settings,
+    as_of: date,
+    dry_run: bool = False,
+    apply_chase_penalty: bool = True,
+) -> str:
     review_date = as_of
     signal_date = previous_weekday(review_date)
-    ensure_base_state(settings, as_of)
-    generate_picks(settings, signal_date)
+    ensure_base_state(settings, as_of, dry_run=dry_run)
+    generated_picks = generate_picks(
+        settings,
+        signal_date,
+        dry_run=dry_run,
+        apply_chase_penalty=apply_chase_penalty,
+    )
 
-    recent = get_pick_results(settings, signal_date, review_date)
+    if dry_run:
+        target_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, review_date)}
+        recent = _pick_result_rows(generated_picks, target_prices, review_date)
+    else:
+        recent = get_pick_results(settings, signal_date, review_date)
     returns = [
         (row["close_price"] - row["open_price"]) / row["open_price"]
         for row in recent
@@ -284,18 +335,22 @@ def review_output(settings: Settings, as_of: date) -> str:
         momentum_weight=next_momentum_weight,
         volume_weight=next_volume_weight,
     )
-    insert_weights(settings, next_weights)
-    review_run_id = insert_review_run(
-        settings=settings,
-        as_of=signal_date,
-        review_date=review_date,
-        avg_return=avg_return,
-        win_rate=win_rate,
-        picks=recent,
-        weights=next_weights,
-    )
+    review_run_id = None
+    if not dry_run:
+        insert_weights(settings, next_weights)
+        review_run_id = insert_review_run(
+            settings=settings,
+            as_of=signal_date,
+            review_date=review_date,
+            avg_return=avg_return,
+            win_rate=win_rate,
+            picks=recent,
+            weights=next_weights,
+        )
 
     payload = {
+        "dry_run": dry_run,
+        "chase_penalty": apply_chase_penalty,
         "review_run_id": review_run_id,
         "signal_date": signal_date.isoformat(),
         "review_date": review_date.isoformat(),

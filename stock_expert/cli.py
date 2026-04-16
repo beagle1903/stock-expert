@@ -22,6 +22,17 @@ def build_parser() -> argparse.ArgumentParser:
             default=date.today().isoformat(),
             help="As-of date in YYYY-MM-DD format",
         )
+        if command_name in {"picks", "review"}:
+            command_parser.add_argument(
+                "--dry-run",
+                action="store_true",
+                help="Compute output without writing picks, signals, weights, or review rows",
+            )
+            command_parser.add_argument(
+                "--no-chase-penalty",
+                action="store_true",
+                help="Disable the same-day overextension penalty for comparison",
+            )
 
     download_parser = subparsers.add_parser("download-ohlcv", help="Download OHLCV history from Yahoo Finance")
     download_parser.add_argument(
@@ -87,11 +98,25 @@ def main() -> int:
         return 0
     if args.command == "picks":
         as_of = date.fromisoformat(args.as_of)
-        print(picks_output(settings, as_of))
+        print(
+            picks_output(
+                settings,
+                as_of,
+                dry_run=args.dry_run,
+                apply_chase_penalty=not args.no_chase_penalty,
+            )
+        )
         return 0
     if args.command == "review":
         as_of = date.fromisoformat(args.as_of)
-        print(review_output(settings, as_of))
+        print(
+            review_output(
+                settings,
+                as_of,
+                dry_run=args.dry_run,
+                apply_chase_penalty=not args.no_chase_penalty,
+            )
+        )
         return 0
     if args.command == "download-ohlcv":
         print(

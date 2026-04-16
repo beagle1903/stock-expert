@@ -206,7 +206,9 @@ FRIGOPAK,FRIGO,Frigo Pak,Frigo-Pak Gida Maddeleri Sanayi ve Ticaret A.S.,prefix
 FUZULGAYRIMENKUL,FZLGY,Fuzul Gayrimenkul,Fuzul Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
 GSDHOLDING,GSDHO,GSD Holding,GSD Holding A.S.,prefix
 GALATAWINDENERJI,GWIND,Galata Wind Enerji,Galata Wind Enerji A.S.,prefix
+GARANTIBBVA,GARAN,Garanti BBVA,Garanti BBVA,manual
 GARANTIFAKTORING,GARFA,Garanti Faktoring,Garanti Faktoring A.S.,prefix
+GARANTIYO,GRNYO,Garanti YO,Garanti YO,manual
 GARANTIYATIRIMORTAKLIGI,GRNYO,Garanti YO,Garanti Yatirim Ortakligi A.S.,prefix
 GATETEKNOLOJIMEDYAVESIBERGUVENLIKHIZMETLERI,GATEG,Gate Teknoloji Medya ve Siber Guvenlik Hizmetleri,Gate Group Teknoloji Medya Ve Siber Guvenlik Hizmetleri A.S.,token_subset
 GEDIKYATIRIM,GEDIK,Gedik Yatırım,Gedik Yatirim Menkul Degerler A.S.,prefix
@@ -380,6 +382,7 @@ PARDUSGIRISIMSERMAYESIYATIRIM,PRDGS,Pardus Girişim Sermayesi Yatırım,Pardus G
 PARKELEKTRIK,PRKME,Park Elektrik,Park Elektrik Üretim Madencilik Sanayi ve Ticaret A.S.,prefix
 PARSANMAKINAPARCALARISANAYII,PARSN,Parsan Makina Parçaları Sanayii,Parsan Makina Parçalari Sanayii A.S.,prefix
 PASIFIKEURASIALOJISTIK,PASEU,Pasifik Eurasia Lojistik,Pasifik Eurasia Lojistik Dis Ticaret A.S.,prefix
+PASIFIKGYO,PSGYO,Pasifik GYO,Pasifik GYO,manual
 PASIFIKGAYRIMENKULYATIRIMORTAKLIGI,PSGYO,Pasifik GYO,Pasifik Gayrimenkul Yatirim Ortakligi A.S.,prefix
 PEGASUSHAVATASIMACILIGI,PGSUS,Pegasus Hava Taşımacılığı,Pegasus Hava Tasimaciligi Anonim Sirketi,prefix
 PEKERGAYRIMENKULYATIRIMORTAKLIGI,PEKGY,Peker GYO,Peker Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix

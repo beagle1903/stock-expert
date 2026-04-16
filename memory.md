@@ -56,6 +56,8 @@ Document repeatable ways of doing things in this repo.
 - `D:\miniconda3\python.exe -m stock_expert daily --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m stock_expert picks --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD`
+- `D:\miniconda3\python.exe -m stock_expert picks --date YYYY-MM-DD --dry-run --no-chase-penalty`
+- `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD --dry-run --no-chase-penalty`
 
 ### Daily CSV Routine
 
@@ -67,6 +69,13 @@ When the user says "do the routine", check for new data, import it, then run `da
 4. Use the returned `snapshot_date` for `daily` and `picks`; `picks` will label the next weekday as `target_trade_date`.
 5. Run `review` only for a market date that has realized data imported; it evaluates picks from the previous weekday signal date against that market date.
 6. Run CLI commands from the repo root unless the package is installed in the active environment.
+
+### Strategy Comparison
+
+- Use `--dry-run` for comparison runs; it must not write picks, signals, weights, or review rows.
+- Use `--no-chase-penalty` to compare against the overextended-mover penalty strategy.
+- Current comparison candidate for 2026-04-17 without chase penalty: `MERCN`, `CRFSA`, `KONTR`, `PRZMA`, `FONET`.
+- Tomorrow, compare normal review vs `review --date 2026-04-17 --dry-run --no-chase-penalty` after realized 2026-04-17 data is imported.
 
 ### Data Inputs
 
@@ -92,6 +101,7 @@ When the user says "do the routine", check for new data, import it, then run `da
 - Daily data folder names represent the target weekday/work day for the picks; `import-daily-folder` stores the CSV contents under the previous weekday/work day `snapshot_date`/signal date and returns both dates.
 - A local `.env` can pin `STOCK_EXPERT_DB_PATH` and takes effect before branch-based default DB selection.
 - `review --date YYYY-MM-DD` evaluates realized market data for that date against picks generated from the previous weekday signal date.
+- `--dry-run` is the safe path for old-strategy comparisons because normal `picks`/`review` mutate SQLite state.
 
 ## Data Sources And External Dependencies
 
