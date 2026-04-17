@@ -68,14 +68,16 @@ When the user says "do the routine", check for new data, import it, then run `da
 3. Import with `D:\miniconda3\python.exe -m stock_expert import-daily-folder --folder data\YYYYMMDD`.
 4. Use the returned `snapshot_date` for `daily` and `picks`; `picks` will label the next weekday as `target_trade_date`.
 5. Run `review` only for a market date that has realized data imported; it evaluates picks from the previous weekday signal date against that market date.
-6. Run `review --date YYYY-MM-DD --dry-run --no-chase-penalty` for the same realized market date and report the comparison.
-7. Run CLI commands from the repo root unless the package is installed in the active environment.
+6. Run `picks --date YYYY-MM-DD --dry-run --no-chase-penalty` for the same `snapshot_date` and report no-chase candidate picks.
+7. Run `review --date YYYY-MM-DD --dry-run --no-chase-penalty` for the same realized market date and report the comparison.
+8. Run CLI commands from the repo root unless the package is installed in the active environment.
 
 ### Strategy Comparison
 
 - Use `--dry-run` for comparison runs; it must not write picks, signals, weights, or review rows.
 - Use `--no-chase-penalty` to compare against the overextended-mover penalty strategy.
 - Current comparison candidate for 2026-04-17 without chase penalty: `MERCN`, `CRFSA`, `KONTR`, `PRZMA`, `FONET`.
+- Daily routine should report no-chase dry-run picks for the new `target_trade_date`.
 - Daily routine should compare normal review vs `review --date YYYY-MM-DD --dry-run --no-chase-penalty` after realized data is imported.
 
 ### Data Inputs
