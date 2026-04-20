@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from stock_expert.config import Settings
-from stock_expert.database import init_db, replace_imported_day, upsert_market_snapshots, upsert_prices
+from stock_expert.database import create_snapshot_run, init_db, upsert_market_snapshots, upsert_prices
 from stock_expert.models import MarketSnapshot
 
 
@@ -148,13 +148,19 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
         price_rows.append((ticker, target_date, open_price, last_price, volume))
 
     init_db(settings)
-    replace_imported_day(settings, target_date)
-    upsert_market_snapshots(settings, snapshots)
-    upsert_prices(settings, price_rows)
+    snapshot_id = create_snapshot_run(
+        settings=settings,
+        snapshot_date=target_date,
+        source_label="daily_csv",
+        source_dir=data_dir,
+    )
+    upsert_market_snapshots(settings, snapshots, snapshot_id=snapshot_id)
+    upsert_prices(settings, [(snapshot_id, *row) for row in price_rows])
     distinct_tickers = len({snapshot.ticker for snapshot in snapshots})
 
     return json.dumps(
         {
+            "snapshot_id": snapshot_id,
             "snapshot_date": target_date.isoformat(),
             "rows_read": len(snapshots),
             "distinct_generated_tickers": distinct_tickers,

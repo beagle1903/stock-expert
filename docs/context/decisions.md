@@ -6,10 +6,12 @@
 - No future data leakage
 - Only use data available at decision time
 - Daily CSV snapshots are the main operating input
+- Live root CSV files are the default input; SQLite snapshot runs preserve import history
 
 ## Current Notes
 
 - Daily CSV imports are the main runtime market-data source
+- `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily` and `picks`
 - `data/ticker_map.csv` is used to persist company-name to ticker mappings across imports
 - Yahoo import remains available as a secondary path
 - `main` uses `data/stock_expert.db`; non-`main` branches default to branch-specific SQLite files unless `STOCK_EXPERT_DB_PATH` is set
@@ -17,3 +19,4 @@
 - `review` currently updates weights on every run for the same date
 - Missed movers are grouped into `missed_top_movers`, `missed_actionable`, and `missed_non_actionable`
 - KAP is not part of the active runtime workflow
+- Dated `data/YYYYMMDD` folders are legacy/manual archive inputs

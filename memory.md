@@ -44,6 +44,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | --- | --- | --- |
 | 2026-04-09 | Added `memory.md` as a durable repo memory file for human and agent collaboration. | Preserves hard-won context across sessions without relying on chat history. |
 | 2026-04-10 | Non-`main` git branches now default to branch-specific SQLite files like `data/stock_expert_codex_add_indicators.db`; `main` keeps `data/stock_expert.db`. | Prevents branch experiments from contaminating the primary database and makes branch-to-branch comparisons safer. |
+| 2026-04-20 | Live root CSVs are the default input; imports create timestamped SQLite snapshot runs instead of relying on dated archive folders. | Supports running the routine more than once during the same BIST session without overwriting earlier action snapshots. |
 
 ## Workflows
 
@@ -51,6 +52,7 @@ Document repeatable ways of doing things in this repo.
 
 ### Common Commands
 
+- `D:\miniconda3\python.exe -m stock_expert routine`
 - `D:\miniconda3\python.exe -m stock_expert import-daily-csv --date 2026-04-05`
 - `D:\miniconda3\python.exe -m stock_expert import-daily-folder --folder data\YYYYMMDD`
 - `D:\miniconda3\python.exe -m stock_expert daily --date YYYY-MM-DD`
@@ -61,16 +63,21 @@ Document repeatable ways of doing things in this repo.
 
 ### Daily CSV Routine
 
-When the user says "do the routine", check for new data, import it, then run `daily`, `picks`, and `review`.
+When the user says "do the routine", use the four live root CSVs in `data\`, import a new snapshot run, then run `daily`, normal `picks`, and no-chase dry-run picks.
 
-1. Check the newest dated folder under `data\`.
-2. Confirm it contains `fiyat.csv`, `performans.csv`, `teknik.csv`, and `temel.csv`.
-3. Import with `D:\miniconda3\python.exe -m stock_expert import-daily-folder --folder data\YYYYMMDD`.
-4. Use the returned `snapshot_date` for `daily` and `picks`; `picks` will label the next weekday as `target_trade_date`.
-5. Run `review` only for a market date that has realized data imported; it evaluates picks from the previous weekday signal date against that market date.
-6. Run `picks --date YYYY-MM-DD --dry-run --no-chase-penalty` for the same `snapshot_date` and report no-chase candidate picks.
-7. Run `review --date YYYY-MM-DD --dry-run --no-chase-penalty` for the same realized market date and report the comparison.
-8. Run CLI commands from the repo root unless the package is installed in the active environment.
+Live files:
+
+- `data\fiyat.csv`
+- `data\performans.csv`
+- `data\teknik.csv`
+- `data\temel.csv`
+
+1. Replace the four live CSV files with current exports.
+2. Run `D:\miniconda3\python.exe -m stock_expert routine`.
+3. The routine imports a new `snapshot_runs` row for today's date and uses the latest snapshot for output.
+4. It persists normal picks and prints no-chase picks as a dry-run comparison.
+5. Run `review` only after realized data is available for the review date.
+6. Run CLI commands from the repo root unless the package is installed in the active environment.
 
 ### Strategy Comparison
 
@@ -83,6 +90,7 @@ When the user says "do the routine", check for new data, import it, then run `da
 ### Data Inputs
 
 - Daily CSV inputs: `fiyat.csv`, `performans.csv`, `teknik.csv`, `temel.csv`
+- Root live CSV inputs are ignored by git; durable import history lives in SQLite `snapshot_runs`.
 
 ## Repo Conventions
 
@@ -102,6 +110,8 @@ When the user says "do the routine", check for new data, import it, then run `da
 - `import-daily-folder` requires the `--folder` flag; a positional folder path is rejected.
 - Dated data folders can be ahead of the current calendar date, so verify the folder name and import snapshot date explicitly.
 - Daily data folder names represent the target weekday/work day for the picks; `import-daily-folder` stores the CSV contents under the previous weekday/work day `snapshot_date`/signal date and returns both dates.
+- Dated archive folders under `data\YYYYMMDD` were legacy inputs; the default flow now uses root live CSVs and SQLite snapshot history.
+- Current reads use the latest snapshot for each date, so multiple same-day imports can coexist while existing date-based commands keep working.
 - A local `.env` can pin `STOCK_EXPERT_DB_PATH` and takes effect before branch-based default DB selection.
 - `review --date YYYY-MM-DD` evaluates realized market data for that date against picks generated from the previous weekday signal date.
 - `--dry-run` is the safe path for old-strategy comparisons because normal `picks`/`review` mutate SQLite state.

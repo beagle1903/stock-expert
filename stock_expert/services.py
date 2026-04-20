@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from stock_expert.config import Settings
 from stock_expert.database import (
     get_latest_weights,
+    get_latest_snapshot_id,
     get_market_snapshots_for_date,
     get_pick_results,
     get_prices_for_date,
@@ -118,10 +119,15 @@ def generate_picks(
     signals = build_signals(settings, as_of)
     if not signals:
         if not dry_run:
-            replace_picks_for_date(settings, [], as_of)
+            snapshot_id = get_latest_snapshot_id(settings, as_of)
+            if snapshot_id is not None:
+                replace_picks_for_date(settings, [], as_of, snapshot_id=snapshot_id)
+        return []
+    snapshot_id = get_latest_snapshot_id(settings, as_of)
+    if snapshot_id is None:
         return []
     if not dry_run:
-        upsert_signals(settings, signals)
+        upsert_signals(settings, signals, snapshot_id=snapshot_id)
     weights = get_latest_weights(settings) or default_weights(as_of)
     latest_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, as_of)}
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
@@ -162,7 +168,7 @@ def generate_picks(
     )
     limited = ranked[: (pick_count or settings.default_pick_count)]
     if not dry_run:
-        replace_picks_for_date(settings, limited, as_of)
+        replace_picks_for_date(settings, limited, as_of, snapshot_id=snapshot_id)
     return limited
 
 

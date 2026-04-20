@@ -12,4 +12,6 @@
 
 ## Persistence
 
-- SQLite tables: `stocks`, `signals`, `picks`, `weights`, `market_snapshots`
+- SQLite tables: `snapshot_runs`, `stocks`, `signals`, `picks`, `weights`, `market_snapshots`
+- `snapshot_runs` stores each live CSV import; market rows, signals, and picks reference a snapshot id
+- Date-based reads use the latest snapshot for each date

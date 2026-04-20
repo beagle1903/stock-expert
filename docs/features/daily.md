@@ -2,5 +2,6 @@
 
 - Market summary
 - Key movers
-- Uses imported daily CSV snapshots
+- Uses latest imported CSV snapshot for the requested date
+- `routine` imports the current root CSV files before summary output
 - `review --date YYYY-MM-DD` reviews missed movers from the previous calendar day for now

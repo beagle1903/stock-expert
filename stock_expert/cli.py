@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import date
 
@@ -82,6 +83,14 @@ def build_parser() -> argparse.ArgumentParser:
     csv_parser.add_argument("--data-dir", default="data", help="Directory containing fiyat/performans/teknik/temel csv files")
     folder_parser = subparsers.add_parser("import-daily-folder", help="Import a dated folder containing the four daily CSV files")
     folder_parser.add_argument("--folder", required=True, help="Folder path relative to the project root, e.g. data/20260408")
+    routine_parser = subparsers.add_parser("routine", help="Import live CSV files, summarize market, and generate picks")
+    routine_parser.add_argument(
+        "--date",
+        dest="as_of",
+        default=date.today().isoformat(),
+        help="Snapshot date in YYYY-MM-DD format, default is today",
+    )
+    routine_parser.add_argument("--data-dir", default="data", help="Directory containing the four live csv files")
     return parser
 
 
@@ -150,6 +159,20 @@ def main() -> int:
         return 0
     if args.command == "import-daily-folder":
         print(import_daily_csv_folder_command(settings=settings, folder=args.folder))
+        return 0
+    if args.command == "routine":
+        as_of = date.fromisoformat(args.as_of)
+        import_result = json.loads(
+            import_daily_csv_command(settings=settings, snapshot_date=args.as_of, data_dir=args.data_dir)
+        )
+        print(json.dumps({"routine_date": args.as_of, "import": import_result}, indent=2))
+        print()
+        print(daily_summary(settings, as_of))
+        print()
+        print(picks_output(settings, as_of))
+        print()
+        print("No-Chase Comparison Picks:")
+        print(picks_output(settings, as_of, dry_run=True, apply_chase_penalty=False))
         return 0
 
     parser.error(f"Unsupported command: {args.command}")
