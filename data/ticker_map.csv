@@ -232,7 +232,7 @@ GULERYATIRIM,GLRYH,Güler Yatırım,Güler Yatirim Holding A.S.,prefix
 GUNDOGDUGIDA,GUNDG,Gündoğdu Gıda,Gundogdu Gida Sut Urunleri Sanayi ve Dis Ticaret Anonim Sirketi,prefix
 GIPTAOFISKIRTASIYE,GIPTA,Gıpta Ofis Kırtasiye,Gipta Ofis Kirtasiye ve Promosyon Ürünleri Imalat Sanayi A.S.,prefix
 HEDEFGIRISIM,HDFGS,HEDEF Girişim,Hedef Girisim Sermayesi Yatirim Ortakligi A.S.,prefix
-HEDEFPORTFOYYONETIMIAS,HTPSB,Hedef Portfoy Yonetimi AS,Hedef Portfoy Yonetimi AS,manual
+HEDEFPORTFOYYONETIMIAS,HEDEF,Hedef Holding A.Ş.,Hedef Holding A.S,manual_alias
 HACIOMERSABANCIHOLDING,SAHOL,Hacı Ömer Sabancı Holding,Haci Ömer Sabanci Holding A.S.,prefix
 HALKGAYRIMENKULYATIRIMORTAKLIGI,HLGYO,Halk GYO,Halk Gayrimenkul Yatirim Ortakligi A.S,prefix
 HAREKETPROJETASIMACILIGI,HRKET,Hareket Proje Taşımacılığı,Hareket Proje Tasimaciligi Ve Yuk Muhendisligi Anonim Sirketi,prefix
@@ -341,6 +341,7 @@ MHRGAYRIMENKUL,MHRGY,Mhr Gayrimenkul,MHR Gayrimenkul Yatirim Ortakligi Anonim Si
 MIATEKNOLOJI,MIATK,Mia Teknoloji,MIA Teknoloji Anonim Sirketi,prefix
 MIGROS,MGROS,Migros,Migros Ticaret A.S.,prefix
 MISTRALGAYRIMENKULYATIRIMORTAKLIGI,MSGYO,Mistral GYO,Mistral Gayrimenkul Yatirim Ortakligi A.S.,prefix
+MISTRALGYO,MSGYO,Mistral GYO,Mistral Gayrimenkul Yatirim Ortakligi A.S.,manual_alias
 MMCSANVETICARIYATAS,MMCAS,Mmc San. Ve Ticari Yat. A.Ş.,MMC Sanayi Ve Ticari Yatirimlar A.S.,fuzzy_0.792
 MOBILTELILETISIMHIZMETLERI,MOBTL,Mobiltel İletişim Hizmetleri,Mobiltel Iletisim Hizmetleri Sanayi ve Ticaret A.S.,prefix
 MOGANENERJI,MOGAN,Mogan Enerji,Mogan Enerji Yatirim Holding Anonim Sirketi,prefix

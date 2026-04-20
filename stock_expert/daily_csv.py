@@ -34,6 +34,21 @@ def _normalize_key(value: str) -> str:
     return "".join(ch for ch in normalized if ch.isalnum())
 
 
+ALLOWED_NON_EQUITY_SOURCE_KEYS = {
+    "HEDEFPORTFOYYONETIMIAS",
+}
+
+
+def _is_non_equity_key(key: str) -> bool:
+    non_equity_markers = (
+        "PORTFOYYONETIMI",
+        "PORTFOYYON",
+        "GYF",
+        "FONUY",
+    )
+    return any(marker in key for marker in non_equity_markers)
+
+
 def _parse_number(value: str) -> float:
     text = value.strip().replace(".", "").replace(",", ".")
     if not text:
@@ -100,12 +115,16 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
     price_rows: list[tuple[str, date, float, float, float]] = []
     mapped_count = 0
     fallback_count = 0
+    skipped_non_equity_count = 0
 
     for row in fiyat:
         company_name = row.get("ISIM", "").strip()
         if not company_name:
             continue
         key = _normalize_key(company_name)
+        if _is_non_equity_key(key) and key not in ALLOWED_NON_EQUITY_SOURCE_KEYS:
+            skipped_non_equity_count += 1
+            continue
         perf = performans_map.get(key)
         tech = teknik_map.get(key)
         fund = temel_map.get(key)
@@ -166,6 +185,7 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
             "distinct_generated_tickers": distinct_tickers,
             "mapped_count": mapped_count,
             "fallback_count": fallback_count,
+            "skipped_non_equity_count": skipped_non_equity_count,
             "source_files": ["fiyat.csv", "performans.csv", "teknik.csv", "temel.csv"],
         },
         indent=2,
