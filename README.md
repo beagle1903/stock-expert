@@ -42,6 +42,13 @@ Run these from the repo root.
 - Daily CSV inputs: `fiyat.csv`, `performans.csv`, `teknik.csv`, `temel.csv`
 - Optional ticker override map: `data/ticker_map.csv`
 
+## Git Workflow
+
+- `main` is the stable/default branch
+- use short-lived feature branches for larger work, then merge back into `main`
+- push `main` to GitHub after merges so the remote stays current
+- remote repo: [beagle1903/stock-expert](https://github.com/beagle1903/stock-expert)
+
 ## Notes
 
 - Feature docs live in [docs/features](docs/features)

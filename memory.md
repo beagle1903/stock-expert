@@ -49,6 +49,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-21 | `routine` is the full end-to-end flow with actual persisted review; `midday-routine` is the import + daily + picks + dry-run review flow. | Keeps the midday dry-run review flow separate from the full review command path and matches the intended operator language. |
 | 2026-04-21 | Repo test coverage now uses `unittest` in `tests/` for routine wiring, weekday date helpers, and dry-run review persistence boundaries. | Adds regression protection without introducing a new test dependency. |
 | 2026-04-21 | Picks now keep momentum/volume as the base score but add capped technical, quality, and fundamental soft boosts from imported snapshot data. | Brings `teknik.csv` and `temel.csv` into live ranking without replacing the core anti-chase momentum workflow. |
+| 2026-04-21 | GitHub remote backup is now active at `https://github.com/beagle1903/stock-expert`, with `main` as the default/stable branch. | Makes the repo recoverable off-laptop and establishes `main` as the source of truth after feature branches are merged. |
 
 ## Workflows
 
@@ -56,6 +57,10 @@ Document repeatable ways of doing things in this repo.
 
 ### Common Commands
 
+- `git checkout -b codex/<topic>`
+- `git checkout main`
+- `git merge <feature-branch>`
+- `git push -u origin main`
 - `D:\miniconda3\python.exe -m stock_expert routine`
 - `D:\miniconda3\python.exe -m stock_expert midday-routine`
 - `D:\miniconda3\python.exe -m stock_expert import-daily-csv --date 2026-04-05`
@@ -100,6 +105,13 @@ Live files:
 - Run `D:\miniconda3\python.exe -m unittest discover -s tests -v` from the repo root.
 - Current tests cover `routine` vs `midday-routine` CLI wiring, weekday date helpers, review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, and bounded technical/fundamental scoring behavior.
 
+### Git Workflow
+
+- `main` is the stable branch and should match `origin/main`.
+- Use short-lived feature branches for larger changes, then merge back into `main`.
+- Push `main` after merges so GitHub remains the backup/source of truth.
+- The old long-running `codex/add-indicators` branch has been merged and removed.
+
 ### Data Inputs
 
 - Daily CSV inputs: `fiyat.csv`, `performans.csv`, `teknik.csv`, `temel.csv`
@@ -129,11 +141,13 @@ Live files:
 - `review --date YYYY-MM-DD` evaluates realized market data for that date against picks generated from the previous weekday signal date.
 - `--dry-run` is the safe path for old-strategy comparisons because normal `picks`/`review` mutate SQLite state.
 - Workspace-local temp directories are safer than OS temp directories for tests in this environment.
+- `.test_tmp/` is a local test artifact folder and should stay ignored.
 
 ## Data Sources And External Dependencies
 
 - SQLite database: `data/stock_expert.db`
 - CSV source files: `fiyat.csv`, `performans.csv`, `teknik.csv`, `temel.csv`
+- GitHub remote: `https://github.com/beagle1903/stock-expert`
 
 ## Open Questions
 
