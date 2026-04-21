@@ -13,6 +13,7 @@
 - Daily CSV imports are the main runtime market-data source
 - `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily`, `picks`, and actual `review`
 - `midday-routine` imports the same live CSVs, then runs `daily`, `picks`, and a dry-run `review`
+- Picks still center on momentum and volume, but now add bounded technical/basic-analysis soft boosts from `teknik.csv` and `temel.csv`
 - Automated tests use the standard-library `unittest` runner to avoid adding extra dependencies for basic CLI/service coverage
 - `data/ticker_map.csv` is used to persist company-name to ticker mappings across imports
 - Yahoo import remains available as a secondary path

@@ -79,6 +79,8 @@ CREATE TABLE IF NOT EXISTS market_snapshots (
     avg_volume_3m REAL NOT NULL,
     market_cap REAL NOT NULL,
     beta REAL NOT NULL,
+    revenue REAL NOT NULL DEFAULT 0,
+    pe_ratio REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (snapshot_id, ticker)
 );
 
@@ -124,6 +126,7 @@ def init_db(settings: Settings) -> None:
     with connect(settings) as conn:
         conn.executescript(SCHEMA)
         _migrate_intraday_snapshots(conn)
+        _ensure_market_snapshot_enrichment_columns(conn)
 
 
 def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -204,19 +207,28 @@ def _migrate_intraday_snapshots(conn: sqlite3.Connection) -> None:
                 snapshot_id, date, ticker, company_name, last_price, high_price, low_price,
                 daily_change_pct, volume, weekly_perf_pct, monthly_perf_pct, ytd_perf_pct,
                 yearly_perf_pct, technical_hourly, technical_daily, technical_weekly,
-                technical_monthly, avg_volume_3m, market_cap, beta
+                technical_monthly, avg_volume_3m, market_cap, beta, revenue, pe_ratio
             )
             SELECT
                 m.id, ms.date, ms.ticker, ms.company_name, ms.last_price, ms.high_price,
                 ms.low_price, ms.daily_change_pct, ms.volume, ms.weekly_perf_pct,
                 ms.monthly_perf_pct, ms.ytd_perf_pct, ms.yearly_perf_pct,
                 ms.technical_hourly, ms.technical_daily, ms.technical_weekly,
-                ms.technical_monthly, ms.avg_volume_3m, ms.market_cap, ms.beta
+                ms.technical_monthly, ms.avg_volume_3m, ms.market_cap, ms.beta, 0.0, 0.0
             FROM market_snapshots_legacy ms
             JOIN ({snapshot_map}) m ON m.snapshot_date = ms.date
             """
         )
         conn.execute("DROP TABLE market_snapshots_legacy")
+
+
+def _ensure_market_snapshot_enrichment_columns(conn: sqlite3.Connection) -> None:
+    if not conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'market_snapshots'").fetchone():
+        return
+    if not _has_column(conn, "market_snapshots", "revenue"):
+        conn.execute("ALTER TABLE market_snapshots ADD COLUMN revenue REAL NOT NULL DEFAULT 0")
+    if not _has_column(conn, "market_snapshots", "pe_ratio"):
+        conn.execute("ALTER TABLE market_snapshots ADD COLUMN pe_ratio REAL NOT NULL DEFAULT 0")
 
 
 def create_snapshot_run(settings: Settings, snapshot_date: date, source_label: str, source_dir: str) -> int:
@@ -345,9 +357,9 @@ def upsert_market_snapshots(settings: Settings, rows: Iterable[MarketSnapshot], 
                 snapshot_id, date, ticker, company_name, last_price, high_price, low_price, daily_change_pct, volume,
                 weekly_perf_pct, monthly_perf_pct, ytd_perf_pct, yearly_perf_pct,
                 technical_hourly, technical_daily, technical_weekly, technical_monthly,
-                avg_volume_3m, market_cap, beta
+                avg_volume_3m, market_cap, beta, revenue, pe_ratio
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (snapshot_id, ticker) DO UPDATE SET
                 company_name = excluded.company_name,
                 last_price = excluded.last_price,
@@ -365,7 +377,9 @@ def upsert_market_snapshots(settings: Settings, rows: Iterable[MarketSnapshot], 
                 technical_monthly = excluded.technical_monthly,
                 avg_volume_3m = excluded.avg_volume_3m,
                 market_cap = excluded.market_cap,
-                beta = excluded.beta
+                beta = excluded.beta,
+                revenue = excluded.revenue,
+                pe_ratio = excluded.pe_ratio
             """,
             [
                 (
@@ -389,6 +403,8 @@ def upsert_market_snapshots(settings: Settings, rows: Iterable[MarketSnapshot], 
                     row.avg_volume_3m,
                     row.market_cap,
                     row.beta,
+                    row.revenue,
+                    row.pe_ratio,
                 )
                 for row in rows
             ],
@@ -636,6 +652,8 @@ def get_market_snapshots_for_date(settings: Settings, target_date: date) -> list
             avg_volume_3m=row["avg_volume_3m"],
             market_cap=row["market_cap"],
             beta=row["beta"],
+            revenue=row["revenue"],
+            pe_ratio=row["pe_ratio"],
         )
         for row in rows
     ]

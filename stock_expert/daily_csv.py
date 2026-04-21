@@ -76,6 +76,13 @@ def _parse_number(value: str) -> float:
     return float(text) * multiplier
 
 
+def _parse_optional_number(value: str) -> float:
+    try:
+        return _parse_number(value)
+    except (AttributeError, ValueError):
+        return 0.0
+
+
 def _read_csv(path: Path) -> list[dict[str, str]]:
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -159,9 +166,11 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
                 technical_daily=tech["GUNLUK"].strip(),
                 technical_weekly=tech["HAFTALIK"].strip(),
                 technical_monthly=tech["AYLIK"].strip(),
-                avg_volume_3m=_parse_number(fund["ORTALAMAHACIM3AY"]),
-                market_cap=_parse_number(fund["PIYASADEGERI"]),
-                beta=_parse_number(fund["BETA"]),
+                avg_volume_3m=_parse_optional_number(fund.get("ORTALAMAHACIM3AY", "")),
+                market_cap=_parse_optional_number(fund.get("PIYASADEGERI", "")),
+                beta=_parse_optional_number(fund.get("BETA", "")),
+                revenue=_parse_optional_number(fund.get("GELIR", "")),
+                pe_ratio=_parse_optional_number(fund.get("FIYATKAZANCORANI", "")),
             )
         )
         price_rows.append((ticker, target_date, open_price, last_price, volume))

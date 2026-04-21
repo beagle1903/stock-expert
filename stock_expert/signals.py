@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import math
 from statistics import mean
 
-from stock_expert.models import PriceBar, SignalRow, Weights
+from stock_expert.models import MarketSnapshot, PriceBar, SignalRow, Weights
 
 
 def clamp(value: float, lower: float = 0.0, upper: float = 1.0) -> float:
@@ -81,3 +82,70 @@ def classify_risk(momentum: float, volume_spike: float) -> str:
 
 def score_signal(signal: SignalRow, weights: Weights) -> float:
     return (weights.momentum_weight * signal.momentum) + (weights.volume_weight * signal.volume_spike)
+
+
+def technical_label_score(label: str) -> float:
+    normalized = label.strip().lower()
+    mapping = {
+        "guclu al": 1.0,
+        "güçlü al": 1.0,
+        "al": 0.5,
+        "notr": 0.0,
+        "nötr": 0.0,
+        "sat": -0.5,
+        "guclu sat": -1.0,
+        "güçlü sat": -1.0,
+    }
+    return mapping.get(normalized, 0.0)
+
+
+def compute_technical_adjustment(snapshot: MarketSnapshot | None) -> float:
+    if snapshot is None:
+        return 0.0
+    daily_score = technical_label_score(snapshot.technical_daily)
+    weekly_score = technical_label_score(snapshot.technical_weekly)
+    return round(clamp((0.04 * daily_score) + (0.02 * weekly_score), -0.06, 0.06), 4)
+
+
+def compute_quality_adjustment(snapshot: MarketSnapshot | None, latest_price: PriceBar | None) -> float:
+    if snapshot is None or latest_price is None:
+        return 0.0
+
+    volume_ratio = 0.0
+    if snapshot.avg_volume_3m > 0:
+        volume_ratio = latest_price.volume / snapshot.avg_volume_3m
+    volume_score = clamp(volume_ratio / 1.5)
+    volume_boost = (volume_score - 0.5) * 0.04
+
+    market_cap_boost = 0.0
+    if snapshot.market_cap > 0:
+        market_cap_score = clamp((math.log10(snapshot.market_cap) - 8.0) / 3.0)
+        market_cap_boost = (market_cap_score - 0.5) * 0.03
+
+    beta_boost = 0.0
+    if snapshot.beta:
+        beta_distance = min(abs(snapshot.beta - 1.0), 2.0)
+        beta_boost = 0.015 - ((beta_distance / 2.0) * 0.03)
+
+    return round(clamp(volume_boost + market_cap_boost + beta_boost, -0.04, 0.05), 4)
+
+
+def compute_fundamental_adjustment(snapshot: MarketSnapshot | None) -> float:
+    if snapshot is None:
+        return 0.0
+
+    if snapshot.pe_ratio <= 0:
+        pe_boost = -0.01 if snapshot.pe_ratio < 0 else 0.0
+    elif snapshot.pe_ratio <= 25:
+        pe_boost = 0.02
+    elif snapshot.pe_ratio <= 40:
+        pe_boost = 0.005
+    else:
+        pe_boost = -0.01
+
+    revenue_boost = 0.0
+    if snapshot.revenue > 0:
+        revenue_score = clamp((math.log10(snapshot.revenue) - 8.0) / 4.0)
+        revenue_boost = revenue_score * 0.02
+
+    return round(clamp(pe_boost + revenue_boost, -0.02, 0.04), 4)

@@ -1,4 +1,5 @@
 company_key,ticker,company_name,matched_name,match_type
+DOFROBOTIKSANAYIAS,DOFRB,Dof Robotik Sanayi AS,Dof Robotik Sanayi AS,manual_override
 ENPARABANKAS,ENPRA,Enpara Bank AS,Enpara Bank AS,manual_override
 FTGAYRIMENKULVEGIRISIM,FTPGS,Ft Gayrimenkul ve Girisim,Ft Gayrimenkul ve Girisim,manual_override
 1000YATIRIMLARHOLDING,BINHO,1000 Yatırımlar Holding,1000 Yatirimlar Holding Anonim Sirketi,prefix

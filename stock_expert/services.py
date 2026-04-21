@@ -21,11 +21,14 @@ from stock_expert.database import (
 from stock_expert.models import PickRow, SignalRow, Weights
 from stock_expert.signals import (
     classify_risk,
+    compute_fundamental_adjustment,
     compute_liquidity,
     compute_ma_trend,
     compute_medium_momentum,
     compute_momentum,
+    compute_quality_adjustment,
     compute_short_momentum,
+    compute_technical_adjustment,
     compute_volume_spike,
     score_signal,
 )
@@ -132,12 +135,29 @@ def generate_picks(
     latest_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, as_of)}
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     ranked: list[PickRow] = []
-    for signal in signals:
-        if not passes_risk_filter(settings, signal, as_of):
+    for base_signal in signals:
+        if not passes_risk_filter(settings, base_signal, as_of):
             continue
-        snapshot = snapshots.get(signal.ticker)
+        snapshot = snapshots.get(base_signal.ticker)
+        latest_price = latest_prices.get(base_signal.ticker)
+        technical_adjustment = compute_technical_adjustment(snapshot)
+        quality_adjustment = compute_quality_adjustment(snapshot, latest_price)
+        fundamental_adjustment = compute_fundamental_adjustment(snapshot)
+        signal = SignalRow(
+            ticker=base_signal.ticker,
+            date=base_signal.date,
+            momentum=base_signal.momentum,
+            volume_spike=base_signal.volume_spike,
+            technical=technical_adjustment,
+            fundamental=fundamental_adjustment,
+            quality=quality_adjustment,
+            short_momentum=base_signal.short_momentum,
+            medium_momentum=base_signal.medium_momentum,
+            ma_trend=base_signal.ma_trend,
+            liquidity=base_signal.liquidity,
+        )
         daily_change_pct = snapshot.daily_change_pct if snapshot else None
-        score = score_signal(signal, weights)
+        score = score_signal(signal, weights) + signal.technical + signal.fundamental + signal.quality
         if apply_chase_penalty:
             score = apply_same_day_chase_penalty(settings, score, daily_change_pct)
         ranked.append(
@@ -147,6 +167,9 @@ def generate_picks(
                 score=round(score, 4),
                 momentum=round(signal.momentum, 4),
                 volume=round(signal.volume_spike, 4),
+                technical=round(signal.technical, 4),
+                fundamental=round(signal.fundamental, 4),
+                quality=round(signal.quality, 4),
                 ma_trend=round(signal.ma_trend, 4),
                 liquidity=round(signal.liquidity, 4),
                 risk=classify_risk(signal.momentum, signal.volume_spike),
@@ -212,6 +235,20 @@ def daily_summary(settings: Settings, as_of: date) -> str:
         else:
             lines.append("- No daily technical leaders found")
 
+        ranked_leaders = generate_picks(settings, as_of, pick_count=3, dry_run=True)
+        highlighted = [pick for pick in ranked_leaders if pick.technical > 0 or (pick.fundamental + pick.quality) > 0]
+        if highlighted:
+            lines.append("")
+            lines.append("Signal-Ready Leaders:")
+            for pick in highlighted:
+                snapshot = next((item for item in snapshots if item.ticker == pick.ticker), None)
+                if snapshot is None:
+                    continue
+                lines.append(
+                    f"- {pick.ticker}: Tech {snapshot.technical_daily}/{snapshot.technical_weekly} | "
+                    f"Adj {pick.technical + pick.fundamental + pick.quality:+.2f}"
+                )
+
     return "\n".join(lines)
 
 
@@ -234,8 +271,17 @@ def picks_output(
                 "signals": {
                     "momentum": pick.momentum,
                     "volume": pick.volume,
+                    "technical": pick.technical,
+                    "fundamental": pick.fundamental,
+                    "quality": pick.quality,
                     "ma_trend": pick.ma_trend,
                     "liquidity": pick.liquidity,
+                },
+                "adjustments": {
+                    "technical": pick.technical,
+                    "fundamental": pick.fundamental,
+                    "quality": pick.quality,
+                    "total_boost": round(pick.technical + pick.fundamental + pick.quality, 4),
                 },
                 "risk": pick.risk,
                 "horizon": pick.horizon,

@@ -19,6 +19,9 @@ class SignalRow:
     date: date
     momentum: float
     volume_spike: float
+    technical: float = 0.0
+    fundamental: float = 0.0
+    quality: float = 0.0
     short_momentum: float = 0.0
     medium_momentum: float = 0.0
     ma_trend: float = 0.0
@@ -33,6 +36,9 @@ class PickRow:
     momentum: float
     volume: float
     risk: str
+    technical: float = 0.0
+    fundamental: float = 0.0
+    quality: float = 0.0
     ma_trend: float = 0.0
     liquidity: float = 0.0
     horizon: str = "intraday"
@@ -66,3 +72,5 @@ class MarketSnapshot:
     avg_volume_3m: float
     market_cap: float
     beta: float
+    revenue: float = 0.0
+    pe_ratio: float = 0.0

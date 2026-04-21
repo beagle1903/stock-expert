@@ -48,6 +48,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-20 | Daily CSV import skips obvious non-equity portfolio-management/fund rows unless explicitly allowlisted. | Prevents fund/portfolio entities from becoming synthetic stock picks while allowing trusted aliases such as `HEDEFPORTFOYYONETIMIAS -> HEDEF`. |
 | 2026-04-21 | `routine` is the full end-to-end flow with actual persisted review; `midday-routine` is the import + daily + picks + dry-run review flow. | Keeps the midday dry-run review flow separate from the full review command path and matches the intended operator language. |
 | 2026-04-21 | Repo test coverage now uses `unittest` in `tests/` for routine wiring, weekday date helpers, and dry-run review persistence boundaries. | Adds regression protection without introducing a new test dependency. |
+| 2026-04-21 | Picks now keep momentum/volume as the base score but add capped technical, quality, and fundamental soft boosts from imported snapshot data. | Brings `teknik.csv` and `temel.csv` into live ranking without replacing the core anti-chase momentum workflow. |
 
 ## Workflows
 
@@ -97,7 +98,7 @@ Live files:
 ### Testing
 
 - Run `D:\miniconda3\python.exe -m unittest discover -s tests -v` from the repo root.
-- Current tests cover `routine` vs `midday-routine` CLI wiring, weekday date helpers, and the review dry-run persistence boundary.
+- Current tests cover `routine` vs `midday-routine` CLI wiring, weekday date helpers, review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, and bounded technical/fundamental scoring behavior.
 
 ### Data Inputs
 
