@@ -4,6 +4,7 @@ __pycache__/
 
 .pytest_cache/
 .mypy_cache/
+.test_tmp/
 .venv/
 venv/
 .env
