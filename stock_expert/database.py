@@ -395,15 +395,6 @@ def upsert_market_snapshots(settings: Settings, rows: Iterable[MarketSnapshot], 
         )
 
 
-def replace_imported_day(settings: Settings, target_date: date) -> None:
-    day = target_date.isoformat()
-    with connect(settings) as conn:
-        conn.execute("DELETE FROM stocks WHERE date = ?", (day,))
-        conn.execute("DELETE FROM market_snapshots WHERE date = ?", (day,))
-        conn.execute("DELETE FROM signals WHERE date = ?", (day,))
-        conn.execute("DELETE FROM picks WHERE date = ?", (day,))
-
-
 def get_latest_weights(settings: Settings) -> Weights | None:
     with connect(settings) as conn:
         row = conn.execute(
@@ -447,26 +438,6 @@ def get_pick_results(settings: Settings, signal_date: date, target_date: date) -
                 ORDER BY p.score DESC
                 """,
                 (target_date.isoformat(), target_snapshot_id, signal_snapshot_id),
-            )
-        )
-
-
-def get_recent_picks(settings: Settings, as_of: date, days: int) -> list[sqlite3.Row]:
-    start_date = (as_of - timedelta(days=days - 1)).isoformat()
-    end_date = as_of.isoformat()
-    with connect(settings) as conn:
-        return list(
-            conn.execute(
-                """
-                SELECT p.date, p.ticker, p.score, s.open_price, s.close_price
-                FROM picks p
-                JOIN stocks s
-                  ON s.ticker = p.ticker
-                 AND s.date = p.date
-                WHERE p.date BETWEEN ? AND ?
-                ORDER BY p.date DESC, p.score DESC
-                """,
-                (start_date, end_date),
             )
         )
 

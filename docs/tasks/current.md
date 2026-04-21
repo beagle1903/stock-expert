@@ -21,3 +21,4 @@
 - Review explains missed movers clearly
 - Daily CSV import flow is available
 - Live root CSV routine supports repeated same-day imports
+- Routine and midday dry-run behavior are covered by tests

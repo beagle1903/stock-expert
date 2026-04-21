@@ -46,7 +46,8 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-10 | Non-`main` git branches now default to branch-specific SQLite files like `data/stock_expert_codex_add_indicators.db`; `main` keeps `data/stock_expert.db`. | Prevents branch experiments from contaminating the primary database and makes branch-to-branch comparisons safer. |
 | 2026-04-20 | Live root CSVs are the default input; imports create timestamped SQLite snapshot runs instead of relying on dated archive folders. | Supports running the routine more than once during the same BIST session without overwriting earlier action snapshots. |
 | 2026-04-20 | Daily CSV import skips obvious non-equity portfolio-management/fund rows unless explicitly allowlisted. | Prevents fund/portfolio entities from becoming synthetic stock picks while allowing trusted aliases such as `HEDEFPORTFOYYONETIMIAS -> HEDEF`. |
-| 2026-04-21 | `routine` is the full end-to-end flow with actual persisted review; `midday-routine` is the import + daily + picks + dry-run review flow. | Keeps midday pseudo-review separate from the full review command path and matches the intended operator language. |
+| 2026-04-21 | `routine` is the full end-to-end flow with actual persisted review; `midday-routine` is the import + daily + picks + dry-run review flow. | Keeps the midday dry-run review flow separate from the full review command path and matches the intended operator language. |
+| 2026-04-21 | Repo test coverage now uses `unittest` in `tests/` for routine wiring, weekday date helpers, and dry-run review persistence boundaries. | Adds regression protection without introducing a new test dependency. |
 
 ## Workflows
 
@@ -63,6 +64,7 @@ Document repeatable ways of doing things in this repo.
 - `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m stock_expert picks --date YYYY-MM-DD --dry-run --no-chase-penalty`
 - `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD --dry-run --no-chase-penalty`
+- `D:\miniconda3\python.exe -m unittest discover -s tests -v`
 
 ### Daily CSV Routine
 
@@ -78,10 +80,10 @@ Live files:
 - `data\temel.csv`
 
 1. Replace the four live CSV files with current exports.
-2. Run `D:\miniconda3\python.exe -m stock_expert routine` for the full flow or `D:\miniconda3\python.exe -m stock_expert midday-routine` for the pseudo-review flow.
+2. Run `D:\miniconda3\python.exe -m stock_expert routine` for the full flow or `D:\miniconda3\python.exe -m stock_expert midday-routine` for the midday dry-run review flow.
 3. The routine imports a new `snapshot_runs` row for today's date and uses the latest snapshot for output.
 4. `routine` persists normal picks and the normal review; `midday-routine` keeps review non-mutating via `--dry-run`.
-5. Use `midday-routine` when the user wants the pseudo-review behavior from yesterday.
+5. Use `midday-routine` when the user wants the midday dry-run review behavior from yesterday.
 6. Run CLI commands from the repo root unless the package is installed in the active environment.
 
 ### Strategy Comparison
@@ -89,8 +91,13 @@ Live files:
 - Use `--dry-run` for comparison runs; it must not write picks, signals, weights, or review rows.
 - Use `--no-chase-penalty` to compare against the overextended-mover penalty strategy.
 - Current comparison candidate for 2026-04-17 without chase penalty: `MERCN`, `CRFSA`, `KONTR`, `PRZMA`, `FONET`.
-- Use `midday-routine` for pseudo-review checks without mutating review state.
+- Use `midday-routine` for midday dry-run review checks without mutating review state.
 - Use `routine` for the actual persisted review flow.
+
+### Testing
+
+- Run `D:\miniconda3\python.exe -m unittest discover -s tests -v` from the repo root.
+- Current tests cover `routine` vs `midday-routine` CLI wiring, weekday date helpers, and the review dry-run persistence boundary.
 
 ### Data Inputs
 
@@ -120,6 +127,7 @@ Live files:
 - A local `.env` can pin `STOCK_EXPERT_DB_PATH` and takes effect before branch-based default DB selection.
 - `review --date YYYY-MM-DD` evaluates realized market data for that date against picks generated from the previous weekday signal date.
 - `--dry-run` is the safe path for old-strategy comparisons because normal `picks`/`review` mutate SQLite state.
+- Workspace-local temp directories are safer than OS temp directories for tests in this environment.
 
 ## Data Sources And External Dependencies
 

@@ -12,10 +12,8 @@ class Settings:
     data_dir: Path
     db_path: Path
     default_pick_count: int = 5
-    review_window_days: int = 7
     low_liquidity_threshold: float = 1_000_000
     max_abs_momentum: float = 0.15
-    max_volume_spike: float = 4.0
     same_day_chase_threshold_pct: float = 8.0
     same_day_chase_penalty_per_pct: float = 0.03
     max_same_day_chase_penalty: float = 0.12

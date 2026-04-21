@@ -19,9 +19,19 @@ Run these from the repo root.
 
 ```powershell
 & 'D:\miniconda3\python.exe' -m stock_expert import-daily-folder --folder data\20260414
+& 'D:\miniconda3\python.exe' -m stock_expert midday-routine --date 2026-04-21
+& 'D:\miniconda3\python.exe' -m stock_expert routine --date 2026-04-21
 & 'D:\miniconda3\python.exe' -m stock_expert daily --date 2026-04-14
 & 'D:\miniconda3\python.exe' -m stock_expert picks --date 2026-04-14
 & 'D:\miniconda3\python.exe' -m stock_expert review --date 2026-04-14
+```
+
+## Tests
+
+Run these from the repo root.
+
+```powershell
+& 'D:\miniconda3\python.exe' -m unittest discover -s tests -v
 ```
 
 ## Data
