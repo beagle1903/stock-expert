@@ -3,6 +3,7 @@
 - Maintain a minimal working BIST CLI with:
   - `import-daily-csv`
   - `routine`
+  - `midday-routine`
   - `daily`
   - `picks`
   - `review`

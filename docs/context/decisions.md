@@ -11,7 +11,8 @@
 ## Current Notes
 
 - Daily CSV imports are the main runtime market-data source
-- `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily` and `picks`
+- `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily`, `picks`, and actual `review`
+- `midday-routine` imports the same live CSVs, then runs `daily`, `picks`, and a dry-run `review`
 - `data/ticker_map.csv` is used to persist company-name to ticker mappings across imports
 - Yahoo import remains available as a secondary path
 - `main` uses `data/stock_expert.db`; non-`main` branches default to branch-specific SQLite files unless `STOCK_EXPERT_DB_PATH` is set
