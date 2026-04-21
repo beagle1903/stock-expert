@@ -1,4 +1,6 @@
 company_key,ticker,company_name,matched_name,match_type
+ENPARABANKAS,ENPRA,Enpara Bank AS,Enpara Bank AS,manual_override
+FTGAYRIMENKULVEGIRISIM,FTPGS,Ft Gayrimenkul ve Girisim,Ft Gayrimenkul ve Girisim,manual_override
 1000YATIRIMLARHOLDING,BINHO,1000 Yatırımlar Holding,1000 Yatirimlar Holding Anonim Sirketi,prefix
 A1CAPITALYATIRIM,A1CAP,A1 Capital Yatırım,A1 Capital Yatirim Menkul Degerler A.S.,prefix
 AGANADOLUGRUP,AGHOL,AG Anadolu Grup,AG Anadolu Grubu Holding A.S.,token_subset
