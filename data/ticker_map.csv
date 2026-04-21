@@ -1,4 +1,7 @@
 company_key,ticker,company_name,matched_name,match_type
+DOFROBOTIKSANAYIAS,DOFRB,Dof Robotik Sanayi AS,Dof Robotik Sanayi AS,manual_override
+ENPARABANKAS,ENPRA,Enpara Bank AS,Enpara Bank AS,manual_override
+FTGAYRIMENKULVEGIRISIM,FTPGS,Ft Gayrimenkul ve Girisim,Ft Gayrimenkul ve Girisim,manual_override
 1000YATIRIMLARHOLDING,BINHO,1000 Yatırımlar Holding,1000 Yatirimlar Holding Anonim Sirketi,prefix
 A1CAPITALYATIRIM,A1CAP,A1 Capital Yatırım,A1 Capital Yatirim Menkul Degerler A.S.,prefix
 AGANADOLUGRUP,AGHOL,AG Anadolu Grup,AG Anadolu Grubu Holding A.S.,token_subset
@@ -70,6 +73,7 @@ AYES,AYES,Ayes,Ayes Celik Hasir Ve Cit Sanayi A.S.,prefix
 AYGAZAS,AYGAZ,Aygaz A.Ş.,Aygaz A.S.,exact_key
 AZTEKTEKNOLOJIURUNLERI,AZTEK,Aztek Teknoloji Ürünleri,Aztek Teknoloji Urunleri Ticaret Anonim Sirketi,prefix
 BIMMAGAZALAR,BIMAS,BIM Mağazalar,BIM Birlesik Magazalar A.S.,token_subset
+BIOTRENDYATIRIM,BIOEN,Biotrend Yatırım,Biotrend Yatırım,manual
 BMSBIRLESIKMETALSANAYI,BMSTL,BMS Birleşik Metal Sanayi,Bms Birlesik Metal Sanayi ve Ticaret A.S.,prefix
 BMSCELIK,BMSCH,BMS Çelik,Bms Celik Hasir Sanayi Ve Ticaret Anonim Sirketi,prefix
 BAGFASBANDIRMAGUBREFAB,BAGFS,Bagfaş Bandırma Gübre Fab.,Bagfas Bandirma Gubre Fabrikalari A.S.,prefix
@@ -205,7 +209,9 @@ FRIGOPAK,FRIGO,Frigo Pak,Frigo-Pak Gida Maddeleri Sanayi ve Ticaret A.S.,prefix
 FUZULGAYRIMENKUL,FZLGY,Fuzul Gayrimenkul,Fuzul Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
 GSDHOLDING,GSDHO,GSD Holding,GSD Holding A.S.,prefix
 GALATAWINDENERJI,GWIND,Galata Wind Enerji,Galata Wind Enerji A.S.,prefix
+GARANTIBBVA,GARAN,Garanti BBVA,Garanti BBVA,manual
 GARANTIFAKTORING,GARFA,Garanti Faktoring,Garanti Faktoring A.S.,prefix
+GARANTIYO,GRNYO,Garanti YO,Garanti YO,manual
 GARANTIYATIRIMORTAKLIGI,GRNYO,Garanti YO,Garanti Yatirim Ortakligi A.S.,prefix
 GATETEKNOLOJIMEDYAVESIBERGUVENLIKHIZMETLERI,GATEG,Gate Teknoloji Medya ve Siber Guvenlik Hizmetleri,Gate Group Teknoloji Medya Ve Siber Guvenlik Hizmetleri A.S.,token_subset
 GEDIKYATIRIM,GEDIK,Gedik Yatırım,Gedik Yatirim Menkul Degerler A.S.,prefix
@@ -229,6 +235,7 @@ GULERYATIRIM,GLRYH,Güler Yatırım,Güler Yatirim Holding A.S.,prefix
 GUNDOGDUGIDA,GUNDG,Gündoğdu Gıda,Gundogdu Gida Sut Urunleri Sanayi ve Dis Ticaret Anonim Sirketi,prefix
 GIPTAOFISKIRTASIYE,GIPTA,Gıpta Ofis Kırtasiye,Gipta Ofis Kirtasiye ve Promosyon Ürünleri Imalat Sanayi A.S.,prefix
 HEDEFGIRISIM,HDFGS,HEDEF Girişim,Hedef Girisim Sermayesi Yatirim Ortakligi A.S.,prefix
+HEDEFPORTFOYYONETIMIAS,HEDEF,Hedef Holding A.Ş.,Hedef Holding A.S,manual_alias
 HACIOMERSABANCIHOLDING,SAHOL,Hacı Ömer Sabancı Holding,Haci Ömer Sabanci Holding A.S.,prefix
 HALKGAYRIMENKULYATIRIMORTAKLIGI,HLGYO,Halk GYO,Halk Gayrimenkul Yatirim Ortakligi A.S,prefix
 HAREKETPROJETASIMACILIGI,HRKET,Hareket Proje Taşımacılığı,Hareket Proje Tasimaciligi Ve Yuk Muhendisligi Anonim Sirketi,prefix
@@ -310,6 +317,7 @@ LYDIAYESILENERJIKAYNAKLARIAS,LYDYE,Lydia Yesil Enerji Kaynaklari AS,Lydia Yesil 
 LUKSKADIFETICVESAN,LUKSK,Lüks Kadife Tic. ve San.,Lüks Kadife Ticaret ve Sanayi A.S.,fuzzy_0.844
 MLPSAGLIK,MPARK,MLP Sağlık,MLP Saglik Hizmetleri A.S.,prefix
 MAKIMMAKINATEKNOLOJILERI,MAKIM,Makim Makina Teknolojileri,Makim Makina Teknolojileri Sanayi Ve Ticaret A.S.,prefix
+MTE,MAKTK,MTE,MTE,manual
 MANASENERJIYONETIMISAN,MANAS,Manas Enerji Yönetimi San.,Manas Enerji Yonetimi Sanayi Ve Ticaret Anonim Sirketi,prefix
 MARGUNENERJI,MAGEN,Margün Enerji,Margün Enerji Üretim Sanayi ve Ticaret A.S.,prefix
 MARKAYATIRIM,MARKA,Marka Yatırım,Marka Yatirim Holding A.S.,prefix
@@ -336,6 +344,7 @@ MHRGAYRIMENKUL,MHRGY,Mhr Gayrimenkul,MHR Gayrimenkul Yatirim Ortakligi Anonim Si
 MIATEKNOLOJI,MIATK,Mia Teknoloji,MIA Teknoloji Anonim Sirketi,prefix
 MIGROS,MGROS,Migros,Migros Ticaret A.S.,prefix
 MISTRALGAYRIMENKULYATIRIMORTAKLIGI,MSGYO,Mistral GYO,Mistral Gayrimenkul Yatirim Ortakligi A.S.,prefix
+MISTRALGYO,MSGYO,Mistral GYO,Mistral Gayrimenkul Yatirim Ortakligi A.S.,manual_alias
 MMCSANVETICARIYATAS,MMCAS,Mmc San. Ve Ticari Yat. A.Ş.,MMC Sanayi Ve Ticari Yatirimlar A.S.,fuzzy_0.792
 MOBILTELILETISIMHIZMETLERI,MOBTL,Mobiltel İletişim Hizmetleri,Mobiltel Iletisim Hizmetleri Sanayi ve Ticaret A.S.,prefix
 MOGANENERJI,MOGAN,Mogan Enerji,Mogan Enerji Yatirim Holding Anonim Sirketi,prefix
@@ -345,6 +354,7 @@ NATURELYENILENEBILIRENERJI,NATEN,Naturel Yenilenebilir Enerji,Naturel Yenilenebi
 NATURELGAZSANAYI,NTGAZ,Naturelgaz Sanayi,Naturelgaz Sanayi ve Ticaret A.S.,prefix
 NETHOLDINGAS,NTHOL,Net Holding A.Ş.,Net Holding A.S.,exact_key
 NETASTELEKOM,NETAS,Netaş Telekom,Netas Telekomünikasyon A.S.,prefix
+NETCADYAZILIM,NETCD,Netcad Yazilim,Netcad Yazilim,manual
 NIGBASBETONSANVETICAS,NIBAS,Niğbaş Beton San. Ve Tic. A.Ş.,Nigbas Nigde Beton Sanayi Ve Ticaret A.S.,fuzzy_0.778
 NUHCIMENTO,NUHCM,Nuh Çimento,Nuh Çimento Sanayi A.S.,prefix
 NUROLGAYRIMENKULYATIRIMORTAKLIGI,NUGYO,Nurol GYO,Nurol Gayrimenkul Yatirim Ortakligi A.S.,prefix
@@ -376,6 +386,7 @@ PARDUSGIRISIMSERMAYESIYATIRIM,PRDGS,Pardus Girişim Sermayesi Yatırım,Pardus G
 PARKELEKTRIK,PRKME,Park Elektrik,Park Elektrik Üretim Madencilik Sanayi ve Ticaret A.S.,prefix
 PARSANMAKINAPARCALARISANAYII,PARSN,Parsan Makina Parçaları Sanayii,Parsan Makina Parçalari Sanayii A.S.,prefix
 PASIFIKEURASIALOJISTIK,PASEU,Pasifik Eurasia Lojistik,Pasifik Eurasia Lojistik Dis Ticaret A.S.,prefix
+PASIFIKGYO,PSGYO,Pasifik GYO,Pasifik GYO,manual
 PASIFIKGAYRIMENKULYATIRIMORTAKLIGI,PSGYO,Pasifik GYO,Pasifik Gayrimenkul Yatirim Ortakligi A.S.,prefix
 PEGASUSHAVATASIMACILIGI,PGSUS,Pegasus Hava Taşımacılığı,Pegasus Hava Tasimaciligi Anonim Sirketi,prefix
 PEKERGAYRIMENKULYATIRIMORTAKLIGI,PEKGY,Peker GYO,Peker Gayrimenkul Yatirim Ortakligi Anonim Sirketi,prefix
@@ -420,6 +431,7 @@ SELVAGIDA,SELVA,Selva Gıda,Selva Gida Sanayi A.S.,prefix
 SELCUKECZADEPOSU,SELEC,Selçuk Ecza Deposu,Selçuk Ecza Deposu Ticaret ve Sanayi A.S.,prefix
 SERANITGRANITSERAMIKSANAYIVETICARETAS,SERNT,Seranit Granit Seramik Sanayi ve Ticaret AS,Seranit Granit Seramik Sanayi ve Ticaret Anonim Sirketi,exact_canonical
 SERVETGAYRIMENKULYATIRIMORTAKLIGI,SRVGY,Servet GYO,Servet Gayrimenkul Yatirim Ortakligi A.S.,prefix
+SAVURGAYRIMENKULYATIRIM,SVGYO,Savur Gayrimenkul Yatirim,Savur Gayrimenkul Yatirim,manual
 SEYITLERKIMYA,SEYKM,Seyitler Kimya,Seyitler Kimya Sanayi A.S.,prefix
 SEGMENKARDESLER,SEGMN,Seğmen Kardeşler,Segmen Kardesler Gida Üretim ve Ambalaj Sanayi Anonim Sirketi,prefix
 SILVERLINEENDUSTRI,SILVR,Silverline Endüstri,Silverline Endustri ve Ticaret A.S.,prefix

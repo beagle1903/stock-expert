@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import date
 
@@ -22,6 +23,17 @@ def build_parser() -> argparse.ArgumentParser:
             default=date.today().isoformat(),
             help="As-of date in YYYY-MM-DD format",
         )
+        if command_name in {"picks", "review"}:
+            command_parser.add_argument(
+                "--dry-run",
+                action="store_true",
+                help="Compute output without writing picks, signals, weights, or review rows",
+            )
+            command_parser.add_argument(
+                "--no-chase-penalty",
+                action="store_true",
+                help="Disable the same-day overextension penalty for comparison",
+            )
 
     download_parser = subparsers.add_parser("download-ohlcv", help="Download OHLCV history from Yahoo Finance")
     download_parser.add_argument(
@@ -71,6 +83,28 @@ def build_parser() -> argparse.ArgumentParser:
     csv_parser.add_argument("--data-dir", default="data", help="Directory containing fiyat/performans/teknik/temel csv files")
     folder_parser = subparsers.add_parser("import-daily-folder", help="Import a dated folder containing the four daily CSV files")
     folder_parser.add_argument("--folder", required=True, help="Folder path relative to the project root, e.g. data/20260408")
+    routine_parser = subparsers.add_parser(
+        "routine",
+        help="Import live CSV files, summarize market, generate picks, and run actual review",
+    )
+    routine_parser.add_argument(
+        "--date",
+        dest="as_of",
+        default=date.today().isoformat(),
+        help="Snapshot date in YYYY-MM-DD format, default is today",
+    )
+    routine_parser.add_argument("--data-dir", default="data", help="Directory containing the four live csv files")
+    midday_parser = subparsers.add_parser(
+        "midday-routine",
+        help="Import live CSV files, summarize market, generate picks, and run dry-run review",
+    )
+    midday_parser.add_argument(
+        "--date",
+        dest="as_of",
+        default=date.today().isoformat(),
+        help="Snapshot date in YYYY-MM-DD format, default is today",
+    )
+    midday_parser.add_argument("--data-dir", default="data", help="Directory containing the four live csv files")
     return parser
 
 
@@ -87,11 +121,25 @@ def main() -> int:
         return 0
     if args.command == "picks":
         as_of = date.fromisoformat(args.as_of)
-        print(picks_output(settings, as_of))
+        print(
+            picks_output(
+                settings,
+                as_of,
+                dry_run=args.dry_run,
+                apply_chase_penalty=not args.no_chase_penalty,
+            )
+        )
         return 0
     if args.command == "review":
         as_of = date.fromisoformat(args.as_of)
-        print(review_output(settings, as_of))
+        print(
+            review_output(
+                settings,
+                as_of,
+                dry_run=args.dry_run,
+                apply_chase_penalty=not args.no_chase_penalty,
+            )
+        )
         return 0
     if args.command == "download-ohlcv":
         print(
@@ -125,6 +173,29 @@ def main() -> int:
         return 0
     if args.command == "import-daily-folder":
         print(import_daily_csv_folder_command(settings=settings, folder=args.folder))
+        return 0
+    if args.command in {"routine", "midday-routine"}:
+        as_of = date.fromisoformat(args.as_of)
+        import_result = json.loads(
+            import_daily_csv_command(settings=settings, snapshot_date=args.as_of, data_dir=args.data_dir)
+        )
+        print(
+            json.dumps(
+                {"routine": args.command, "routine_date": args.as_of, "import": import_result},
+                indent=2,
+            )
+        )
+        print()
+        print(daily_summary(settings, as_of))
+        print()
+        print(picks_output(settings, as_of))
+        print()
+        if args.command == "midday-routine":
+            print("Dry-Run Review:")
+            print(review_output(settings, as_of, dry_run=True))
+        else:
+            print("Review:")
+            print(review_output(settings, as_of))
         return 0
 
     parser.error(f"Unsupported command: {args.command}")

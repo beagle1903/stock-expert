@@ -4,11 +4,16 @@ __pycache__/
 
 .pytest_cache/
 .mypy_cache/
+.test_tmp/
 .venv/
 venv/
 .env
 
 data/stock_expert.db
 data/stock_expert_*.db
+data/fiyat.csv
+data/performans.csv
+data/teknik.csv
+data/temel.csv
 data/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/
 data/ticker_map_unmatched.csv

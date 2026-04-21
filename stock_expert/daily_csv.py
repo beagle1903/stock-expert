@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import csv
 import json
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from stock_expert.config import Settings
-from stock_expert.database import init_db, replace_imported_day, upsert_market_snapshots, upsert_prices
+from stock_expert.database import create_snapshot_run, init_db, upsert_market_snapshots, upsert_prices
 from stock_expert.models import MarketSnapshot
 
 
@@ -34,6 +34,21 @@ def _normalize_key(value: str) -> str:
     return "".join(ch for ch in normalized if ch.isalnum())
 
 
+ALLOWED_NON_EQUITY_SOURCE_KEYS = {
+    "HEDEFPORTFOYYONETIMIAS",
+}
+
+
+def _is_non_equity_key(key: str) -> bool:
+    non_equity_markers = (
+        "PORTFOYYONETIMI",
+        "PORTFOYYON",
+        "GYF",
+        "FONUY",
+    )
+    return any(marker in key for marker in non_equity_markers)
+
+
 def _parse_number(value: str) -> float:
     text = value.strip().replace(".", "").replace(",", ".")
     if not text:
@@ -59,6 +74,13 @@ def _parse_number(value: str) -> float:
         text = text[:-1]
         multiplier = 1_000
     return float(text) * multiplier
+
+
+def _parse_optional_number(value: str) -> float:
+    try:
+        return _parse_number(value)
+    except (AttributeError, ValueError):
+        return 0.0
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
@@ -100,12 +122,16 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
     price_rows: list[tuple[str, date, float, float, float]] = []
     mapped_count = 0
     fallback_count = 0
+    skipped_non_equity_count = 0
 
     for row in fiyat:
         company_name = row.get("ISIM", "").strip()
         if not company_name:
             continue
         key = _normalize_key(company_name)
+        if _is_non_equity_key(key) and key not in ALLOWED_NON_EQUITY_SOURCE_KEYS:
+            skipped_non_equity_count += 1
+            continue
         perf = performans_map.get(key)
         tech = teknik_map.get(key)
         fund = temel_map.get(key)
@@ -140,35 +166,59 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
                 technical_daily=tech["GUNLUK"].strip(),
                 technical_weekly=tech["HAFTALIK"].strip(),
                 technical_monthly=tech["AYLIK"].strip(),
-                avg_volume_3m=_parse_number(fund["ORTALAMAHACIM3AY"]),
-                market_cap=_parse_number(fund["PIYASADEGERI"]),
-                beta=_parse_number(fund["BETA"]),
+                avg_volume_3m=_parse_optional_number(fund.get("ORTALAMAHACIM3AY", "")),
+                market_cap=_parse_optional_number(fund.get("PIYASADEGERI", "")),
+                beta=_parse_optional_number(fund.get("BETA", "")),
+                revenue=_parse_optional_number(fund.get("GELIR", "")),
+                pe_ratio=_parse_optional_number(fund.get("FIYATKAZANCORANI", "")),
             )
         )
         price_rows.append((ticker, target_date, open_price, last_price, volume))
 
     init_db(settings)
-    replace_imported_day(settings, target_date)
-    upsert_market_snapshots(settings, snapshots)
-    upsert_prices(settings, price_rows)
+    snapshot_id = create_snapshot_run(
+        settings=settings,
+        snapshot_date=target_date,
+        source_label="daily_csv",
+        source_dir=data_dir,
+    )
+    upsert_market_snapshots(settings, snapshots, snapshot_id=snapshot_id)
+    upsert_prices(settings, [(snapshot_id, *row) for row in price_rows])
     distinct_tickers = len({snapshot.ticker for snapshot in snapshots})
 
     return json.dumps(
         {
+            "snapshot_id": snapshot_id,
             "snapshot_date": target_date.isoformat(),
             "rows_read": len(snapshots),
             "distinct_generated_tickers": distinct_tickers,
             "mapped_count": mapped_count,
             "fallback_count": fallback_count,
+            "skipped_non_equity_count": skipped_non_equity_count,
             "source_files": ["fiyat.csv", "performans.csv", "teknik.csv", "temel.csv"],
         },
         indent=2,
     )
 
 
+def _previous_weekday(day: date) -> date:
+    previous = day - timedelta(days=1)
+    while previous.weekday() >= 5:
+        previous -= timedelta(days=1)
+    return previous
+
+
 def import_daily_csv_folder_command(settings: Settings, folder: str) -> str:
     folder_path = settings.base_dir / folder
-    snapshot_date = folder_path.name
-    if len(snapshot_date) == 8 and snapshot_date.isdigit():
-        snapshot_date = f"{snapshot_date[:4]}-{snapshot_date[4:6]}-{snapshot_date[6:]}"
-    return import_daily_csv_command(settings=settings, snapshot_date=snapshot_date, data_dir=folder)
+    folder_date = folder_path.name
+    target_trade_date = None
+    if len(folder_date) == 8 and folder_date.isdigit():
+        label_date = date(int(folder_date[:4]), int(folder_date[4:6]), int(folder_date[6:]))
+        target_trade_date = label_date
+        snapshot_date = _previous_weekday(label_date).isoformat()
+    else:
+        snapshot_date = folder_date
+    result = json.loads(import_daily_csv_command(settings=settings, snapshot_date=snapshot_date, data_dir=folder))
+    if target_trade_date is not None:
+        result["target_trade_date"] = target_trade_date.isoformat()
+    return json.dumps(result, indent=2)
