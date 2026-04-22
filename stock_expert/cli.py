@@ -85,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     folder_parser.add_argument("--folder", required=True, help="Folder path relative to the project root, e.g. data/20260408")
     routine_parser = subparsers.add_parser(
         "routine",
-        help="Import live CSV files, summarize market, generate picks, and run actual review",
+        help="Import live CSV files, summarize market, run persisted picks/review, and report no-chase dry-run comparisons",
     )
     routine_parser.add_argument(
         "--date",
@@ -196,6 +196,12 @@ def main() -> int:
         else:
             print("Review:")
             print(review_output(settings, as_of))
+            print()
+            print("No-Chase Dry-Run Picks:")
+            print(picks_output(settings, as_of, dry_run=True, apply_chase_penalty=False))
+            print()
+            print("No-Chase Dry-Run Review:")
+            print(review_output(settings, as_of, dry_run=True, apply_chase_penalty=False))
         return 0
 
     parser.error(f"Unsupported command: {args.command}")

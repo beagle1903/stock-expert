@@ -43,7 +43,7 @@ class CliRoutineTests(unittest.TestCase):
             patch("stock_expert.cli.get_settings", return_value=self.settings),
             patch("stock_expert.cli.import_daily_csv_command", return_value=json.dumps({"ok": True})),
             patch("stock_expert.cli.daily_summary", return_value="daily"),
-            patch("stock_expert.cli.picks_output", return_value="picks"),
+            patch("stock_expert.cli.picks_output", return_value="picks") as picks_output,
             patch("stock_expert.cli.review_output", return_value="review") as review_output,
             patch("sys.argv", ["stocks", "routine", "--date", "2026-04-21"]),
             redirect_stdout(io.StringIO()) as stdout,
@@ -51,10 +51,35 @@ class CliRoutineTests(unittest.TestCase):
             exit_code = cli.main()
 
         self.assertEqual(exit_code, 0)
-        review_output.assert_called_once_with(self.settings, cli.date(2026, 4, 21))
+        self.assertEqual(
+            picks_output.call_args_list,
+            [
+                unittest.mock.call(self.settings, cli.date(2026, 4, 21)),
+                unittest.mock.call(
+                    self.settings,
+                    cli.date(2026, 4, 21),
+                    dry_run=True,
+                    apply_chase_penalty=False,
+                ),
+            ],
+        )
+        self.assertEqual(
+            review_output.call_args_list,
+            [
+                unittest.mock.call(self.settings, cli.date(2026, 4, 21)),
+                unittest.mock.call(
+                    self.settings,
+                    cli.date(2026, 4, 21),
+                    dry_run=True,
+                    apply_chase_penalty=False,
+                ),
+            ],
+        )
         output = stdout.getvalue()
         self.assertIn('"routine": "routine"', output)
         self.assertIn("Review:", output)
+        self.assertIn("No-Chase Dry-Run Picks:", output)
+        self.assertIn("No-Chase Dry-Run Review:", output)
 
 
 if __name__ == "__main__":

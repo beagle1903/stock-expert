@@ -50,6 +50,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-21 | Repo test coverage now uses `unittest` in `tests/` for routine wiring, weekday date helpers, and dry-run review persistence boundaries. | Adds regression protection without introducing a new test dependency. |
 | 2026-04-21 | Picks now keep momentum/volume as the base score but add capped technical, quality, and fundamental soft boosts from imported snapshot data. | Brings `teknik.csv` and `temel.csv` into live ranking without replacing the core anti-chase momentum workflow. |
 | 2026-04-21 | GitHub remote backup is now active at `https://github.com/beagle1903/stock-expert`, with `main` as the default/stable branch. | Makes the repo recoverable off-laptop and establishes `main` as the source of truth after feature branches are merged. |
+| 2026-04-22 | `routine` now includes the persisted flow plus a no-chase-penalty dry-run picks/review comparison after the normal review. | Bakes the main strategy comparison into the default operator workflow without mutating SQLite twice. |
 
 ## Workflows
 
@@ -74,7 +75,7 @@ Document repeatable ways of doing things in this repo.
 
 ### Daily CSV Routine
 
-When the user says "do the routine", use the four live root CSVs in `data\`, import a new snapshot run, then run `daily`, normal `picks`, and the actual persisted `review`.
+When the user says "do the routine", use the four live root CSVs in `data\`, import a new snapshot run, then run `daily`, normal `picks`, the actual persisted `review`, and a no-chase-penalty dry-run `picks` + `review` comparison.
 
 When the user says "do the midday routine", use the same live CSV import flow, then run `daily`, normal `picks`, and `review --dry-run`.
 
@@ -88,7 +89,7 @@ Live files:
 1. Replace the four live CSV files with current exports.
 2. Run `D:\miniconda3\python.exe -m stock_expert routine` for the full flow or `D:\miniconda3\python.exe -m stock_expert midday-routine` for the midday dry-run review flow.
 3. The routine imports a new `snapshot_runs` row for today's date and uses the latest snapshot for output.
-4. `routine` persists normal picks and the normal review; `midday-routine` keeps review non-mutating via `--dry-run`.
+4. `routine` persists normal picks and the normal review, then prints a non-mutating no-chase-penalty dry-run picks/review comparison; `midday-routine` keeps review non-mutating via `--dry-run`.
 5. Use `midday-routine` when the user wants the midday dry-run review behavior from yesterday.
 6. Run CLI commands from the repo root unless the package is installed in the active environment.
 
@@ -98,7 +99,7 @@ Live files:
 - Use `--no-chase-penalty` to compare against the overextended-mover penalty strategy.
 - Current comparison candidate for 2026-04-17 without chase penalty: `MERCN`, `CRFSA`, `KONTR`, `PRZMA`, `FONET`.
 - Use `midday-routine` for midday dry-run review checks without mutating review state.
-- Use `routine` for the actual persisted review flow.
+- Use `routine` for the actual persisted review flow plus the no-chase dry-run comparison.
 
 ### Testing
 

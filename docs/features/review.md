@@ -7,6 +7,6 @@
 - Weight adjustments
 - Persists each review run and pick-level open-to-close results
 - Supports `--dry-run` and `--no-chase-penalty` for non-mutating strategy comparisons
-- `routine` reports the normal persisted review after picks
+- `routine` reports the normal persisted review after picks, then a no-chase-penalty dry-run review comparison
 - `midday-routine` reports the dry-run review after picks without writing review rows
 - No KAP inputs
