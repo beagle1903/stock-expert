@@ -129,6 +129,7 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_pick_results", return_value=recent_rows),
             patch("stock_expert.services.get_top_movers", return_value=[]),
             patch("stock_expert.services.get_latest_weights", return_value=None),
+            patch("stock_expert.services.get_review_run", return_value=None),
             patch("stock_expert.services.insert_weights") as insert_weights,
             patch("stock_expert.services.insert_review_run", return_value=7) as insert_review_run,
         ):
@@ -138,6 +139,26 @@ class ReviewOutputTests(unittest.TestCase):
         insert_review_run.assert_called_once()
         self.assertFalse(payload["dry_run"])
         self.assertEqual(payload["review_run_id"], 7)
+
+    def test_normal_review_reuses_existing_run(self) -> None:
+        recent_rows = [{"ticker": "AAA", "score": 1.0, "open_price": 10.0, "close_price": 11.0}]
+        existing_review = {"id": 7, "momentum_weight": 0.63, "volume_weight": 0.37}
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=[]),
+            patch("stock_expert.services.get_pick_results", return_value=recent_rows),
+            patch("stock_expert.services.get_top_movers", return_value=[]),
+            patch("stock_expert.services.get_latest_weights", return_value=Weights(date=date(2026, 4, 21), momentum_weight=0.63, volume_weight=0.37)),
+            patch("stock_expert.services.get_review_run", return_value=existing_review),
+            patch("stock_expert.services.insert_weights") as insert_weights,
+            patch("stock_expert.services.insert_review_run") as insert_review_run,
+        ):
+            payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
+
+        insert_weights.assert_not_called()
+        insert_review_run.assert_not_called()
+        self.assertEqual(payload["review_run_id"], 7)
+        self.assertEqual(payload["adjustments"]["momentum_weight"], 0.63)
 
     def test_picks_output_includes_adjustments_block(self) -> None:
         pick = PickRow(

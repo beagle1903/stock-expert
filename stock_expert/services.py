@@ -11,6 +11,7 @@ from stock_expert.database import (
     get_pick_results,
     get_prices_for_date,
     get_recent_price_history,
+    get_review_run,
     get_top_movers,
     init_db,
     insert_review_run,
@@ -389,16 +390,25 @@ def review_output(
     )
     review_run_id = None
     if not dry_run:
-        insert_weights(settings, next_weights)
-        review_run_id = insert_review_run(
-            settings=settings,
-            as_of=signal_date,
-            review_date=review_date,
-            avg_return=avg_return,
-            win_rate=win_rate,
-            picks=recent,
-            weights=next_weights,
-        )
+        existing_review = get_review_run(settings, signal_date, review_date)
+        if existing_review is None:
+            insert_weights(settings, next_weights)
+            review_run_id = insert_review_run(
+                settings=settings,
+                as_of=signal_date,
+                review_date=review_date,
+                avg_return=avg_return,
+                win_rate=win_rate,
+                picks=recent,
+                weights=next_weights,
+            )
+        else:
+            review_run_id = int(existing_review["id"])
+            next_weights = Weights(
+                date=as_of,
+                momentum_weight=existing_review["momentum_weight"],
+                volume_weight=existing_review["volume_weight"],
+            )
 
     payload = {
         "dry_run": dry_run,

@@ -458,6 +458,21 @@ def get_pick_results(settings: Settings, signal_date: date, target_date: date) -
         )
 
 
+def get_review_run(settings: Settings, as_of: date, review_date: date) -> sqlite3.Row | None:
+    init_db(settings)
+    with connect(settings) as conn:
+        return conn.execute(
+            """
+            SELECT id, momentum_weight, volume_weight
+            FROM review_runs
+            WHERE as_of_date = ? AND review_date = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (as_of.isoformat(), review_date.isoformat()),
+        ).fetchone()
+
+
 def insert_review_run(
     settings: Settings,
     as_of: date,
