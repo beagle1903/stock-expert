@@ -51,6 +51,8 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-21 | Picks now keep momentum/volume as the base score but add capped technical, quality, and fundamental soft boosts from imported snapshot data. | Brings `teknik.csv` and `temel.csv` into live ranking without replacing the core anti-chase momentum workflow. |
 | 2026-04-21 | GitHub remote backup is now active at `https://github.com/beagle1903/stock-expert`, with `main` as the default/stable branch. | Makes the repo recoverable off-laptop and establishes `main` as the source of truth after feature branches are merged. |
 | 2026-04-22 | `routine` now includes the persisted flow plus a no-chase-penalty dry-run picks/review comparison after the normal review. | Bakes the main strategy comparison into the default operator workflow without mutating SQLite twice. |
+| 2026-04-23 | Daily CSV imports now skip unmapped company names, report malformed required rows, and label derived CSV prices as previous-close-to-latest rather than true open-to-close. | Prevents fabricated tickers and makes review/daily outputs honest about the available feed semantics. |
+| 2026-04-23 | Persisted `review` is idempotent per signal/review date and weight changes now depend on return, win rate, and actionable misses. | Avoids repeated review drift while keeping the feedback loop tied to observed outcomes. |
 
 ## Workflows
 

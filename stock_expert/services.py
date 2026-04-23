@@ -92,12 +92,13 @@ def build_signals(settings: Settings, as_of: date) -> list[SignalRow]:
     return signals
 
 
-def passes_risk_filter(settings: Settings, signal: SignalRow, as_of: date) -> bool:
-    prices = group_bars_by_ticker(get_recent_price_history(settings, as_of, bars=1)).get(signal.ticker, [])
-    if not prices:
+def passes_risk_filter(settings: Settings, signal: SignalRow, as_of: date, latest_price=None) -> bool:
+    if latest_price is None:
+        prices = group_bars_by_ticker(get_recent_price_history(settings, as_of, bars=1)).get(signal.ticker, [])
+        latest_price = prices[-1] if prices else None
+    if latest_price is None:
         return False
-    latest = prices[-1]
-    traded_value = latest.close_price * latest.volume
+    traded_value = latest_price.close_price * latest_price.volume
     return traded_value >= settings.low_liquidity_threshold
 
 
@@ -137,10 +138,10 @@ def generate_picks(
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     ranked: list[PickRow] = []
     for base_signal in signals:
-        if not passes_risk_filter(settings, base_signal, as_of):
-            continue
         snapshot = snapshots.get(base_signal.ticker)
         latest_price = latest_prices.get(base_signal.ticker)
+        if not passes_risk_filter(settings, base_signal, as_of, latest_price=latest_price):
+            continue
         technical_adjustment = compute_technical_adjustment(snapshot)
         quality_adjustment = compute_quality_adjustment(snapshot, latest_price)
         fundamental_adjustment = compute_fundamental_adjustment(snapshot)
@@ -217,14 +218,15 @@ def daily_summary(settings: Settings, as_of: date) -> str:
         f"Daily Market Summary - {as_of.isoformat()}",
         "Source: sqlite",
         "Mode: imported daily CSV",
+        "Price Basis: previous close to latest price for CSV imports",
         f"Universe: {len(bars)} stocks | Advancers: {advancers} | Decliners: {decliners}",
         "",
-        "Top Movers:",
+        "Top Close Changes:",
     ]
 
     for row in movers[:5]:
-        intraday_return = ((row.close_price - row.open_price) / row.open_price) * 100
-        lines.append(f"- {row.ticker}: {intraday_return:+.2f}%")
+        close_change = ((row.close_price - row.open_price) / row.open_price) * 100
+        lines.append(f"- {row.ticker}: {close_change:+.2f}%")
 
     if snapshots:
         lines.append("")
@@ -294,11 +296,11 @@ def picks_output(
 
 
 def classify_missed_mover(settings: Settings, mover: dict[str, object]) -> tuple[str, str]:
-    intraday_return = abs(float(mover["intraday_return"]))
+    close_change_return = abs(float(mover["close_change_return"]))
     traded_value = float(mover["close_price"]) * float(mover["volume"])
     if traded_value < settings.low_liquidity_threshold:
         return "non_actionable", "low_liquidity"
-    if intraday_return > settings.max_abs_momentum:
+    if close_change_return > settings.max_abs_momentum:
         return "non_actionable", "extreme_volatility"
     return "actionable", "not_selected_by_score"
 
@@ -320,6 +322,26 @@ def _pick_result_rows(picks: list[PickRow], prices_by_ticker: dict[str, object],
             }
         )
     return rows
+
+
+def next_review_weights(current: Weights, avg_return: float, win_rate: float, missed_actionable_count: int) -> Weights:
+    momentum = current.momentum_weight
+    if avg_return > 0 and win_rate >= 0.6:
+        momentum += 0.02
+    elif avg_return < 0 or win_rate < 0.4:
+        momentum -= 0.03
+
+    if missed_actionable_count >= 5:
+        momentum -= 0.02
+    elif missed_actionable_count <= 1 and avg_return > 0:
+        momentum += 0.01
+
+    momentum = round(min(max(momentum, 0.4), 0.8), 2)
+    return Weights(
+        date=current.date,
+        momentum_weight=momentum,
+        volume_weight=round(1.0 - momentum, 2),
+    )
 
 
 def review_output(
@@ -361,7 +383,7 @@ def review_output(
         entry = {
             "ticker": mover["ticker"],
             "date": mover["date"],
-            "intraday_return": round(mover["day_return"], 4),
+            "close_change_return": round(mover["day_return"], 4),
             "close_price": round(mover["close_price"], 4),
             "volume": mover["volume"],
         }
@@ -369,7 +391,7 @@ def review_output(
         review_entry = {
             "ticker": entry["ticker"],
             "date": entry["date"],
-            "intraday_return": entry["intraday_return"],
+            "close_change_return": entry["close_change_return"],
             "reason": reason,
         }
         missed_top_movers.append(review_entry)
@@ -381,12 +403,11 @@ def review_output(
             break
 
     current = get_latest_weights(settings) or default_weights(as_of)
-    next_momentum_weight = round(min(current.momentum_weight + 0.03, 0.9), 2)
-    next_volume_weight = round(max(1.0 - next_momentum_weight, 0.1), 2)
-    next_weights = Weights(
-        date=as_of,
-        momentum_weight=next_momentum_weight,
-        volume_weight=next_volume_weight,
+    next_weights = next_review_weights(
+        Weights(date=as_of, momentum_weight=current.momentum_weight, volume_weight=current.volume_weight),
+        avg_return=avg_return,
+        win_rate=win_rate,
+        missed_actionable_count=len(missed_actionable),
     )
     review_run_id = None
     if not dry_run:
@@ -419,6 +440,7 @@ def review_output(
         "performance": {
             "avg_return": avg_return,
             "win_rate": win_rate,
+            "price_basis": "stored open_price; daily_csv imports use previous_close_to_last",
         },
         "missed_top_movers": missed_top_movers,
         "missed_actionable": missed_actionable,

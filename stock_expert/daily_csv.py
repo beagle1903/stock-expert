@@ -83,6 +83,10 @@ def _parse_optional_number(value: str) -> float:
         return 0.0
 
 
+def _parse_required_row_number(row: dict[str, str], key: str) -> float:
+    return _parse_number(row[key])
+
+
 def _read_csv(path: Path) -> list[dict[str, str]]:
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -123,6 +127,8 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
     mapped_count = 0
     fallback_count = 0
     skipped_non_equity_count = 0
+    skipped_unmapped_count = 0
+    skipped_malformed_count = 0
 
     for row in fiyat:
         company_name = row.get("ISIM", "").strip()
@@ -138,15 +144,27 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
         if not perf or not tech or not fund:
             continue
 
-        ticker = ticker_map.get(key, key[:12])
-        if key in ticker_map:
-            mapped_count += 1
-        else:
+        ticker = ticker_map.get(key)
+        if not ticker:
             fallback_count += 1
-        last_price = _parse_number(row["SON"])
-        daily_pct = _parse_number(row["FARK"])
-        open_price = last_price / (1 + (daily_pct / 100.0)) if daily_pct != -100 else last_price
-        volume = _parse_number(row["HAC"])
+            skipped_unmapped_count += 1
+            continue
+        mapped_count += 1
+
+        try:
+            last_price = _parse_required_row_number(row, "SON")
+            daily_pct = _parse_required_row_number(row, "FARK")
+            reference_price = last_price / (1 + (daily_pct / 100.0)) if daily_pct != -100 else last_price
+            volume = _parse_required_row_number(row, "HAC")
+            high_price = _parse_required_row_number(row, "YUKSEK")
+            low_price = _parse_required_row_number(row, "DUSUK")
+            weekly_perf_pct = _parse_required_row_number(perf, "HAFTALIK")
+            monthly_perf_pct = _parse_required_row_number(perf, "1AYLIK")
+            ytd_perf_pct = _parse_required_row_number(perf, "YTD")
+            yearly_perf_pct = _parse_required_row_number(perf, "1YILLIK")
+        except (KeyError, ValueError):
+            skipped_malformed_count += 1
+            continue
 
         snapshots.append(
             MarketSnapshot(
@@ -154,14 +172,14 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
                 ticker=ticker,
                 company_name=company_name,
                 last_price=last_price,
-                high_price=_parse_number(row["YUKSEK"]),
-                low_price=_parse_number(row["DUSUK"]),
+                high_price=high_price,
+                low_price=low_price,
                 daily_change_pct=daily_pct,
                 volume=volume,
-                weekly_perf_pct=_parse_number(perf["HAFTALIK"]),
-                monthly_perf_pct=_parse_number(perf["1AYLIK"]),
-                ytd_perf_pct=_parse_number(perf["YTD"]),
-                yearly_perf_pct=_parse_number(perf["1YILLIK"]),
+                weekly_perf_pct=weekly_perf_pct,
+                monthly_perf_pct=monthly_perf_pct,
+                ytd_perf_pct=ytd_perf_pct,
+                yearly_perf_pct=yearly_perf_pct,
                 technical_hourly=tech["SAATLIK"].strip(),
                 technical_daily=tech["GUNLUK"].strip(),
                 technical_weekly=tech["HAFTALIK"].strip(),
@@ -173,7 +191,7 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
                 pe_ratio=_parse_optional_number(fund.get("FIYATKAZANCORANI", "")),
             )
         )
-        price_rows.append((ticker, target_date, open_price, last_price, volume))
+        price_rows.append((ticker, target_date, reference_price, last_price, volume))
 
     init_db(settings)
     snapshot_id = create_snapshot_run(
@@ -195,6 +213,9 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
             "mapped_count": mapped_count,
             "fallback_count": fallback_count,
             "skipped_non_equity_count": skipped_non_equity_count,
+            "skipped_unmapped_count": skipped_unmapped_count,
+            "skipped_malformed_count": skipped_malformed_count,
+            "price_basis": "previous_close_to_last_from_daily_change_pct",
             "source_files": ["fiyat.csv", "performans.csv", "teknik.csv", "temel.csv"],
         },
         indent=2,

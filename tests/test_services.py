@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from stock_expert.config import Settings
 from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, Weights
-from stock_expert.services import daily_summary, generate_picks, next_weekday, picks_output, previous_weekday, review_output
+from stock_expert.services import daily_summary, generate_picks, next_review_weights, next_weekday, picks_output, previous_weekday, review_output
 from stock_expert.signals import (
     compute_fundamental_adjustment,
     compute_quality_adjustment,
@@ -179,6 +179,17 @@ class ReviewOutputTests(unittest.TestCase):
 
         self.assertIn("adjustments", payload["picks"][0])
         self.assertEqual(payload["picks"][0]["adjustments"]["total_boost"], 0.06)
+
+    def test_next_review_weights_reacts_to_results(self) -> None:
+        current = Weights(date=date(2026, 4, 21), momentum_weight=0.6, volume_weight=0.4)
+
+        strong = next_review_weights(current, avg_return=0.02, win_rate=0.8, missed_actionable_count=0)
+        weak = next_review_weights(current, avg_return=-0.01, win_rate=0.2, missed_actionable_count=6)
+
+        self.assertEqual(strong.momentum_weight, 0.63)
+        self.assertEqual(strong.volume_weight, 0.37)
+        self.assertEqual(weak.momentum_weight, 0.55)
+        self.assertEqual(weak.volume_weight, 0.45)
 
 
 class OutputAndOrderingTests(unittest.TestCase):

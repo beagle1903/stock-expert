@@ -20,6 +20,8 @@ The system generates **daily stock picks** based on:
 2. Price momentum
 3. Volume spikes
 
+Current runtime note: the active MVP is daily-CSV first and does not ingest KAP yet. Until a KAP source is added, scoring uses momentum/volume with bounded technical, quality, and fundamental adjustments from the imported CSV snapshots.
+
 Then evaluates itself weekly using:
 
 * performance analysis
