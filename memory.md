@@ -53,6 +53,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-22 | `routine` now includes the persisted flow plus a no-chase-penalty dry-run picks/review comparison after the normal review. | Bakes the main strategy comparison into the default operator workflow without mutating SQLite twice. |
 | 2026-04-23 | Daily CSV imports now skip unmapped company names, report malformed required rows, and label derived CSV prices as previous-close-to-latest rather than true open-to-close. | Prevents fabricated tickers and makes review/daily outputs honest about the available feed semantics. |
 | 2026-04-23 | Persisted `review` is idempotent per signal/review date and weight changes now depend on return, win rate, and actionable misses. | Avoids repeated review drift while keeping the feedback loop tied to observed outcomes. |
+| 2026-04-23 | Non-trivial work should use feature-scoped branches named `codex/<task-name>`, then merge to `main` only after behavior is trusted. | Features often span model, schema, docs, tests, and deployment notes, so branch by feature instead of technical layer. |
 
 ## Workflows
 
@@ -111,7 +112,10 @@ Live files:
 ### Git Workflow
 
 - `main` is the stable branch and should match `origin/main`.
-- Use short-lived feature branches for larger changes, then merge back into `main`.
+- Use feature-scoped branches named `codex/<task-name>` for non-trivial work, especially anything strategy-affecting, persistence-affecting, or deployment-related.
+- Keep all related feature changes on the same branch, even when they span model logic, schema, CLI output, tests, docs, memory, and deployment notes.
+- Merge a feature branch back into `main` only after behavior is trusted through tests and any relevant dry-run routine checks.
+- Tiny typo/docs fixes may still go directly to `main` when the scope is obvious.
 - Push `main` after merges so GitHub remains the backup/source of truth.
 - The old long-running `codex/add-indicators` branch has been merged and removed.
 
