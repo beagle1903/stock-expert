@@ -82,6 +82,8 @@ When the user says "do the routine", use the four live root CSVs in `data\`, imp
 
 When the user says "do the midday routine", use the same live CSV import flow, then run `daily`, normal `picks`, and `review --dry-run`.
 
+When the user requests any type of routine, assume the live root CSVs have already been refreshed up to the minute; do not ask whether the CSVs are current before running the requested routine.
+
 Live files:
 
 - `data\fiyat.csv`
