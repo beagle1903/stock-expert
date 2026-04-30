@@ -26,6 +26,12 @@ class ServiceDateTests(unittest.TestCase):
     def test_previous_weekday_skips_weekend(self) -> None:
         self.assertEqual(previous_weekday(date(2026, 4, 27)), date(2026, 4, 24))
 
+    def test_next_weekday_skips_user_confirmed_market_holiday(self) -> None:
+        self.assertEqual(next_weekday(date(2026, 4, 30)), date(2026, 5, 4))
+
+    def test_previous_weekday_skips_user_confirmed_market_holiday(self) -> None:
+        self.assertEqual(previous_weekday(date(2026, 5, 4)), date(2026, 4, 30))
+
 
 class EnrichmentSignalTests(unittest.TestCase):
     def setUp(self) -> None:

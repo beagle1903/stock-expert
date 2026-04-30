@@ -34,6 +34,10 @@ from stock_expert.signals import (
     score_signal,
 )
 
+USER_CONFIRMED_MARKET_HOLIDAYS = {
+    date(2026, 5, 1),
+}
+
 
 def group_bars_by_ticker(bars):
     grouped = {}
@@ -48,14 +52,14 @@ def default_weights(day: date) -> Weights:
 
 def previous_weekday(day: date) -> date:
     previous = day - timedelta(days=1)
-    while previous.weekday() >= 5:
+    while previous.weekday() >= 5 or previous in USER_CONFIRMED_MARKET_HOLIDAYS:
         previous -= timedelta(days=1)
     return previous
 
 
 def next_weekday(day: date) -> date:
     next_day = day + timedelta(days=1)
-    while next_day.weekday() >= 5:
+    while next_day.weekday() >= 5 or next_day in USER_CONFIRMED_MARKET_HOLIDAYS:
         next_day += timedelta(days=1)
     return next_day
 
