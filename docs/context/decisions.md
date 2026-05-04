@@ -14,6 +14,7 @@
 - `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily`, persisted `picks`, actual `review`, and a no-chase-penalty dry-run `picks`/`review` comparison
 - `midday-routine` imports the same live CSVs, then runs `daily`, `picks`, and a dry-run `review`
 - Picks still center on momentum and volume, but now add bounded technical/basic-analysis soft boosts from `teknik.csv` and `temel.csv`
+- Picks subtract a capped setup penalty for weak or stretched snapshot context before ranking.
 - Daily CSV imports skip unmapped company names instead of fabricating ticker symbols from company-name prefixes.
 - Daily CSV `open_price` stores a previous-close reference derived from daily percentage change; outputs label this as previous-close-to-latest price basis instead of true intraday open-to-close.
 - `review` is idempotent for the same signal/review date and adjusts weights from performance plus actionable misses instead of a fixed drift.

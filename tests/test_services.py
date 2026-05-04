@@ -14,6 +14,7 @@ from stock_expert.services import daily_summary, generate_picks, next_review_wei
 from stock_expert.signals import (
     compute_fundamental_adjustment,
     compute_quality_adjustment,
+    compute_setup_penalty,
     compute_technical_adjustment,
     score_signal,
 )
@@ -70,6 +71,32 @@ class EnrichmentSignalTests(unittest.TestCase):
         fundamental = compute_fundamental_adjustment(self.snapshot)
         self.assertLessEqual(abs(quality), 0.05)
         self.assertLessEqual(abs(fundamental), 0.04)
+
+    def test_setup_penalty_discounts_weak_snapshot_context(self) -> None:
+        weak = self.snapshot.__class__(
+            **{
+                **self.snapshot.__dict__,
+                "technical_daily": "Güçlü Sat",
+                "technical_weekly": "Sat",
+                "revenue": 0,
+                "pe_ratio": -12,
+            }
+        )
+
+        self.assertEqual(compute_setup_penalty(self.snapshot, self.price), 0.0)
+        self.assertGreater(compute_setup_penalty(weak, self.price), 0.08)
+
+    def test_setup_penalty_discounts_stretched_snapshot_context(self) -> None:
+        stretched = self.snapshot.__class__(
+            **{
+                **self.snapshot.__dict__,
+                "daily_change_pct": 9.2,
+                "weekly_perf_pct": 22.0,
+                "monthly_perf_pct": 34.0,
+            }
+        )
+
+        self.assertEqual(compute_setup_penalty(stretched, self.price), 0.05)
 
     def test_adjustments_do_not_overpower_bad_base_signal(self) -> None:
         weak = SignalRow(ticker="AAA", date=date(2026, 4, 21), momentum=0.1, volume_spike=0.1)
@@ -176,6 +203,7 @@ class ReviewOutputTests(unittest.TestCase):
             technical=0.03,
             fundamental=0.02,
             quality=0.01,
+            setup_penalty=0.02,
             ma_trend=0.6,
             liquidity=0.9,
             risk="medium",
@@ -185,6 +213,8 @@ class ReviewOutputTests(unittest.TestCase):
 
         self.assertIn("adjustments", payload["picks"][0])
         self.assertEqual(payload["picks"][0]["adjustments"]["total_boost"], 0.06)
+        self.assertEqual(payload["picks"][0]["adjustments"]["net_adjustment"], 0.04)
+        self.assertEqual(payload["picks"][0]["signals"]["setup_penalty"], 0.02)
 
     def test_next_review_weights_reacts_to_results(self) -> None:
         current = Weights(date=date(2026, 4, 21), momentum_weight=0.6, volume_weight=0.4)
@@ -238,6 +268,31 @@ class OutputAndOrderingTests(unittest.TestCase):
         order = [pick.ticker for pick in picks[:3]]
         self.assertEqual(order[0], "CCC")
         self.assertLess(order.index("BBB"), order.index("AAA"))
+
+    def test_weak_snapshot_context_can_demote_close_candidate(self) -> None:
+        signals = [
+            SignalRow(ticker="AAA", date=date(2026, 4, 21), momentum=0.80, volume_spike=0.80),
+            SignalRow(ticker="BBB", date=date(2026, 4, 21), momentum=0.79, volume_spike=0.79),
+        ]
+        snapshots = [
+            MarketSnapshot(date=date(2026, 4, 21), ticker="AAA", company_name="AAA", last_price=10, high_price=10.5, low_price=9.8, daily_change_pct=2, volume=1_000_000, weekly_perf_pct=1, monthly_perf_pct=1, ytd_perf_pct=1, yearly_perf_pct=1, technical_hourly="Sat", technical_daily="Güçlü Sat", technical_weekly="Sat", technical_monthly="Nötr", avg_volume_3m=1_000_000, market_cap=1_000_000_000, beta=1.0, revenue=0, pe_ratio=-5),
+            MarketSnapshot(date=date(2026, 4, 21), ticker="BBB", company_name="BBB", last_price=10, high_price=10.5, low_price=9.8, daily_change_pct=2, volume=1_000_000, weekly_perf_pct=1, monthly_perf_pct=1, ytd_perf_pct=1, yearly_perf_pct=1, technical_hourly="Nötr", technical_daily="Nötr", technical_weekly="Nötr", technical_monthly="Nötr", avg_volume_3m=1_000_000, market_cap=1_000_000_000, beta=1.0, revenue=1_000_000_000, pe_ratio=15),
+        ]
+        prices = [PriceBar(ticker=item.ticker, date=date(2026, 4, 21), open_price=9.5, close_price=10, volume=1_000_000) for item in snapshots]
+
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.build_signals", return_value=signals),
+            patch("stock_expert.services.get_latest_snapshot_id", return_value=1),
+            patch("stock_expert.services.get_latest_weights", return_value=Weights(date=date(2026, 4, 21), momentum_weight=0.6, volume_weight=0.4)),
+            patch("stock_expert.services.get_prices_for_date", return_value=prices),
+            patch("stock_expert.services.get_market_snapshots_for_date", return_value=snapshots),
+            patch("stock_expert.services.passes_risk_filter", return_value=True),
+        ):
+            picks = generate_picks(self.settings, date(2026, 4, 21), dry_run=True)
+
+        self.assertEqual([pick.ticker for pick in picks[:2]], ["BBB", "AAA"])
+        self.assertGreater(picks[1].setup_penalty, 0.08)
 
     def test_daily_summary_signal_ready_section_is_short(self) -> None:
         bars = [

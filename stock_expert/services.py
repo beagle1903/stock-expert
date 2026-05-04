@@ -28,6 +28,7 @@ from stock_expert.signals import (
     compute_medium_momentum,
     compute_momentum,
     compute_quality_adjustment,
+    compute_setup_penalty,
     compute_short_momentum,
     compute_technical_adjustment,
     compute_volume_spike,
@@ -149,6 +150,7 @@ def generate_picks(
         technical_adjustment = compute_technical_adjustment(snapshot)
         quality_adjustment = compute_quality_adjustment(snapshot, latest_price)
         fundamental_adjustment = compute_fundamental_adjustment(snapshot)
+        setup_penalty = compute_setup_penalty(snapshot, latest_price)
         signal = SignalRow(
             ticker=base_signal.ticker,
             date=base_signal.date,
@@ -157,13 +159,14 @@ def generate_picks(
             technical=technical_adjustment,
             fundamental=fundamental_adjustment,
             quality=quality_adjustment,
+            setup_penalty=setup_penalty,
             short_momentum=base_signal.short_momentum,
             medium_momentum=base_signal.medium_momentum,
             ma_trend=base_signal.ma_trend,
             liquidity=base_signal.liquidity,
         )
         daily_change_pct = snapshot.daily_change_pct if snapshot else None
-        score = score_signal(signal, weights) + signal.technical + signal.fundamental + signal.quality
+        score = score_signal(signal, weights) + signal.technical + signal.fundamental + signal.quality - signal.setup_penalty
         if apply_chase_penalty:
             score = apply_same_day_chase_penalty(settings, score, daily_change_pct)
         ranked.append(
@@ -176,6 +179,7 @@ def generate_picks(
                 technical=round(signal.technical, 4),
                 fundamental=round(signal.fundamental, 4),
                 quality=round(signal.quality, 4),
+                setup_penalty=round(signal.setup_penalty, 4),
                 ma_trend=round(signal.ma_trend, 4),
                 liquidity=round(signal.liquidity, 4),
                 risk=classify_risk(signal.momentum, signal.volume_spike),
@@ -281,6 +285,7 @@ def picks_output(
                     "technical": pick.technical,
                     "fundamental": pick.fundamental,
                     "quality": pick.quality,
+                    "setup_penalty": pick.setup_penalty,
                     "ma_trend": pick.ma_trend,
                     "liquidity": pick.liquidity,
                 },
@@ -288,7 +293,9 @@ def picks_output(
                     "technical": pick.technical,
                     "fundamental": pick.fundamental,
                     "quality": pick.quality,
+                    "setup_penalty": pick.setup_penalty,
                     "total_boost": round(pick.technical + pick.fundamental + pick.quality, 4),
+                    "net_adjustment": round(pick.technical + pick.fundamental + pick.quality - pick.setup_penalty, 4),
                 },
                 "risk": pick.risk,
                 "horizon": pick.horizon,

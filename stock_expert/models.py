@@ -22,6 +22,7 @@ class SignalRow:
     technical: float = 0.0
     fundamental: float = 0.0
     quality: float = 0.0
+    setup_penalty: float = 0.0
     short_momentum: float = 0.0
     medium_momentum: float = 0.0
     ma_trend: float = 0.0
@@ -39,6 +40,7 @@ class PickRow:
     technical: float = 0.0
     fundamental: float = 0.0
     quality: float = 0.0
+    setup_penalty: float = 0.0
     ma_trend: float = 0.0
     liquidity: float = 0.0
     horizon: str = "intraday"

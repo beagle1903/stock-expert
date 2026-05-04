@@ -149,3 +149,46 @@ def compute_fundamental_adjustment(snapshot: MarketSnapshot | None) -> float:
         revenue_boost = revenue_score * 0.02
 
     return round(clamp(pe_boost + revenue_boost, -0.02, 0.04), 4)
+
+
+def compute_setup_penalty(snapshot: MarketSnapshot | None, latest_price: PriceBar | None) -> float:
+    if snapshot is None:
+        return 0.03
+
+    penalty = 0.0
+    daily_technical = technical_label_score(snapshot.technical_daily)
+    weekly_technical = technical_label_score(snapshot.technical_weekly)
+    if daily_technical < 0:
+        penalty += 0.03
+    if weekly_technical < 0:
+        penalty += 0.02
+    if daily_technical < 0 and weekly_technical < 0:
+        penalty += 0.02
+
+    if snapshot.weekly_perf_pct >= 20:
+        penalty += 0.015
+    if snapshot.monthly_perf_pct >= 30:
+        penalty += 0.015
+    if snapshot.daily_change_pct >= 8 and snapshot.weekly_perf_pct >= 15:
+        penalty += 0.02
+
+    if snapshot.revenue <= 0:
+        penalty += 0.025
+    if snapshot.pe_ratio < 0:
+        penalty += 0.025
+    elif snapshot.pe_ratio > 80:
+        penalty += 0.02
+
+    if snapshot.market_cap <= 0:
+        penalty += 0.02
+    if snapshot.avg_volume_3m <= 0:
+        penalty += 0.02
+
+    if latest_price is not None and snapshot.avg_volume_3m > 0:
+        volume_ratio = latest_price.volume / snapshot.avg_volume_3m
+        if volume_ratio > 8:
+            penalty += 0.02
+        elif volume_ratio < 0.2:
+            penalty += 0.015
+
+    return round(clamp(penalty, 0.0, 0.12), 4)

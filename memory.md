@@ -55,6 +55,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-23 | Persisted `review` is idempotent per signal/review date and weight changes now depend on return, win rate, and actionable misses. | Avoids repeated review drift while keeping the feedback loop tied to observed outcomes. |
 | 2026-04-23 | Non-trivial work should use feature-scoped branches named `codex/<task-name>`, then merge to `main` only after behavior is trusted. | Features often span model, schema, docs, tests, and deployment notes, so branch by feature instead of technical layer. |
 | 2026-04-30 | Trading-date helpers skip the user-confirmed full-day market holiday `2026-05-01`. | Keeps April 30 picks and May 4 review aligned across the Friday holiday. |
+| 2026-05-04 | Picks now subtract a capped `setup_penalty` for weak or stretched snapshot context before ranking. | Penalizes bearish technical alignment, missing/weak fundamentals, abnormal volume context, and crowded weekly/monthly momentum without replacing the base momentum/volume model. |
 
 ## Workflows
 
@@ -110,7 +111,7 @@ Live files:
 ### Testing
 
 - Run `D:\miniconda3\python.exe -m unittest discover -s tests -v` from the repo root.
-- Current tests cover `routine` vs `midday-routine` CLI wiring, weekday date helpers, review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, and bounded technical/fundamental scoring behavior.
+- Current tests cover `routine` vs `midday-routine` CLI wiring, weekday date helpers, review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, and bounded technical/fundamental/setup-penalty scoring behavior.
 
 ### Git Workflow
 
