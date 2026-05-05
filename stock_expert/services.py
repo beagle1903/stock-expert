@@ -4,6 +4,7 @@ import json
 from datetime import date, timedelta
 
 from stock_expert.config import Settings
+from stock_expert.constants import MIN_DAILY_WIN_RETURN
 from stock_expert.database import (
     get_latest_weights,
     get_latest_snapshot_id,
@@ -382,7 +383,7 @@ def review_output(
         if row["open_price"]
     ]
     avg_return = round(sum(returns) / len(returns), 4) if returns else 0.0
-    win_rate = round(sum(1 for value in returns if value > 0) / len(returns), 4) if returns else 0.0
+    win_rate = round(sum(1 for value in returns if value >= MIN_DAILY_WIN_RETURN) / len(returns), 4) if returns else 0.0
 
     picked_tickers = {row["ticker"] for row in recent}
     missed_top_movers = []
@@ -451,6 +452,7 @@ def review_output(
         "performance": {
             "avg_return": avg_return,
             "win_rate": win_rate,
+            "min_win_return": MIN_DAILY_WIN_RETURN,
             "price_basis": "stored open_price; daily_csv imports use previous_close_to_last",
         },
         "missed_top_movers": missed_top_movers,

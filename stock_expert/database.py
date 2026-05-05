@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from typing import Iterable, Iterator
 
 from stock_expert.config import Settings
+from stock_expert.constants import MIN_DAILY_WIN_RETURN
 from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, Weights
 
 
@@ -483,7 +484,7 @@ def insert_review_run(
     weights: Weights,
 ) -> int:
     pick_rows = list(picks)
-    wins = sum(1 for row in pick_rows if row["open_price"] and row["close_price"] > row["open_price"])
+    wins = sum(1 for row in pick_rows if _review_pick_won(row))
     with connect(settings) as conn:
         cursor = conn.execute(
             """
@@ -520,12 +521,18 @@ def insert_review_run(
                     row["open_price"],
                     row["close_price"],
                     (row["close_price"] - row["open_price"]) / row["open_price"] if row["open_price"] else 0.0,
-                    1 if row["open_price"] and row["close_price"] > row["open_price"] else 0,
+                    1 if _review_pick_won(row) else 0,
                 )
                 for row in pick_rows
             ],
         )
         return review_run_id
+
+
+def _review_pick_won(row: sqlite3.Row) -> bool:
+    if not row["open_price"]:
+        return False
+    return ((row["close_price"] - row["open_price"]) / row["open_price"]) >= MIN_DAILY_WIN_RETURN
 
 
 def get_top_movers(settings: Settings, as_of: date, days: int, limit: int = 10) -> list[sqlite3.Row]:

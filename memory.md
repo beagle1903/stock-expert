@@ -56,6 +56,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-23 | Non-trivial work should use feature-scoped branches named `codex/<task-name>`, then merge to `main` only after behavior is trusted. | Features often span model, schema, docs, tests, and deployment notes, so branch by feature instead of technical layer. |
 | 2026-04-30 | Trading-date helpers skip the user-confirmed full-day market holiday `2026-05-01`. | Keeps April 30 picks and May 4 review aligned across the Friday holiday. |
 | 2026-05-04 | Picks now subtract a capped `setup_penalty` for weak or stretched snapshot context before ranking. | Penalizes bearish technical alignment, missing/weak fundamentals, abnormal volume context, and crowded weekly/monthly momentum without replacing the base momentum/volume model. |
+| 2026-05-05 | Review win classification now requires at least 4% daily return. | Raises the strategy standard so small positive returns count as losses in win rate, persisted wins, and pick-level `won` rows. |
 
 ## Workflows
 

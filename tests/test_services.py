@@ -9,6 +9,7 @@ import shutil
 from unittest.mock import patch
 
 from stock_expert.config import Settings
+from stock_expert.database import connect, init_db, insert_review_run
 from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, Weights
 from stock_expert.services import daily_summary, generate_picks, next_review_weights, next_weekday, picks_output, previous_weekday, review_output
 from stock_expert.signals import (
@@ -172,6 +173,54 @@ class ReviewOutputTests(unittest.TestCase):
         insert_review_run.assert_called_once()
         self.assertFalse(payload["dry_run"])
         self.assertEqual(payload["review_run_id"], 7)
+
+    def test_review_win_rate_requires_four_percent_return(self) -> None:
+        recent_rows = [
+            {"ticker": "AAA", "score": 1.0, "open_price": 100.0, "close_price": 103.0},
+            {"ticker": "BBB", "score": 1.0, "open_price": 100.0, "close_price": 104.0},
+        ]
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=[]),
+            patch("stock_expert.services.get_pick_results", return_value=recent_rows),
+            patch("stock_expert.services.get_top_movers", return_value=[]),
+            patch("stock_expert.services.get_latest_weights", return_value=None),
+            patch("stock_expert.services.get_review_run", return_value=None),
+            patch("stock_expert.services.insert_weights"),
+            patch("stock_expert.services.insert_review_run", return_value=7),
+        ):
+            payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
+
+        self.assertEqual(payload["performance"]["avg_return"], 0.035)
+        self.assertEqual(payload["performance"]["win_rate"], 0.5)
+        self.assertEqual(payload["performance"]["min_win_return"], 0.04)
+
+    def test_persisted_review_wins_require_four_percent_return(self) -> None:
+        init_db(self.settings)
+        picks = [
+            {"ticker": "AAA", "score": 1.0, "open_price": 100.0, "close_price": 103.99},
+            {"ticker": "BBB", "score": 1.0, "open_price": 100.0, "close_price": 104.0},
+        ]
+
+        review_run_id = insert_review_run(
+            settings=self.settings,
+            as_of=date(2026, 4, 20),
+            review_date=date(2026, 4, 21),
+            avg_return=0.03995,
+            win_rate=0.5,
+            picks=picks,
+            weights=Weights(date=date(2026, 4, 21), momentum_weight=0.6, volume_weight=0.4),
+        )
+
+        with connect(self.settings) as conn:
+            review_run = conn.execute("SELECT wins FROM review_runs WHERE id = ?", (review_run_id,)).fetchone()
+            pick_results = conn.execute(
+                "SELECT ticker, won FROM review_pick_results WHERE review_run_id = ? ORDER BY ticker",
+                (review_run_id,),
+            ).fetchall()
+
+        self.assertEqual(review_run["wins"], 1)
+        self.assertEqual([(row["ticker"], row["won"]) for row in pick_results], [("AAA", 0), ("BBB", 1)])
 
     def test_normal_review_reuses_existing_run(self) -> None:
         recent_rows = [{"ticker": "AAA", "score": 1.0, "open_price": 10.0, "close_price": 11.0}]
