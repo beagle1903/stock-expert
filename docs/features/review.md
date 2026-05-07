@@ -5,6 +5,8 @@
 - Missed top movers
 - Actionable vs non-actionable misses
 - Data-driven weight adjustments from performance and actionable misses
+- Reports `no_prior_picks` when there are no persisted signal-date picks to review, so zero performance is not mistaken for strategy evidence
+- Includes reviewed-pick and missed-mover attribution from recomputed signal-date ranks, signal components, boosts, and setup penalty context
 - Counts a pick as a win only when return is at least 4%; smaller gains are treated as losses
 - Persists each review run and pick-level return results
 - Reuses an existing persisted review for the same signal/review date

@@ -19,6 +19,7 @@
 - Daily CSV imports skip unmapped company names instead of fabricating ticker symbols from company-name prefixes.
 - Daily CSV `open_price` stores a previous-close reference derived from daily percentage change; outputs label this as previous-close-to-latest price basis instead of true intraday open-to-close.
 - `review` is idempotent for the same signal/review date and adjusts weights from performance plus actionable misses instead of a fixed drift.
+- `review` labels missing prior picks as `no_prior_picks` and includes attribution for reviewed picks and missed movers.
 - Automated tests use the standard-library `unittest` runner to avoid adding extra dependencies for basic CLI/service coverage
 - `data/ticker_map.csv` is used to persist company-name to ticker mappings across imports
 - Yahoo import remains available as a secondary path

@@ -336,6 +336,76 @@ def _pick_result_rows(picks: list[PickRow], prices_by_ticker: dict[str, object],
     return rows
 
 
+def _candidate_rankings(
+    settings: Settings,
+    signal_date: date,
+    apply_chase_penalty: bool,
+) -> dict[str, tuple[int, PickRow]]:
+    candidates = generate_picks(
+        settings,
+        signal_date,
+        pick_count=max(settings.default_pick_count * 10, 50),
+        dry_run=True,
+        apply_chase_penalty=apply_chase_penalty,
+    )
+    return {pick.ticker: (rank, pick) for rank, pick in enumerate(candidates, start=1)}
+
+
+def _attribution_for_pick(settings: Settings, candidate: tuple[int, PickRow] | None) -> dict[str, object]:
+    if candidate is None:
+        return {
+            "data_status": "not_in_current_ranked_candidates",
+            "candidate_rank": None,
+            "selection_note": "No recomputed candidate in the signal-date top ranks; check price history, liquidity filters, mapping, or ranking cutoff.",
+        }
+
+    rank, pick = candidate
+    note = "inside_top_pick_cutoff" if rank <= settings.default_pick_count else "below_top_pick_cutoff"
+    if pick.setup_penalty > 0:
+        note = "penalized_by_setup_context"
+    return {
+        "data_status": "ranked_candidate",
+        "candidate_rank": rank,
+        "selection_note": note,
+        "signals": {
+            "momentum": pick.momentum,
+            "volume": pick.volume,
+            "technical": pick.technical,
+            "fundamental": pick.fundamental,
+            "quality": pick.quality,
+            "setup_penalty": pick.setup_penalty,
+            "ma_trend": pick.ma_trend,
+            "liquidity": pick.liquidity,
+        },
+        "adjustments": {
+            "total_boost": round(pick.technical + pick.fundamental + pick.quality, 4),
+            "net_adjustment": round(pick.technical + pick.fundamental + pick.quality - pick.setup_penalty, 4),
+        },
+    }
+
+
+def _reviewed_pick_entries(
+    settings: Settings,
+    rows: list[dict[str, object]],
+    candidate_rankings: dict[str, tuple[int, PickRow]],
+) -> list[dict[str, object]]:
+    entries = []
+    for row in rows:
+        open_price = float(row["open_price"])
+        close_price = float(row["close_price"])
+        return_pct = (close_price - open_price) / open_price if open_price else 0.0
+        entries.append(
+            {
+                "ticker": row["ticker"],
+                "score": round(float(row["score"]), 4),
+                "return": round(return_pct, 4),
+                "won": return_pct >= MIN_DAILY_WIN_RETURN,
+                "attribution": _attribution_for_pick(settings, candidate_rankings.get(row["ticker"])),
+            }
+        )
+    return entries
+
+
 def next_review_weights(current: Weights, avg_return: float, win_rate: float, missed_actionable_count: int) -> Weights:
     momentum = current.momentum_weight
     if avg_return > 0 and win_rate >= 0.6:
@@ -377,15 +447,21 @@ def review_output(
         recent = _pick_result_rows(generated_picks, target_prices, review_date)
     else:
         recent = get_pick_results(settings, signal_date, review_date)
+    recent_rows = [dict(row) for row in recent]
+    if dry_run:
+        candidate_rankings = {pick.ticker: (rank, pick) for rank, pick in enumerate(generated_picks, start=1)}
+    else:
+        candidate_rankings = _candidate_rankings(settings, signal_date, apply_chase_penalty)
     returns = [
         (row["close_price"] - row["open_price"]) / row["open_price"]
-        for row in recent
+        for row in recent_rows
         if row["open_price"]
     ]
     avg_return = round(sum(returns) / len(returns), 4) if returns else 0.0
     win_rate = round(sum(1 for value in returns if value >= MIN_DAILY_WIN_RETURN) / len(returns), 4) if returns else 0.0
+    wins = sum(1 for value in returns if value >= MIN_DAILY_WIN_RETURN)
 
-    picked_tickers = {row["ticker"] for row in recent}
+    picked_tickers = {row["ticker"] for row in recent_rows}
     missed_top_movers = []
     missed_actionable = []
     missed_non_actionable = []
@@ -405,6 +481,7 @@ def review_output(
             "date": entry["date"],
             "close_change_return": entry["close_change_return"],
             "reason": reason,
+            "attribution": _attribution_for_pick(settings, candidate_rankings.get(entry["ticker"])),
         }
         missed_top_movers.append(review_entry)
         if bucket == "actionable":
@@ -432,7 +509,7 @@ def review_output(
                 review_date=review_date,
                 avg_return=avg_return,
                 win_rate=win_rate,
-                picks=recent,
+                picks=recent_rows,
                 weights=next_weights,
             )
         else:
@@ -450,11 +527,16 @@ def review_output(
         "signal_date": signal_date.isoformat(),
         "review_date": review_date.isoformat(),
         "performance": {
+            "evaluation_status": "evaluated" if recent_rows else "no_prior_picks",
+            "note": None if recent_rows else "No persisted picks were available for the signal date, so avg_return and win_rate are not strategy evidence.",
+            "pick_count": len(recent_rows),
+            "wins": wins,
             "avg_return": avg_return,
             "win_rate": win_rate,
             "min_win_return": MIN_DAILY_WIN_RETURN,
             "price_basis": "stored open_price; daily_csv imports use previous_close_to_last",
         },
+        "reviewed_picks": _reviewed_pick_entries(settings, recent_rows, candidate_rankings),
         "missed_top_movers": missed_top_movers,
         "missed_actionable": missed_actionable,
         "missed_non_actionable": missed_non_actionable,

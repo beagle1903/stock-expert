@@ -194,6 +194,79 @@ class ReviewOutputTests(unittest.TestCase):
         self.assertEqual(payload["performance"]["avg_return"], 0.035)
         self.assertEqual(payload["performance"]["win_rate"], 0.5)
         self.assertEqual(payload["performance"]["min_win_return"], 0.04)
+        self.assertEqual(payload["performance"]["pick_count"], 2)
+        self.assertEqual(payload["performance"]["wins"], 1)
+
+    def test_review_marks_missing_prior_picks_as_operational_gap(self) -> None:
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=[]),
+            patch("stock_expert.services.get_pick_results", return_value=[]),
+            patch("stock_expert.services.get_top_movers", return_value=[]),
+            patch("stock_expert.services.get_latest_weights", return_value=None),
+            patch("stock_expert.services.get_review_run", return_value=None),
+            patch("stock_expert.services.insert_weights"),
+            patch("stock_expert.services.insert_review_run", return_value=7),
+        ):
+            payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
+
+        self.assertEqual(payload["performance"]["evaluation_status"], "no_prior_picks")
+        self.assertIn("No persisted picks", payload["performance"]["note"])
+        self.assertEqual(payload["performance"]["pick_count"], 0)
+        self.assertEqual(payload["reviewed_picks"], [])
+
+    def test_review_includes_pick_and_missed_mover_attribution(self) -> None:
+        recent_rows = [{"ticker": "AAA", "score": 1.0, "open_price": 100.0, "close_price": 105.0}]
+        candidates = [
+            PickRow(
+                date=date(2026, 4, 20),
+                ticker="AAA",
+                score=1.0,
+                momentum=0.9,
+                volume=0.8,
+                risk="high",
+                technical=0.04,
+                fundamental=0.02,
+                quality=0.01,
+                setup_penalty=0.0,
+                ma_trend=1.0,
+                liquidity=1.0,
+            ),
+            PickRow(
+                date=date(2026, 4, 20),
+                ticker="BBB",
+                score=0.9,
+                momentum=0.8,
+                volume=0.7,
+                risk="high",
+                setup_penalty=0.05,
+            ),
+        ]
+        movers = [
+            {
+                "ticker": "BBB",
+                "date": "2026-04-21",
+                "day_return": 0.08,
+                "close_price": 10.0,
+                "volume": self.settings.low_liquidity_threshold,
+            }
+        ]
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=candidates),
+            patch("stock_expert.services.get_pick_results", return_value=recent_rows),
+            patch("stock_expert.services.get_top_movers", return_value=movers),
+            patch("stock_expert.services.get_latest_weights", return_value=None),
+            patch("stock_expert.services.get_review_run", return_value=None),
+            patch("stock_expert.services.insert_weights"),
+            patch("stock_expert.services.insert_review_run", return_value=7),
+        ):
+            payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
+
+        self.assertEqual(payload["reviewed_picks"][0]["ticker"], "AAA")
+        self.assertEqual(payload["reviewed_picks"][0]["attribution"]["candidate_rank"], 1)
+        self.assertEqual(payload["missed_actionable"][0]["ticker"], "BBB")
+        self.assertEqual(payload["missed_actionable"][0]["attribution"]["selection_note"], "penalized_by_setup_context")
 
     def test_persisted_review_wins_require_four_percent_return(self) -> None:
         init_db(self.settings)
