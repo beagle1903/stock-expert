@@ -87,6 +87,8 @@ When the user says "do the midday routine", use the same live CSV import flow, t
 
 When the user requests any type of routine, assume the live root CSVs have already been refreshed up to the minute; do not ask whether the CSVs are current before running the requested routine.
 
+After each actual `routine`, offer a DB-backed miss analysis and one or two concrete repo improvements based on the persisted review, recent misses, and active thresholds.
+
 Live files:
 
 - `data\fiyat.csv`

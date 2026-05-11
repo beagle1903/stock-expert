@@ -448,10 +448,7 @@ def review_output(
     else:
         recent = get_pick_results(settings, signal_date, review_date)
     recent_rows = [dict(row) for row in recent]
-    if dry_run:
-        candidate_rankings = {pick.ticker: (rank, pick) for rank, pick in enumerate(generated_picks, start=1)}
-    else:
-        candidate_rankings = _candidate_rankings(settings, signal_date, apply_chase_penalty)
+    candidate_rankings = _candidate_rankings(settings, signal_date, apply_chase_penalty)
     returns = [
         (row["close_price"] - row["open_price"]) / row["open_price"]
         for row in recent_rows
@@ -492,14 +489,21 @@ def review_output(
             break
 
     current = get_latest_weights(settings) or default_weights(as_of)
-    next_weights = next_review_weights(
-        Weights(date=as_of, momentum_weight=current.momentum_weight, volume_weight=current.volume_weight),
-        avg_return=avg_return,
-        win_rate=win_rate,
-        missed_actionable_count=len(missed_actionable),
-    )
+    if recent_rows:
+        next_weights = next_review_weights(
+            Weights(date=as_of, momentum_weight=current.momentum_weight, volume_weight=current.volume_weight),
+            avg_return=avg_return,
+            win_rate=win_rate,
+            missed_actionable_count=len(missed_actionable),
+        )
+    else:
+        next_weights = Weights(
+            date=as_of,
+            momentum_weight=current.momentum_weight,
+            volume_weight=current.volume_weight,
+        )
     review_run_id = None
-    if not dry_run:
+    if not dry_run and recent_rows:
         existing_review = get_review_run(settings, signal_date, review_date)
         if existing_review is None:
             insert_weights(settings, next_weights)

@@ -205,15 +205,48 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_top_movers", return_value=[]),
             patch("stock_expert.services.get_latest_weights", return_value=None),
             patch("stock_expert.services.get_review_run", return_value=None),
-            patch("stock_expert.services.insert_weights"),
-            patch("stock_expert.services.insert_review_run", return_value=7),
+            patch("stock_expert.services.insert_weights") as insert_weights,
+            patch("stock_expert.services.insert_review_run", return_value=7) as insert_review_run,
         ):
             payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
 
+        insert_weights.assert_not_called()
+        insert_review_run.assert_not_called()
+        self.assertIsNone(payload["review_run_id"])
         self.assertEqual(payload["performance"]["evaluation_status"], "no_prior_picks")
         self.assertIn("No persisted picks", payload["performance"]["note"])
         self.assertEqual(payload["performance"]["pick_count"], 0)
         self.assertEqual(payload["reviewed_picks"], [])
+
+    def test_dry_run_missed_mover_uses_wide_candidate_attribution(self) -> None:
+        top_picks = [
+            PickRow(date=date(2026, 4, 20), ticker=f"AAA{i}", score=1.0 - i / 100, momentum=1.0, volume=1.0, risk="high")
+            for i in range(5)
+        ]
+        wide_candidates = top_picks + [
+            PickRow(date=date(2026, 4, 20), ticker="BBB", score=0.8, momentum=0.8, volume=0.7, risk="high")
+        ]
+        movers = [
+            {
+                "ticker": "BBB",
+                "date": "2026-04-21",
+                "day_return": 0.08,
+                "close_price": 10.0,
+                "volume": self.settings.low_liquidity_threshold,
+            }
+        ]
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", side_effect=[top_picks, wide_candidates]),
+            patch("stock_expert.services.get_prices_for_date", return_value=[]),
+            patch("stock_expert.services.get_top_movers", return_value=movers),
+            patch("stock_expert.services.get_latest_weights", return_value=None),
+        ):
+            payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=True))
+
+        attribution = payload["missed_actionable"][0]["attribution"]
+        self.assertEqual(attribution["candidate_rank"], 6)
+        self.assertEqual(attribution["selection_note"], "below_top_pick_cutoff")
 
     def test_review_includes_pick_and_missed_mover_attribution(self) -> None:
         recent_rows = [{"ticker": "AAA", "score": 1.0, "open_price": 100.0, "close_price": 105.0}]
