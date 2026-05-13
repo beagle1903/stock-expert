@@ -7,11 +7,14 @@
 - Base score uses momentum and volume
 - Adds bounded soft boosts from daily/weekly technical labels and basic-analysis quality fields
 - Subtracts a capped setup penalty for bearish technical alignment, missing/weak fundamentals, abnormal volume context, and stretched weekly/monthly momentum
+- Caps setup penalty for strong momentum, full-liquidity, strong-technical candidates so stretched context does not fully suppress breakout setups
+- Default final selection is bucketed: 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`
+- Wide diagnostic rankings still use score order for review attribution and missed-mover analysis
 - Needs multiple imported days for non-zero momentum and volume signals
 - Applies a small score penalty to overextended same-day movers above `+8%`
 - Uses the latest `signal_date` snapshot to generate picks for the next weekday `target_trade_date`
 - Multiple same-day imports can coexist; date-based picks use the latest snapshot
 - Supports `--dry-run` and `--no-chase-penalty` for safe comparison runs
-- Pick JSON exposes `setup_penalty` and `net_adjustment` so dry-run comparisons show why a candidate was discounted
+- Pick JSON exposes `setup_penalty`, `net_adjustment`, and `selection_bucket` so dry-run comparisons show why a candidate was selected or discounted
 - `routine` reports normal persisted picks plus a no-chase-penalty dry-run comparison after the live CSV import
 - `midday-routine` reports normal picks after the live CSV import

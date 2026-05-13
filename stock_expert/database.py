@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS picks (
     volume REAL NOT NULL,
     risk TEXT NOT NULL,
     horizon TEXT NOT NULL,
+    selection_bucket TEXT NOT NULL DEFAULT 'score_ranked',
     PRIMARY KEY (snapshot_id, ticker)
 );
 
@@ -128,6 +129,7 @@ def init_db(settings: Settings) -> None:
         conn.executescript(SCHEMA)
         _migrate_intraday_snapshots(conn)
         _ensure_market_snapshot_enrichment_columns(conn)
+        _ensure_picks_selection_bucket_column(conn)
 
 
 def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -232,6 +234,13 @@ def _ensure_market_snapshot_enrichment_columns(conn: sqlite3.Connection) -> None
         conn.execute("ALTER TABLE market_snapshots ADD COLUMN pe_ratio REAL NOT NULL DEFAULT 0")
 
 
+def _ensure_picks_selection_bucket_column(conn: sqlite3.Connection) -> None:
+    if not conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'picks'").fetchone():
+        return
+    if not _has_column(conn, "picks", "selection_bucket"):
+        conn.execute("ALTER TABLE picks ADD COLUMN selection_bucket TEXT NOT NULL DEFAULT 'score_ranked'")
+
+
 def create_snapshot_run(settings: Settings, snapshot_date: date, source_label: str, source_dir: str) -> int:
     init_db(settings)
     with connect(settings) as conn:
@@ -325,11 +334,22 @@ def replace_picks_for_date(settings: Settings, rows: Iterable[PickRow], target_d
         conn.execute("DELETE FROM picks WHERE snapshot_id = ?", (snapshot_id,))
         conn.executemany(
             """
-            INSERT INTO picks (snapshot_id, date, ticker, score, kap, momentum, volume, risk, horizon)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO picks (snapshot_id, date, ticker, score, kap, momentum, volume, risk, horizon, selection_bucket)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                (snapshot_id, row.date.isoformat(), row.ticker, row.score, 0.0, row.momentum, row.volume, row.risk, row.horizon)
+                (
+                    snapshot_id,
+                    row.date.isoformat(),
+                    row.ticker,
+                    row.score,
+                    0.0,
+                    row.momentum,
+                    row.volume,
+                    row.risk,
+                    row.horizon,
+                    row.selection_bucket,
+                )
                 for row in rows
             ],
         )
@@ -445,6 +465,7 @@ def get_pick_results(settings: Settings, signal_date: date, target_date: date) -
                     ? AS target_date,
                     p.ticker,
                     p.score,
+                    p.selection_bucket,
                     s.open_price,
                     s.close_price
                 FROM picks p

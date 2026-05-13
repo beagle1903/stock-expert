@@ -7,7 +7,7 @@ from datetime import date
 
 from stock_expert.config import get_settings
 from stock_expert.daily_csv import import_daily_csv_command, import_daily_csv_folder_command
-from stock_expert.services import daily_summary, picks_output, review_output
+from stock_expert.services import daily_summary, pick_disagreement_output, picks_output, review_output
 from stock_expert.yahoo import download_ohlcv_command, import_ohlcv_excel_command
 
 
@@ -196,6 +196,9 @@ def main() -> int:
         else:
             print("Review:")
             print(review_output(settings, as_of))
+            print()
+            print("Normal vs No-Chase Disagreement:")
+            print(pick_disagreement_output(settings, as_of))
             print()
             print("No-Chase Dry-Run Picks:")
             print(picks_output(settings, as_of, dry_run=True, apply_chase_penalty=False))

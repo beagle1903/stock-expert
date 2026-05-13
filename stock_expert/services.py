@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import date, timedelta
 
 from stock_expert.config import Settings
@@ -119,6 +120,74 @@ def apply_same_day_chase_penalty(settings: Settings, raw_score: float, daily_cha
     return max(raw_score - penalty, 0.0)
 
 
+def cap_setup_penalty_for_strong_momentum(signal: SignalRow, setup_penalty: float) -> float:
+    if signal.momentum >= 0.9 and signal.technical >= 0.06 and signal.liquidity >= 1.0:
+        return min(setup_penalty, 0.03)
+    return setup_penalty
+
+
+def _with_selection_bucket(pick: PickRow, bucket: str) -> PickRow:
+    return replace(pick, selection_bucket=bucket)
+
+
+def _select_bucketed_picks(
+    ranked: list[PickRow],
+    snapshots: dict[str, object],
+    pick_count: int,
+) -> list[PickRow]:
+    selected: list[PickRow] = []
+    selected_tickers: set[str] = set()
+
+    def add(candidates: list[PickRow], bucket: str, limit: int) -> None:
+        for pick in candidates:
+            if len([item for item in selected if item.selection_bucket == bucket]) >= limit:
+                return
+            if pick.ticker in selected_tickers:
+                continue
+            selected.append(_with_selection_bucket(pick, bucket))
+            selected_tickers.add(pick.ticker)
+            if len(selected) >= pick_count:
+                return
+
+    core_candidates = [
+        pick
+        for pick in ranked
+        if pick.momentum >= 0.85 and pick.volume >= 0.85 and pick.setup_penalty <= 0.03
+    ]
+    add(core_candidates, "core_momentum", 2)
+
+    breakout_candidates = sorted(
+        [
+            pick
+            for pick in ranked
+            if pick.technical >= 0.06 and pick.momentum >= 0.85 and pick.liquidity >= 1.0
+        ],
+        key=lambda pick: (
+            snapshots.get(pick.ticker).daily_change_pct if pick.ticker in snapshots else float("-inf"),
+            pick.score,
+        ),
+        reverse=True,
+    )
+    add(breakout_candidates, "breakout_technical", 2)
+
+    recovery_candidates = sorted(
+        [
+            pick
+            for pick in ranked
+            if pick.momentum >= 0.7 and pick.volume >= 0.5 and pick.technical >= 0.03
+        ],
+        key=lambda pick: (
+            snapshots.get(pick.ticker).daily_change_pct if pick.ticker in snapshots else float("-inf"),
+            pick.score,
+        ),
+        reverse=True,
+    )
+    add(recovery_candidates, "coverage_recovery", 1)
+
+    add(ranked, "score_fill", pick_count)
+    return selected[:pick_count]
+
+
 def generate_picks(
     settings: Settings,
     as_of: date,
@@ -151,7 +220,17 @@ def generate_picks(
         technical_adjustment = compute_technical_adjustment(snapshot)
         quality_adjustment = compute_quality_adjustment(snapshot, latest_price)
         fundamental_adjustment = compute_fundamental_adjustment(snapshot)
-        setup_penalty = compute_setup_penalty(snapshot, latest_price)
+        setup_penalty = cap_setup_penalty_for_strong_momentum(
+            SignalRow(
+                ticker=base_signal.ticker,
+                date=base_signal.date,
+                momentum=base_signal.momentum,
+                volume_spike=base_signal.volume_spike,
+                technical=technical_adjustment,
+                liquidity=base_signal.liquidity,
+            ),
+            compute_setup_penalty(snapshot, latest_price),
+        )
         signal = SignalRow(
             ticker=base_signal.ticker,
             date=base_signal.date,
@@ -200,7 +279,11 @@ def generate_picks(
         ),
         reverse=True,
     )
-    limited = ranked[: (pick_count or settings.default_pick_count)]
+    final_pick_count = pick_count or settings.default_pick_count
+    if final_pick_count == settings.default_pick_count:
+        limited = _select_bucketed_picks(ranked, snapshots, final_pick_count)
+    else:
+        limited = [_with_selection_bucket(pick, "score_ranked") for pick in ranked[:final_pick_count]]
     if not dry_run:
         replace_picks_for_date(settings, limited, as_of, snapshot_id=snapshot_id)
     return limited
@@ -298,11 +381,71 @@ def picks_output(
                     "total_boost": round(pick.technical + pick.fundamental + pick.quality, 4),
                     "net_adjustment": round(pick.technical + pick.fundamental + pick.quality - pick.setup_penalty, 4),
                 },
+                "selection_bucket": pick.selection_bucket,
                 "risk": pick.risk,
                 "horizon": pick.horizon,
             }
             for pick in picks
         ],
+    }
+    return json.dumps(payload, indent=2)
+
+
+def _pick_summary(pick: PickRow, rank: int) -> dict[str, object]:
+    return {
+        "ticker": pick.ticker,
+        "rank": rank,
+        "score": pick.score,
+        "setup_penalty": pick.setup_penalty,
+        "net_adjustment": round(pick.technical + pick.fundamental + pick.quality - pick.setup_penalty, 4),
+        "momentum": pick.momentum,
+        "volume": pick.volume,
+        "selection_bucket": pick.selection_bucket,
+    }
+
+
+def pick_disagreement_output(settings: Settings, as_of: date) -> str:
+    normal_picks = generate_picks(settings, as_of, dry_run=True, apply_chase_penalty=True)
+    no_chase_picks = generate_picks(settings, as_of, dry_run=True, apply_chase_penalty=False)
+    normal_by_ticker = {pick.ticker: (rank, pick) for rank, pick in enumerate(normal_picks, start=1)}
+    no_chase_by_ticker = {pick.ticker: (rank, pick) for rank, pick in enumerate(no_chase_picks, start=1)}
+    normal_tickers = set(normal_by_ticker)
+    no_chase_tickers = set(no_chase_by_ticker)
+    shared_tickers = normal_tickers & no_chase_tickers
+    pick_count = max(len(normal_picks), len(no_chase_picks))
+
+    payload = {
+        "signal_date": as_of.isoformat(),
+        "target_trade_date": next_weekday(as_of).isoformat(),
+        "normal_chase_penalty": True,
+        "no_chase_penalty": False,
+        "overlap": {
+            "shared_count": len(shared_tickers),
+            "pick_count": pick_count,
+            "shared_rate": round(len(shared_tickers) / pick_count, 4) if pick_count else 0.0,
+        },
+        "shared_picks": [
+            {
+                "ticker": ticker,
+                "normal_rank": normal_by_ticker[ticker][0],
+                "no_chase_rank": no_chase_by_ticker[ticker][0],
+                "normal_score": normal_by_ticker[ticker][1].score,
+                "no_chase_score": no_chase_by_ticker[ticker][1].score,
+                "setup_penalty": normal_by_ticker[ticker][1].setup_penalty,
+            }
+            for ticker in sorted(shared_tickers, key=lambda item: normal_by_ticker[item][0])
+        ],
+        "normal_only": [
+            _pick_summary(pick, rank)
+            for ticker, (rank, pick) in normal_by_ticker.items()
+            if ticker not in no_chase_tickers
+        ],
+        "no_chase_only": [
+            _pick_summary(pick, rank)
+            for ticker, (rank, pick) in no_chase_by_ticker.items()
+            if ticker not in normal_tickers
+        ],
+        "selection_note": "Reporting only; persisted picks still use normal chase-penalty ranking.",
     }
     return json.dumps(payload, indent=2)
 
@@ -329,6 +472,7 @@ def _pick_result_rows(picks: list[PickRow], prices_by_ticker: dict[str, object],
                 "target_date": target_date.isoformat(),
                 "ticker": pick.ticker,
                 "score": pick.score,
+                "selection_bucket": pick.selection_bucket,
                 "open_price": price.open_price,
                 "close_price": price.close_price,
             }
@@ -381,6 +525,7 @@ def _attribution_for_pick(settings: Settings, candidate: tuple[int, PickRow] | N
             "total_boost": round(pick.technical + pick.fundamental + pick.quality, 4),
             "net_adjustment": round(pick.technical + pick.fundamental + pick.quality - pick.setup_penalty, 4),
         },
+        "selection_bucket": pick.selection_bucket,
     }
 
 
@@ -398,6 +543,7 @@ def _reviewed_pick_entries(
             {
                 "ticker": row["ticker"],
                 "score": round(float(row["score"]), 4),
+                "selection_bucket": row.get("selection_bucket", "unknown") if isinstance(row, dict) else "unknown",
                 "return": round(return_pct, 4),
                 "won": return_pct >= MIN_DAILY_WIN_RETURN,
                 "attribution": _attribution_for_pick(settings, candidate_rankings.get(row["ticker"])),

@@ -44,6 +44,7 @@ class PickRow:
     ma_trend: float = 0.0
     liquidity: float = 0.0
     horizon: str = "intraday"
+    selection_bucket: str = "score_ranked"
 
 
 @dataclass(frozen=True)
