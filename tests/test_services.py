@@ -244,8 +244,11 @@ class ReviewOutputTests(unittest.TestCase):
             PickRow(date=date(2026, 4, 20), ticker=f"AAA{i}", score=1.0 - i / 100, momentum=1.0, volume=1.0, risk="high")
             for i in range(5)
         ]
-        wide_candidates = top_picks + [
-            PickRow(date=date(2026, 4, 20), ticker="BBB", score=0.8, momentum=0.8, volume=0.7, risk="high")
+        wide_candidates = [
+            PickRow(date=date(2026, 4, 20), ticker=f"AAA{i}", score=1.0 - i / 100, momentum=1.0, volume=1.0, risk="high")
+            for i in range(59)
+        ] + [
+            PickRow(date=date(2026, 4, 20), ticker="BBB", score=0.4, momentum=0.8, volume=0.7, risk="high")
         ]
         movers = [
             {
@@ -258,7 +261,8 @@ class ReviewOutputTests(unittest.TestCase):
         ]
         with (
             patch("stock_expert.services.ensure_base_state"),
-            patch("stock_expert.services.generate_picks", side_effect=[top_picks, wide_candidates]),
+            patch("stock_expert.services.generate_picks", return_value=top_picks),
+            patch("stock_expert.services.rank_candidates", return_value=wide_candidates),
             patch("stock_expert.services.get_prices_for_date", return_value=[]),
             patch("stock_expert.services.get_top_movers", return_value=movers),
             patch("stock_expert.services.get_latest_weights", return_value=None),
@@ -266,7 +270,7 @@ class ReviewOutputTests(unittest.TestCase):
             payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=True))
 
         attribution = payload["missed_actionable"][0]["attribution"]
-        self.assertEqual(attribution["candidate_rank"], 6)
+        self.assertEqual(attribution["candidate_rank"], 60)
         self.assertEqual(attribution["selection_note"], "below_top_pick_cutoff")
 
     def test_review_includes_pick_and_missed_mover_attribution(self) -> None:
@@ -308,6 +312,7 @@ class ReviewOutputTests(unittest.TestCase):
         with (
             patch("stock_expert.services.ensure_base_state"),
             patch("stock_expert.services.generate_picks", return_value=candidates),
+            patch("stock_expert.services.rank_candidates", return_value=candidates),
             patch("stock_expert.services.get_pick_results", return_value=recent_rows),
             patch("stock_expert.services.get_top_movers", return_value=movers),
             patch("stock_expert.services.get_latest_weights", return_value=None),

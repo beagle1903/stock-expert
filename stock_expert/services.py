@@ -188,26 +188,17 @@ def _select_bucketed_picks(
     return selected[:pick_count]
 
 
-def generate_picks(
+def _ranked_candidate_rows(
     settings: Settings,
     as_of: date,
-    pick_count: int | None = None,
-    dry_run: bool = False,
     apply_chase_penalty: bool = True,
-) -> list[PickRow]:
-    ensure_base_state(settings, as_of, dry_run=dry_run)
+) -> tuple[list[PickRow], list[SignalRow], int | None]:
     signals = build_signals(settings, as_of)
     if not signals:
-        if not dry_run:
-            snapshot_id = get_latest_snapshot_id(settings, as_of)
-            if snapshot_id is not None:
-                replace_picks_for_date(settings, [], as_of, snapshot_id=snapshot_id)
-        return []
+        return [], signals, get_latest_snapshot_id(settings, as_of)
     snapshot_id = get_latest_snapshot_id(settings, as_of)
     if snapshot_id is None:
-        return []
-    if not dry_run:
-        upsert_signals(settings, signals, snapshot_id=snapshot_id)
+        return [], signals, None
     weights = get_latest_weights(settings) or default_weights(as_of)
     latest_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, as_of)}
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
@@ -279,6 +270,37 @@ def generate_picks(
         ),
         reverse=True,
     )
+    return ranked, signals, snapshot_id
+
+
+def rank_candidates(
+    settings: Settings,
+    as_of: date,
+    apply_chase_penalty: bool = True,
+) -> list[PickRow]:
+    init_db(settings)
+    ranked, _, _ = _ranked_candidate_rows(settings, as_of, apply_chase_penalty)
+    return ranked
+
+
+def generate_picks(
+    settings: Settings,
+    as_of: date,
+    pick_count: int | None = None,
+    dry_run: bool = False,
+    apply_chase_penalty: bool = True,
+) -> list[PickRow]:
+    ensure_base_state(settings, as_of, dry_run=dry_run)
+    ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of, apply_chase_penalty)
+    if not signals:
+        if not dry_run and snapshot_id is not None:
+            replace_picks_for_date(settings, [], as_of, snapshot_id=snapshot_id)
+        return []
+    if snapshot_id is None:
+        return []
+    if not dry_run:
+        upsert_signals(settings, signals, snapshot_id=snapshot_id)
+    snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     final_pick_count = pick_count or settings.default_pick_count
     if final_pick_count == settings.default_pick_count:
         limited = _select_bucketed_picks(ranked, snapshots, final_pick_count)
@@ -485,13 +507,7 @@ def _candidate_rankings(
     signal_date: date,
     apply_chase_penalty: bool,
 ) -> dict[str, tuple[int, PickRow]]:
-    candidates = generate_picks(
-        settings,
-        signal_date,
-        pick_count=max(settings.default_pick_count * 10, 50),
-        dry_run=True,
-        apply_chase_penalty=apply_chase_penalty,
-    )
+    candidates = rank_candidates(settings, signal_date, apply_chase_penalty=apply_chase_penalty)
     return {pick.ticker: (rank, pick) for rank, pick in enumerate(candidates, start=1)}
 
 
