@@ -15,11 +15,11 @@ from stock_expert.services import (
     bucketed_strategy_comparison_output,
     cap_setup_penalty_for_strong_momentum,
     daily_summary,
+    downside_risk_output,
     generate_bucketed_picks,
     generate_picks,
     next_review_weights,
     next_weekday,
-    pick_disagreement_output,
     picks_output,
     previous_weekday,
     review_output,
@@ -146,13 +146,6 @@ class EnrichmentSignalTests(unittest.TestCase):
         enriched_score = 1.08
         penalized = apply_same_day_chase_penalty(self._settings_stub(), enriched_score, 10.0)
         self.assertLess(penalized, enriched_score)
-
-    def test_no_chase_comparison_can_change_basket(self) -> None:
-        from stock_expert.services import apply_same_day_chase_penalty
-
-        base_score = 1.03
-        penalized = apply_same_day_chase_penalty(self._settings_stub(), base_score, 12.0)
-        self.assertLess(penalized, base_score)
 
     def _settings_stub(self) -> Settings:
         return Settings(base_dir=Path("."), data_dir=Path("data"), db_path=Path("data/test.db"))
@@ -410,31 +403,32 @@ class ReviewOutputTests(unittest.TestCase):
         self.assertEqual(payload["picks"][0]["signals"]["setup_penalty"], 0.02)
         self.assertEqual(payload["picks"][0]["selection_bucket"], "score_ranked")
 
-    def test_pick_disagreement_output_splits_shared_and_unique_picks(self) -> None:
-        normal = [
-            PickRow(date=date(2026, 4, 21), ticker="AAA", score=1.1, momentum=0.9, volume=0.8, risk="high"),
-            PickRow(date=date(2026, 4, 21), ticker="BBB", score=1.0, momentum=0.8, volume=0.7, risk="high", setup_penalty=0.03),
+    def test_downside_risk_output_flags_same_day_drop_and_hourly_sell(self) -> None:
+        picks = [
+            PickRow(date=date(2026, 4, 21), ticker="SARKY", score=1.04, momentum=0.93, volume=1.0, risk="high"),
+            PickRow(date=date(2026, 4, 21), ticker="GOOD", score=1.0, momentum=0.9, volume=0.9, risk="high"),
         ]
-        no_chase = [
-            PickRow(date=date(2026, 4, 21), ticker="AAA", score=1.12, momentum=0.9, volume=0.8, risk="high"),
-            PickRow(date=date(2026, 4, 21), ticker="CCC", score=0.99, momentum=0.7, volume=0.9, risk="medium"),
+        snapshots = [
+            MarketSnapshot(date=date(2026, 4, 21), ticker="SARKY", company_name="SARKY", last_price=10, high_price=11, low_price=9, daily_change_pct=-7.71, volume=1_000_000, weekly_perf_pct=1, monthly_perf_pct=1, ytd_perf_pct=1, yearly_perf_pct=1, technical_hourly="Sat", technical_daily="Güçlü Al", technical_weekly="Nötr", technical_monthly="Güçlü Al", avg_volume_3m=1_000_000, market_cap=1_000_000_000, beta=1.0, revenue=1_000_000_000, pe_ratio=20),
+            MarketSnapshot(date=date(2026, 4, 21), ticker="GOOD", company_name="GOOD", last_price=10, high_price=11, low_price=9, daily_change_pct=2.0, volume=1_000_000, weekly_perf_pct=1, monthly_perf_pct=1, ytd_perf_pct=1, yearly_perf_pct=1, technical_hourly="Al", technical_daily="Al", technical_weekly="Nötr", technical_monthly="Nötr", avg_volume_3m=1_000_000, market_cap=1_000_000_000, beta=1.0, revenue=1_000_000_000, pe_ratio=20),
         ]
-        with patch("stock_expert.services.generate_picks", side_effect=[normal, no_chase]) as generate_picks_mock:
-            payload = json.loads(pick_disagreement_output(self.settings, date(2026, 4, 21)))
+        with (
+            patch("stock_expert.services.generate_picks", return_value=picks) as generate_picks_mock,
+            patch("stock_expert.services.get_market_snapshots_for_date", return_value=snapshots),
+        ):
+            payload = json.loads(downside_risk_output(self.settings, date(2026, 4, 21)))
 
+        generate_picks_mock.assert_called_once_with(self.settings, date(2026, 4, 21), dry_run=True)
+        self.assertEqual(payload["summary"]["pick_count"], 2)
+        self.assertEqual(payload["summary"]["flagged_count"], 1)
+        self.assertEqual(payload["summary"]["high_risk_count"], 1)
+        self.assertEqual(payload["picks"][0]["ticker"], "SARKY")
+        self.assertEqual(payload["picks"][0]["risk_level"], "high")
         self.assertEqual(
-            [call.kwargs for call in generate_picks_mock.call_args_list],
-            [
-                {"dry_run": True, "apply_chase_penalty": True},
-                {"dry_run": True, "apply_chase_penalty": False},
-            ],
+            payload["picks"][0]["downside_flags"],
+            ["same_day_drop_below_5pct", "hourly_sell_signal"],
         )
-        self.assertEqual(payload["overlap"]["shared_count"], 1)
-        self.assertEqual(payload["overlap"]["pick_count"], 2)
-        self.assertEqual(payload["overlap"]["shared_rate"], 0.5)
-        self.assertEqual([item["ticker"] for item in payload["shared_picks"]], ["AAA"])
-        self.assertEqual([item["ticker"] for item in payload["normal_only"]], ["BBB"])
-        self.assertEqual([item["ticker"] for item in payload["no_chase_only"]], ["CCC"])
+        self.assertEqual(payload["picks"][1]["risk_level"], "low")
         self.assertIn("Reporting only", payload["selection_note"])
 
     def test_bucketed_strategy_comparison_evaluates_score_ranked_and_bucketed(self) -> None:

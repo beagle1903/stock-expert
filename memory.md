@@ -50,7 +50,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-21 | Repo test coverage now uses `unittest` in `tests/` for routine wiring, weekday date helpers, and dry-run review persistence boundaries. | Adds regression protection without introducing a new test dependency. |
 | 2026-04-21 | Picks now keep momentum/volume as the base score but add capped technical, quality, and fundamental soft boosts from imported snapshot data. | Brings `teknik.csv` and `temel.csv` into live ranking without replacing the core anti-chase momentum workflow. |
 | 2026-04-21 | GitHub remote backup is now active at `https://github.com/beagle1903/stock-expert`, with `main` as the default/stable branch. | Makes the repo recoverable off-laptop and establishes `main` as the source of truth after feature branches are merged. |
-| 2026-04-22 | `routine` now includes the persisted flow plus a no-chase-penalty dry-run picks/review comparison after the normal review. | Bakes the main strategy comparison into the default operator workflow without mutating SQLite twice. |
+| 2026-04-22 | `routine` includes persisted picks and persisted review after the live CSV import. | Keeps the main operator workflow focused on the actual recorded strategy result. |
 | 2026-04-23 | Daily CSV imports now skip unmapped company names, report malformed required rows, and label derived CSV prices as previous-close-to-latest rather than true open-to-close. | Prevents fabricated tickers and makes review/daily outputs honest about the available feed semantics. |
 | 2026-04-23 | Persisted `review` is idempotent per signal/review date and weight changes now depend on return, win rate, and actionable misses. | Avoids repeated review drift while keeping the feedback loop tied to observed outcomes. |
 | 2026-04-23 | Non-trivial work should use feature-scoped branches named `codex/<task-name>`, then merge to `main` only after behavior is trusted. | Features often span model, schema, docs, tests, and deployment notes, so branch by feature instead of technical layer. |
@@ -58,7 +58,8 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-05-04 | Picks now subtract a capped `setup_penalty` for weak or stretched snapshot context before ranking. | Penalizes bearish technical alignment, missing/weak fundamentals, abnormal volume context, and crowded weekly/monthly momentum without replacing the base momentum/volume model. |
 | 2026-05-05 | Review win classification now requires at least 4% daily return. | Raises the strategy standard so small positive returns count as losses in win rate, persisted wins, and pick-level `won` rows. |
 | 2026-05-13 | Bucketed final selection was added as an experimental comparison path. | It composes 2 core momentum, 2 breakout technical, and 1 coverage recovery pick, while preserving `selection_bucket` for review diagnostics. |
-| 2026-05-15 | Default persisted picks returned to score-ranked top 5; bucketed selection is dry-run/reporting only. | Recent DB-backed checks showed score-ranked top 5 outperforming bucketed selection, so `routine` now reports score-ranked vs bucketed review comparison before no-chase diagnostics. |
+| 2026-05-15 | Default persisted picks returned to score-ranked top 5; bucketed selection is dry-run/reporting only. | Recent DB-backed checks showed score-ranked top 5 outperforming bucketed selection, so `routine` reports score-ranked vs bucketed review comparison. |
+| 2026-05-15 | Removed no-chase comparison from the operator workflow and added downside-risk diagnostics for actual picks. | Equal-weight investing only cares about set membership, and the no-chase basket often matched the normal basket; downside flags catch falling intraday names such as large same-day drops with bearish hourly technicals. |
 
 ## Workflows
 
@@ -77,13 +78,11 @@ Document repeatable ways of doing things in this repo.
 - `D:\miniconda3\python.exe -m stock_expert daily --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m stock_expert picks --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD`
-- `D:\miniconda3\python.exe -m stock_expert picks --date YYYY-MM-DD --dry-run --no-chase-penalty`
-- `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD --dry-run --no-chase-penalty`
 - `D:\miniconda3\python.exe -m unittest discover -s tests -v`
 
 ### Daily CSV Routine
 
-When the user says "do the routine", use the four live root CSVs in `data\`, import a new snapshot run, then run `daily`, normal `picks`, the actual persisted `review`, and a no-chase-penalty dry-run `picks` + `review` comparison.
+When the user says "do the routine", use the four live root CSVs in `data\`, import a new snapshot run, then run `daily`, normal `picks`, the actual persisted `review`, score-ranked vs bucketed review comparison, and downside-risk diagnostics for the actual picks.
 
 When the user says "do the midday routine", use the same live CSV import flow, then run `daily`, normal `picks`, and `review --dry-run`.
 
@@ -101,17 +100,15 @@ Live files:
 1. Replace the four live CSV files with current exports.
 2. Run `D:\miniconda3\python.exe -m stock_expert routine` for the full flow or `D:\miniconda3\python.exe -m stock_expert midday-routine` for the midday dry-run review flow.
 3. The routine imports a new `snapshot_runs` row for today's date and uses the latest snapshot for output.
-4. `routine` persists normal picks and the normal review, then prints a non-mutating no-chase-penalty dry-run picks/review comparison; `midday-routine` keeps review non-mutating via `--dry-run`.
+4. `routine` persists normal picks and the normal review, then prints non-mutating score-ranked vs bucketed comparison and downside-risk diagnostics; `midday-routine` keeps review non-mutating via `--dry-run`.
 5. Use `midday-routine` when the user wants the midday dry-run review behavior from yesterday.
 6. Run CLI commands from the repo root unless the package is installed in the active environment.
 
 ### Strategy Comparison
 
 - Use `--dry-run` for comparison runs; it must not write picks, signals, weights, or review rows.
-- Use `--no-chase-penalty` to compare against the overextended-mover penalty strategy.
-- Current comparison candidate for 2026-04-17 without chase penalty: `MERCN`, `CRFSA`, `KONTR`, `PRZMA`, `FONET`.
 - Use `midday-routine` for midday dry-run review checks without mutating review state.
-- Use `routine` for the actual persisted review flow plus the no-chase dry-run comparison.
+- Use `routine` for the actual persisted review flow plus reporting-only diagnostics.
 
 ### Testing
 

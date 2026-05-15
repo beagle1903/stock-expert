@@ -35,6 +35,7 @@ from stock_expert.signals import (
     compute_technical_adjustment,
     compute_volume_spike,
     score_signal,
+    technical_label_score,
 )
 
 USER_CONFIRMED_MARKET_HOLIDAYS = {
@@ -436,48 +437,48 @@ def _pick_summary(pick: PickRow, rank: int) -> dict[str, object]:
     }
 
 
-def pick_disagreement_output(settings: Settings, as_of: date) -> str:
-    normal_picks = generate_picks(settings, as_of, dry_run=True, apply_chase_penalty=True)
-    no_chase_picks = generate_picks(settings, as_of, dry_run=True, apply_chase_penalty=False)
-    normal_by_ticker = {pick.ticker: (rank, pick) for rank, pick in enumerate(normal_picks, start=1)}
-    no_chase_by_ticker = {pick.ticker: (rank, pick) for rank, pick in enumerate(no_chase_picks, start=1)}
-    normal_tickers = set(normal_by_ticker)
-    no_chase_tickers = set(no_chase_by_ticker)
-    shared_tickers = normal_tickers & no_chase_tickers
-    pick_count = max(len(normal_picks), len(no_chase_picks))
-
+def downside_risk_output(settings: Settings, as_of: date) -> str:
+    picks = generate_picks(settings, as_of, dry_run=True)
+    snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
+    entries = []
+    for rank, pick in enumerate(picks, start=1):
+        snapshot = snapshots.get(pick.ticker)
+        reasons = []
+        daily_change_pct = None
+        technical_hourly = None
+        if snapshot is None:
+            reasons.append("missing_market_snapshot")
+        else:
+            daily_change_pct = snapshot.daily_change_pct
+            technical_hourly = snapshot.technical_hourly
+            if daily_change_pct <= -5.0:
+                reasons.append("same_day_drop_below_5pct")
+            if technical_label_score(technical_hourly) < 0:
+                reasons.append("hourly_sell_signal")
+        entries.append(
+            {
+                **_pick_summary(pick, rank),
+                "daily_change_pct": daily_change_pct,
+                "technical_hourly": technical_hourly,
+                "downside_flags": reasons,
+                "risk_level": "high" if len(reasons) >= 2 else "medium" if reasons else "low",
+            }
+        )
+    flagged = [entry for entry in entries if entry["downside_flags"]]
     payload = {
         "signal_date": as_of.isoformat(),
         "target_trade_date": next_weekday(as_of).isoformat(),
-        "normal_chase_penalty": True,
-        "no_chase_penalty": False,
-        "overlap": {
-            "shared_count": len(shared_tickers),
-            "pick_count": pick_count,
-            "shared_rate": round(len(shared_tickers) / pick_count, 4) if pick_count else 0.0,
+        "thresholds": {
+            "same_day_drop_pct": -5.0,
+            "bearish_hourly_labels": ["Sat", "Güçlü Sat"],
         },
-        "shared_picks": [
-            {
-                "ticker": ticker,
-                "normal_rank": normal_by_ticker[ticker][0],
-                "no_chase_rank": no_chase_by_ticker[ticker][0],
-                "normal_score": normal_by_ticker[ticker][1].score,
-                "no_chase_score": no_chase_by_ticker[ticker][1].score,
-                "setup_penalty": normal_by_ticker[ticker][1].setup_penalty,
-            }
-            for ticker in sorted(shared_tickers, key=lambda item: normal_by_ticker[item][0])
-        ],
-        "normal_only": [
-            _pick_summary(pick, rank)
-            for ticker, (rank, pick) in normal_by_ticker.items()
-            if ticker not in no_chase_tickers
-        ],
-        "no_chase_only": [
-            _pick_summary(pick, rank)
-            for ticker, (rank, pick) in no_chase_by_ticker.items()
-            if ticker not in normal_tickers
-        ],
-        "selection_note": "Reporting only; persisted picks still use normal chase-penalty ranking.",
+        "summary": {
+            "pick_count": len(entries),
+            "flagged_count": len(flagged),
+            "high_risk_count": sum(1 for entry in entries if entry["risk_level"] == "high"),
+        },
+        "picks": entries,
+        "selection_note": "Reporting only; this does not change persisted pick selection.",
     }
     return json.dumps(payload, indent=2)
 

@@ -10,7 +10,7 @@ from stock_expert.daily_csv import import_daily_csv_command, import_daily_csv_fo
 from stock_expert.services import (
     bucketed_strategy_comparison_output,
     daily_summary,
-    pick_disagreement_output,
+    downside_risk_output,
     picks_output,
     review_output,
 )
@@ -34,11 +34,6 @@ def build_parser() -> argparse.ArgumentParser:
                 "--dry-run",
                 action="store_true",
                 help="Compute output without writing picks, signals, weights, or review rows",
-            )
-            command_parser.add_argument(
-                "--no-chase-penalty",
-                action="store_true",
-                help="Disable the same-day overextension penalty for comparison",
             )
 
     download_parser = subparsers.add_parser("download-ohlcv", help="Download OHLCV history from Yahoo Finance")
@@ -91,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     folder_parser.add_argument("--folder", required=True, help="Folder path relative to the project root, e.g. data/20260408")
     routine_parser = subparsers.add_parser(
         "routine",
-        help="Import live CSV files, summarize market, run persisted picks/review, and report no-chase dry-run comparisons",
+        help="Import live CSV files, summarize market, run persisted picks/review, and report diagnostics",
     )
     routine_parser.add_argument(
         "--date",
@@ -132,7 +127,6 @@ def main() -> int:
                 settings,
                 as_of,
                 dry_run=args.dry_run,
-                apply_chase_penalty=not args.no_chase_penalty,
             )
         )
         return 0
@@ -143,7 +137,6 @@ def main() -> int:
                 settings,
                 as_of,
                 dry_run=args.dry_run,
-                apply_chase_penalty=not args.no_chase_penalty,
             )
         )
         return 0
@@ -206,14 +199,8 @@ def main() -> int:
             print("Score-Ranked vs Bucketed Review Comparison:")
             print(bucketed_strategy_comparison_output(settings, as_of))
             print()
-            print("Normal vs No-Chase Disagreement:")
-            print(pick_disagreement_output(settings, as_of))
-            print()
-            print("No-Chase Dry-Run Picks:")
-            print(picks_output(settings, as_of, dry_run=True, apply_chase_penalty=False))
-            print()
-            print("No-Chase Dry-Run Review:")
-            print(review_output(settings, as_of, dry_run=True, apply_chase_penalty=False))
+            print("Downside Risk Diagnostic:")
+            print(downside_risk_output(settings, as_of))
         return 0
 
     parser.error(f"Unsupported command: {args.command}")
