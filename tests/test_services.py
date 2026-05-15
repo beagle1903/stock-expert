@@ -11,7 +11,19 @@ from unittest.mock import patch
 from stock_expert.config import Settings
 from stock_expert.database import connect, init_db, insert_review_run
 from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, Weights
-from stock_expert.services import cap_setup_penalty_for_strong_momentum, daily_summary, generate_picks, next_review_weights, next_weekday, pick_disagreement_output, picks_output, previous_weekday, review_output
+from stock_expert.services import (
+    bucketed_strategy_comparison_output,
+    cap_setup_penalty_for_strong_momentum,
+    daily_summary,
+    generate_bucketed_picks,
+    generate_picks,
+    next_review_weights,
+    next_weekday,
+    pick_disagreement_output,
+    picks_output,
+    previous_weekday,
+    review_output,
+)
 from stock_expert.signals import (
     compute_fundamental_adjustment,
     compute_quality_adjustment,
@@ -425,6 +437,34 @@ class ReviewOutputTests(unittest.TestCase):
         self.assertEqual([item["ticker"] for item in payload["no_chase_only"]], ["CCC"])
         self.assertIn("Reporting only", payload["selection_note"])
 
+    def test_bucketed_strategy_comparison_evaluates_score_ranked_and_bucketed(self) -> None:
+        score_ranked = [
+            PickRow(date=date(2026, 4, 20), ticker="AAA", score=1.1, momentum=0.9, volume=0.8, risk="high", selection_bucket="score_ranked"),
+            PickRow(date=date(2026, 4, 20), ticker="BBB", score=1.0, momentum=0.8, volume=0.7, risk="high", selection_bucket="score_ranked"),
+        ]
+        bucketed = [
+            PickRow(date=date(2026, 4, 20), ticker="AAA", score=1.1, momentum=0.9, volume=0.8, risk="high", selection_bucket="core_momentum"),
+            PickRow(date=date(2026, 4, 20), ticker="CCC", score=0.9, momentum=0.7, volume=0.9, risk="medium", selection_bucket="coverage_recovery"),
+        ]
+        prices = [
+            PriceBar(ticker="AAA", date=date(2026, 4, 21), open_price=100.0, close_price=105.0, volume=1_000_000),
+            PriceBar(ticker="BBB", date=date(2026, 4, 21), open_price=100.0, close_price=98.0, volume=1_000_000),
+            PriceBar(ticker="CCC", date=date(2026, 4, 21), open_price=100.0, close_price=110.0, volume=1_000_000),
+        ]
+        with (
+            patch("stock_expert.services.generate_picks", return_value=score_ranked),
+            patch("stock_expert.services.generate_bucketed_picks", return_value=bucketed),
+            patch("stock_expert.services.get_prices_for_date", return_value=prices),
+        ):
+            payload = json.loads(bucketed_strategy_comparison_output(self.settings, date(2026, 4, 21)))
+
+        self.assertEqual(payload["strategies"][0]["strategy"], "score_ranked")
+        self.assertEqual(payload["strategies"][0]["wins"], 1)
+        self.assertEqual(payload["strategies"][1]["strategy"], "bucketed")
+        self.assertEqual(payload["strategies"][1]["wins"], 2)
+        self.assertEqual(payload["overlap"]["bucketed_only"], ["CCC"])
+        self.assertIn("persisted picks use score_ranked", payload["selection_note"])
+
     def test_next_review_weights_reacts_to_results(self) -> None:
         current = Weights(date=date(2026, 4, 21), momentum_weight=0.6, volume_weight=0.4)
 
@@ -478,7 +518,7 @@ class OutputAndOrderingTests(unittest.TestCase):
         self.assertEqual(order[0], "CCC")
         self.assertLess(order.index("BBB"), order.index("AAA"))
 
-    def test_default_pick_selection_uses_signal_buckets(self) -> None:
+    def test_bucketed_pick_selection_is_available_for_comparison(self) -> None:
         signals = [
             SignalRow(ticker="CORE1", date=date(2026, 4, 21), momentum=0.95, volume_spike=0.95, liquidity=1.0),
             SignalRow(ticker="CORE2", date=date(2026, 4, 21), momentum=0.93, volume_spike=0.94, liquidity=1.0),
@@ -506,11 +546,36 @@ class OutputAndOrderingTests(unittest.TestCase):
             patch("stock_expert.services.get_market_snapshots_for_date", return_value=snapshots),
             patch("stock_expert.services.passes_risk_filter", return_value=True),
         ):
-            picks = generate_picks(self.settings, date(2026, 4, 21), dry_run=True)
+            picks = generate_bucketed_picks(self.settings, date(2026, 4, 21))
 
         self.assertEqual([pick.selection_bucket for pick in picks], ["core_momentum", "core_momentum", "breakout_technical", "breakout_technical", "coverage_recovery"])
         self.assertIn("BREAK1", [pick.ticker for pick in picks])
         self.assertIn("RECOV", [pick.ticker for pick in picks])
+
+    def test_default_pick_selection_uses_score_ranked(self) -> None:
+        signals = [
+            SignalRow(ticker="AAA", date=date(2026, 4, 21), momentum=0.95, volume_spike=0.95, liquidity=1.0),
+            SignalRow(ticker="BBB", date=date(2026, 4, 21), momentum=0.9, volume_spike=0.65, liquidity=1.0),
+            SignalRow(ticker="CCC", date=date(2026, 4, 21), momentum=0.76, volume_spike=0.55, liquidity=1.0),
+        ]
+        snapshots = [
+            MarketSnapshot(date=date(2026, 4, 21), ticker=item.ticker, company_name=item.ticker, last_price=10, high_price=10.5, low_price=9.8, daily_change_pct=1, volume=1_000_000, weekly_perf_pct=1, monthly_perf_pct=1, ytd_perf_pct=1, yearly_perf_pct=1, technical_hourly="Güçlü Al", technical_daily="Güçlü Al", technical_weekly="Güçlü Al", technical_monthly="Nötr", avg_volume_3m=1_000_000, market_cap=1_000_000_000, beta=1.0, revenue=1_000_000_000, pe_ratio=15)
+            for item in signals
+        ]
+        prices = [PriceBar(ticker=item.ticker, date=date(2026, 4, 21), open_price=9.5, close_price=10, volume=1_000_000) for item in snapshots]
+
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.build_signals", return_value=signals),
+            patch("stock_expert.services.get_latest_snapshot_id", return_value=1),
+            patch("stock_expert.services.get_latest_weights", return_value=Weights(date=date(2026, 4, 21), momentum_weight=0.6, volume_weight=0.4)),
+            patch("stock_expert.services.get_prices_for_date", return_value=prices),
+            patch("stock_expert.services.get_market_snapshots_for_date", return_value=snapshots),
+            patch("stock_expert.services.passes_risk_filter", return_value=True),
+        ):
+            picks = generate_picks(self.settings, date(2026, 4, 21), dry_run=True)
+
+        self.assertEqual([pick.selection_bucket for pick in picks], ["score_ranked", "score_ranked", "score_ranked"])
 
     def test_weak_snapshot_context_can_demote_close_candidate(self) -> None:
         signals = [

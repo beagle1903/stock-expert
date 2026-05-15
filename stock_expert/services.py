@@ -300,15 +300,25 @@ def generate_picks(
         return []
     if not dry_run:
         upsert_signals(settings, signals, snapshot_id=snapshot_id)
-    snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     final_pick_count = pick_count or settings.default_pick_count
-    if final_pick_count == settings.default_pick_count:
-        limited = _select_bucketed_picks(ranked, snapshots, final_pick_count)
-    else:
-        limited = [_with_selection_bucket(pick, "score_ranked") for pick in ranked[:final_pick_count]]
+    limited = [_with_selection_bucket(pick, "score_ranked") for pick in ranked[:final_pick_count]]
     if not dry_run:
         replace_picks_for_date(settings, limited, as_of, snapshot_id=snapshot_id)
     return limited
+
+
+def generate_bucketed_picks(
+    settings: Settings,
+    as_of: date,
+    pick_count: int | None = None,
+    apply_chase_penalty: bool = True,
+) -> list[PickRow]:
+    ensure_base_state(settings, as_of, dry_run=True)
+    ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of, apply_chase_penalty)
+    if not signals or snapshot_id is None:
+        return []
+    snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
+    return _select_bucketed_picks(ranked, snapshots, pick_count or settings.default_pick_count)
 
 
 def daily_summary(settings: Settings, as_of: date) -> str:
@@ -468,6 +478,82 @@ def pick_disagreement_output(settings: Settings, as_of: date) -> str:
             if ticker not in normal_tickers
         ],
         "selection_note": "Reporting only; persisted picks still use normal chase-penalty ranking.",
+    }
+    return json.dumps(payload, indent=2)
+
+
+def _strategy_review_summary(
+    name: str,
+    picks: list[PickRow],
+    prices_by_ticker: dict[str, object],
+) -> dict[str, object]:
+    rows = []
+    returns = []
+    for pick in picks:
+        price = prices_by_ticker.get(pick.ticker)
+        return_pct = None
+        won = None
+        if price is not None and price.open_price:
+            return_pct = (price.close_price - price.open_price) / price.open_price
+            won = return_pct >= MIN_DAILY_WIN_RETURN
+            returns.append(return_pct)
+        rows.append(
+            {
+                "ticker": pick.ticker,
+                "score": pick.score,
+                "selection_bucket": pick.selection_bucket,
+                "return": round(return_pct, 4) if return_pct is not None else None,
+                "won": won,
+            }
+        )
+    wins = sum(1 for value in returns if value >= MIN_DAILY_WIN_RETURN)
+    return {
+        "strategy": name,
+        "pick_count": len(rows),
+        "evaluated_count": len(returns),
+        "wins": wins,
+        "avg_return": round(sum(returns) / len(returns), 4) if returns else 0.0,
+        "win_rate": round(wins / len(returns), 4) if returns else 0.0,
+        "picks": rows,
+    }
+
+
+def bucketed_strategy_comparison_output(
+    settings: Settings,
+    review_date: date,
+    apply_chase_penalty: bool = True,
+) -> str:
+    signal_date = previous_weekday(review_date)
+    score_picks = generate_picks(
+        settings,
+        signal_date,
+        dry_run=True,
+        apply_chase_penalty=apply_chase_penalty,
+    )
+    bucketed_picks = generate_bucketed_picks(
+        settings,
+        signal_date,
+        apply_chase_penalty=apply_chase_penalty,
+    )
+    prices_by_ticker = {bar.ticker: bar for bar in get_prices_for_date(settings, review_date)}
+    score_tickers = {pick.ticker for pick in score_picks}
+    bucketed_tickers = {pick.ticker for pick in bucketed_picks}
+    payload = {
+        "dry_run": True,
+        "chase_penalty": apply_chase_penalty,
+        "signal_date": signal_date.isoformat(),
+        "review_date": review_date.isoformat(),
+        "min_win_return": MIN_DAILY_WIN_RETURN,
+        "strategies": [
+            _strategy_review_summary("score_ranked", score_picks, prices_by_ticker),
+            _strategy_review_summary("bucketed", bucketed_picks, prices_by_ticker),
+        ],
+        "overlap": {
+            "shared_count": len(score_tickers & bucketed_tickers),
+            "score_ranked_only": sorted(score_tickers - bucketed_tickers),
+            "bucketed_only": sorted(bucketed_tickers - score_tickers),
+        },
+        "selection_note": "Reporting only; persisted picks use score_ranked selection.",
     }
     return json.dumps(payload, indent=2)
 

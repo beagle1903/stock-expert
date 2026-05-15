@@ -57,7 +57,8 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-30 | Trading-date helpers skip the user-confirmed full-day market holiday `2026-05-01`. | Keeps April 30 picks and May 4 review aligned across the Friday holiday. |
 | 2026-05-04 | Picks now subtract a capped `setup_penalty` for weak or stretched snapshot context before ranking. | Penalizes bearish technical alignment, missing/weak fundamentals, abnormal volume context, and crowded weekly/monthly momentum without replacing the base momentum/volume model. |
 | 2026-05-05 | Review win classification now requires at least 4% daily return. | Raises the strategy standard so small positive returns count as losses in win rate, persisted wins, and pick-level `won` rows. |
-| 2026-05-13 | Default picks now use bucketed final selection: 2 core momentum, 2 breakout technical, and 1 coverage recovery pick. | Keeps candidate scoring intact but prevents the daily top 5 from being dominated by one blended score; persisted picks include `selection_bucket` for review and follow-up diagnostics. |
+| 2026-05-13 | Bucketed final selection was added as an experimental comparison path. | It composes 2 core momentum, 2 breakout technical, and 1 coverage recovery pick, while preserving `selection_bucket` for review diagnostics. |
+| 2026-05-15 | Default persisted picks returned to score-ranked top 5; bucketed selection is dry-run/reporting only. | Recent DB-backed checks showed score-ranked top 5 outperforming bucketed selection, so `routine` now reports score-ranked vs bucketed review comparison before no-chase diagnostics. |
 
 ## Workflows
 
@@ -115,7 +116,7 @@ Live files:
 ### Testing
 
 - Run `D:\miniconda3\python.exe -m unittest discover -s tests -v` from the repo root.
-- Current tests cover `routine` vs `midday-routine` CLI wiring, weekday date helpers, review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, bounded technical/fundamental/setup-penalty scoring behavior, and bucketed default pick selection.
+- Current tests cover `routine` vs `midday-routine` CLI wiring, weekday date helpers, review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, bounded technical/fundamental/setup-penalty scoring behavior, score-ranked default picks, and bucketed comparison reporting.
 
 ### Git Workflow
 

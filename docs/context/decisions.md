@@ -11,12 +11,13 @@
 ## Current Notes
 
 - Daily CSV imports are the main runtime market-data source
-- `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily`, persisted `picks`, actual `review`, and a no-chase-penalty dry-run `picks`/`review` comparison
+- `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily`, persisted `picks`, actual `review`, score-ranked vs bucketed review comparison, and a no-chase-penalty dry-run `picks`/`review` comparison
 - `midday-routine` imports the same live CSVs, then runs `daily`, `picks`, and a dry-run `review`
 - Candidate scores still center on momentum and volume, with bounded technical/basic-analysis soft boosts from `teknik.csv` and `temel.csv`
 - Candidate scores subtract a capped setup penalty for weak or stretched snapshot context before ranking.
-- Default final picks are bucket-composed from score-ranked candidates: 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`.
-- Persisted picks include `selection_bucket` so later reviews can evaluate bucket performance.
+- Default persisted picks are score-ranked top 5 after recent DB-backed checks favored score-ranked selection over bucketed selection.
+- Bucket-composed picks remain available for dry-run/reporting comparison: 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`.
+- Persisted and comparison picks include `selection_bucket` so later reviews can evaluate selection behavior.
 - Review win rate now requires at least 4% return; smaller positive returns count as losses.
 - Daily CSV imports skip unmapped company names instead of fabricating ticker symbols from company-name prefixes.
 - Daily CSV `open_price` stores a previous-close reference derived from daily percentage change; outputs label this as previous-close-to-latest price basis instead of true intraday open-to-close.

@@ -44,6 +44,7 @@ class CliRoutineTests(unittest.TestCase):
             patch("stock_expert.cli.import_daily_csv_command", return_value=json.dumps({"ok": True})),
             patch("stock_expert.cli.daily_summary", return_value="daily"),
             patch("stock_expert.cli.picks_output", return_value="picks") as picks_output,
+            patch("stock_expert.cli.bucketed_strategy_comparison_output", return_value="bucketed") as bucketed_strategy_comparison_output,
             patch("stock_expert.cli.pick_disagreement_output", return_value="disagreement") as pick_disagreement_output,
             patch("stock_expert.cli.review_output", return_value="review") as review_output,
             patch("sys.argv", ["stocks", "routine", "--date", "2026-04-21"]),
@@ -52,6 +53,7 @@ class CliRoutineTests(unittest.TestCase):
             exit_code = cli.main()
 
         self.assertEqual(exit_code, 0)
+        bucketed_strategy_comparison_output.assert_called_once_with(self.settings, cli.date(2026, 4, 21))
         pick_disagreement_output.assert_called_once_with(self.settings, cli.date(2026, 4, 21))
         self.assertEqual(
             picks_output.call_args_list,
@@ -80,6 +82,7 @@ class CliRoutineTests(unittest.TestCase):
         output = stdout.getvalue()
         self.assertIn('"routine": "routine"', output)
         self.assertIn("Review:", output)
+        self.assertIn("Score-Ranked vs Bucketed Review Comparison:", output)
         self.assertIn("Normal vs No-Chase Disagreement:", output)
         self.assertIn("No-Chase Dry-Run Picks:", output)
         self.assertIn("No-Chase Dry-Run Review:", output)
