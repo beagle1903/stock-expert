@@ -40,6 +40,7 @@ from stock_expert.signals import (
 
 USER_CONFIRMED_MARKET_HOLIDAYS = {
     date(2026, 5, 1),
+    date(2026, 5, 19),
 }
 
 
