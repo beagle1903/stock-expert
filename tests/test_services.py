@@ -18,6 +18,8 @@ from stock_expert.services import (
     downside_risk_output,
     generate_bucketed_picks,
     generate_picks,
+    market_context_for_dates,
+    market_context_score_penalty,
     next_review_weights,
     next_weekday,
     picks_output,
@@ -47,6 +49,16 @@ class ServiceDateTests(unittest.TestCase):
     def test_previous_weekday_skips_user_confirmed_market_holiday(self) -> None:
         self.assertEqual(previous_weekday(date(2026, 5, 4)), date(2026, 4, 30))
         self.assertEqual(previous_weekday(date(2026, 5, 20)), date(2026, 5, 18))
+
+    def test_market_context_marks_political_shock_window(self) -> None:
+        context = market_context_for_dates(date(2026, 5, 21), date(2026, 5, 22), date(2026, 5, 25))
+
+        self.assertEqual(
+            [entry["tag"] for entry in context["tags"]],
+            ["political_shock_session", "political_shock_follow_through", "political_shock_follow_through"],
+        )
+        self.assertIn("exogenous political-shock", context["interpretation"])
+        self.assertEqual(context["selection_policy"], "shock_mode_penalty")
 
 
 class EnrichmentSignalTests(unittest.TestCase):
@@ -148,6 +160,19 @@ class EnrichmentSignalTests(unittest.TestCase):
         enriched_score = 1.08
         penalized = apply_same_day_chase_penalty(self._settings_stub(), enriched_score, 10.0)
         self.assertLess(penalized, enriched_score)
+
+    def test_market_context_score_penalty_flags_shock_downside(self) -> None:
+        weak = self.snapshot.__class__(
+            **{
+                **self.snapshot.__dict__,
+                "daily_change_pct": -5.2,
+                "technical_hourly": "Sat",
+                "technical_daily": "Sat",
+            }
+        )
+
+        self.assertEqual(market_context_score_penalty(date(2026, 4, 21), weak), 0.0)
+        self.assertEqual(market_context_score_penalty(date(2026, 5, 21), weak), 0.16)
 
     def _settings_stub(self) -> Settings:
         return Settings(base_dir=Path("."), data_dir=Path("data"), db_path=Path("data/test.db"))
@@ -396,10 +421,16 @@ class ReviewOutputTests(unittest.TestCase):
             liquidity=0.9,
             risk="medium",
         )
-        with patch("stock_expert.services.generate_picks", return_value=[pick]):
-            payload = json.loads(picks_output(self.settings, date(2026, 4, 21), dry_run=True))
+        snapshot = MarketSnapshot(date=date(2026, 5, 21), ticker="AAA", company_name="AAA", last_price=10, high_price=10, low_price=9, daily_change_pct=-5.2, volume=1_000_000, weekly_perf_pct=1, monthly_perf_pct=1, ytd_perf_pct=1, yearly_perf_pct=1, technical_hourly="Sat", technical_daily="Al", technical_weekly="Al", technical_monthly="Nötr", avg_volume_3m=1_000_000, market_cap=1_000_000_000, beta=1.0, revenue=1_000_000_000, pe_ratio=15)
+        with (
+            patch("stock_expert.services.generate_picks", return_value=[pick]),
+            patch("stock_expert.services.get_market_snapshots_for_date", return_value=[snapshot]),
+        ):
+            payload = json.loads(picks_output(self.settings, date(2026, 5, 21), dry_run=True))
 
+        self.assertEqual(payload["market_context"]["tags"][0]["tag"], "political_shock_session")
         self.assertIn("adjustments", payload["picks"][0])
+        self.assertEqual(payload["picks"][0]["adjustments"]["market_context_score_penalty"], 0.14)
         self.assertEqual(payload["picks"][0]["adjustments"]["total_boost"], 0.06)
         self.assertEqual(payload["picks"][0]["adjustments"]["net_adjustment"], 0.04)
         self.assertEqual(payload["picks"][0]["signals"]["setup_penalty"], 0.02)
@@ -597,6 +628,30 @@ class OutputAndOrderingTests(unittest.TestCase):
 
         self.assertEqual([pick.ticker for pick in picks[:2]], ["BBB", "AAA"])
         self.assertGreater(picks[1].setup_penalty, 0.08)
+
+    def test_shock_mode_demotes_bearish_intraday_candidate(self) -> None:
+        signals = [
+            SignalRow(ticker="WEAK", date=date(2026, 5, 21), momentum=0.95, volume_spike=0.95, liquidity=1.0),
+            SignalRow(ticker="CALM", date=date(2026, 5, 21), momentum=0.9, volume_spike=0.9, liquidity=1.0),
+        ]
+        snapshots = [
+            MarketSnapshot(date=date(2026, 5, 21), ticker="WEAK", company_name="WEAK", last_price=10, high_price=11, low_price=9, daily_change_pct=-5.5, volume=1_000_000, weekly_perf_pct=1, monthly_perf_pct=1, ytd_perf_pct=1, yearly_perf_pct=1, technical_hourly="Sat", technical_daily="Al", technical_weekly="Al", technical_monthly="Nötr", avg_volume_3m=1_000_000, market_cap=1_000_000_000, beta=1.0, revenue=1_000_000_000, pe_ratio=15),
+            MarketSnapshot(date=date(2026, 5, 21), ticker="CALM", company_name="CALM", last_price=10, high_price=11, low_price=9, daily_change_pct=1, volume=1_000_000, weekly_perf_pct=1, monthly_perf_pct=1, ytd_perf_pct=1, yearly_perf_pct=1, technical_hourly="Nötr", technical_daily="Al", technical_weekly="Al", technical_monthly="Nötr", avg_volume_3m=1_000_000, market_cap=1_000_000_000, beta=1.0, revenue=1_000_000_000, pe_ratio=15),
+        ]
+        prices = [PriceBar(ticker=item.ticker, date=date(2026, 5, 21), open_price=9.5, close_price=10, volume=1_000_000) for item in snapshots]
+
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.build_signals", return_value=signals),
+            patch("stock_expert.services.get_latest_snapshot_id", return_value=1),
+            patch("stock_expert.services.get_latest_weights", return_value=Weights(date=date(2026, 5, 21), momentum_weight=0.6, volume_weight=0.4)),
+            patch("stock_expert.services.get_prices_for_date", return_value=prices),
+            patch("stock_expert.services.get_market_snapshots_for_date", return_value=snapshots),
+            patch("stock_expert.services.passes_risk_filter", return_value=True),
+        ):
+            picks = generate_picks(self.settings, date(2026, 5, 21), dry_run=True)
+
+        self.assertEqual([pick.ticker for pick in picks[:2]], ["CALM", "WEAK"])
 
     def test_daily_summary_signal_ready_section_is_short(self) -> None:
         bars = [

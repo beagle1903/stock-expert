@@ -11,6 +11,7 @@ from stock_expert.services import (
     bucketed_strategy_comparison_output,
     daily_summary,
     downside_risk_output,
+    market_context_output,
     picks_output,
     review_output,
 )
@@ -184,6 +185,9 @@ def main() -> int:
                 indent=2,
             )
         )
+        print()
+        print("Market Context:")
+        print(market_context_output(as_of))
         print()
         print(daily_summary(settings, as_of))
         print()

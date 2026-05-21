@@ -43,6 +43,56 @@ USER_CONFIRMED_MARKET_HOLIDAYS = {
     date(2026, 5, 19),
 }
 
+MARKET_CONTEXT_NOTES = {
+    date(2026, 5, 21): "political_shock_session",
+    date(2026, 5, 22): "political_shock_follow_through",
+    date(2026, 5, 25): "political_shock_follow_through",
+}
+
+
+def market_context_for_dates(*days: date) -> dict[str, object]:
+    notes = [
+        {"date": day.isoformat(), "tag": MARKET_CONTEXT_NOTES[day]}
+        for day in sorted(set(days))
+        if day in MARKET_CONTEXT_NOTES
+    ]
+    return {
+        "tags": notes,
+        "selection_policy": (
+            "shock_mode_penalty" if any(day in MARKET_CONTEXT_NOTES for day in days) else "normal"
+        ),
+        "interpretation": (
+            "Treat these sessions as exogenous political-shock context; use ranking and review output "
+            "defensively. Tagged signal dates apply extra downside penalties to persisted selection."
+            if notes
+            else None
+        ),
+    }
+
+
+def market_context_output(*days: date) -> str:
+    return json.dumps(market_context_for_dates(*days), indent=2)
+
+
+def market_context_score_penalty(as_of: date, snapshot: object | None) -> float:
+    if as_of not in MARKET_CONTEXT_NOTES or snapshot is None:
+        return 0.0
+
+    penalty = 0.0
+    if snapshot.daily_change_pct <= -5.0:
+        penalty += 0.06
+    elif snapshot.daily_change_pct <= -3.0:
+        penalty += 0.03
+
+    if technical_label_score(snapshot.technical_hourly) < 0:
+        penalty += 0.08
+    if technical_label_score(snapshot.technical_daily) < 0:
+        penalty += 0.05
+    if technical_label_score(snapshot.technical_weekly) < 0:
+        penalty += 0.03
+
+    return round(min(penalty, 0.16), 4)
+
 
 def group_bars_by_ticker(bars):
     grouped = {}
@@ -242,6 +292,7 @@ def _ranked_candidate_rows(
         score = score_signal(signal, weights) + signal.technical + signal.fundamental + signal.quality - signal.setup_penalty
         if apply_chase_penalty:
             score = apply_same_day_chase_penalty(settings, score, daily_change_pct)
+        score = max(score - market_context_score_penalty(as_of, snapshot), 0.0)
         ranked.append(
             PickRow(
                 date=as_of,
@@ -388,11 +439,13 @@ def picks_output(
     apply_chase_penalty: bool = True,
 ) -> str:
     picks = generate_picks(settings, as_of, dry_run=dry_run, apply_chase_penalty=apply_chase_penalty)
+    snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     payload = {
         "dry_run": dry_run,
         "chase_penalty": apply_chase_penalty,
         "signal_date": as_of.isoformat(),
         "target_trade_date": next_weekday(as_of).isoformat(),
+        "market_context": market_context_for_dates(as_of, next_weekday(as_of)),
         "picks": [
             {
                 "ticker": pick.ticker,
@@ -412,6 +465,10 @@ def picks_output(
                     "fundamental": pick.fundamental,
                     "quality": pick.quality,
                     "setup_penalty": pick.setup_penalty,
+                    "market_context_score_penalty": market_context_score_penalty(
+                        as_of,
+                        snapshots.get(pick.ticker),
+                    ),
                     "total_boost": round(pick.technical + pick.fundamental + pick.quality, 4),
                     "net_adjustment": round(pick.technical + pick.fundamental + pick.quality - pick.setup_penalty, 4),
                 },
@@ -469,6 +526,7 @@ def downside_risk_output(settings: Settings, as_of: date) -> str:
     payload = {
         "signal_date": as_of.isoformat(),
         "target_trade_date": next_weekday(as_of).isoformat(),
+        "market_context": market_context_for_dates(as_of, next_weekday(as_of)),
         "thresholds": {
             "same_day_drop_pct": -5.0,
             "bearish_hourly_labels": ["Sat", "Güçlü Sat"],
@@ -479,7 +537,7 @@ def downside_risk_output(settings: Settings, as_of: date) -> str:
             "high_risk_count": sum(1 for entry in entries if entry["risk_level"] == "high"),
         },
         "picks": entries,
-        "selection_note": "Reporting only; this does not change persisted pick selection.",
+        "selection_note": "Reporting only; shock-mode score penalties are already reflected in persisted pick selection on tagged signal dates.",
     }
     return json.dumps(payload, indent=2)
 
@@ -545,6 +603,7 @@ def bucketed_strategy_comparison_output(
         "chase_penalty": apply_chase_penalty,
         "signal_date": signal_date.isoformat(),
         "review_date": review_date.isoformat(),
+        "market_context": market_context_for_dates(signal_date, review_date),
         "min_win_return": MIN_DAILY_WIN_RETURN,
         "strategies": [
             _strategy_review_summary("score_ranked", score_picks, prices_by_ticker),
@@ -780,6 +839,7 @@ def review_output(
         "review_run_id": review_run_id,
         "signal_date": signal_date.isoformat(),
         "review_date": review_date.isoformat(),
+        "market_context": market_context_for_dates(signal_date, review_date),
         "performance": {
             "evaluation_status": "evaluated" if recent_rows else "no_prior_picks",
             "note": None if recent_rows else "No persisted picks were available for the signal date, so avg_return and win_rate are not strategy evidence.",

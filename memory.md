@@ -60,6 +60,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-05-13 | Bucketed final selection was added as an experimental comparison path. | It composes 2 core momentum, 2 breakout technical, and 1 coverage recovery pick, while preserving `selection_bucket` for review diagnostics. |
 | 2026-05-15 | Default persisted picks returned to score-ranked top 5; bucketed selection is dry-run/reporting only. | Recent DB-backed checks showed score-ranked top 5 outperforming bucketed selection, so `routine` reports score-ranked vs bucketed review comparison. |
 | 2026-05-15 | Removed no-chase comparison from the operator workflow and added downside-risk diagnostics for actual picks. | Equal-weight investing only cares about set membership, and the no-chase basket often matched the normal basket; downside flags catch falling intraday names such as large same-day drops with bearish hourly technicals. |
+| 2026-05-21 | Marked 2026-05-21, 2026-05-22, and 2026-05-25 as political-shock context and enabled shock-mode persisted selection on tagged signal dates. | The May 21 BIST selloff was treated as exogenous political risk; tagged signal dates add capped downside penalties for bearish hourly/daily/weekly context and large same-day drops. |
 
 ## Workflows
 

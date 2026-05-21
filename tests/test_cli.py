@@ -25,6 +25,7 @@ class CliRoutineTests(unittest.TestCase):
             patch("stock_expert.cli.get_settings", return_value=self.settings),
             patch("stock_expert.cli.import_daily_csv_command", return_value=json.dumps({"ok": True})),
             patch("stock_expert.cli.daily_summary", return_value="daily"),
+            patch("stock_expert.cli.market_context_output", return_value="market"),
             patch("stock_expert.cli.picks_output", return_value="picks"),
             patch("stock_expert.cli.review_output", return_value="review") as review_output,
             patch("sys.argv", ["stocks", "midday-routine", "--date", "2026-04-21"]),
@@ -36,6 +37,7 @@ class CliRoutineTests(unittest.TestCase):
         review_output.assert_called_once_with(self.settings, cli.date(2026, 4, 21), dry_run=True)
         output = stdout.getvalue()
         self.assertIn('"routine": "midday-routine"', output)
+        self.assertIn("Market Context:", output)
         self.assertIn("Dry-Run Review:", output)
 
     def test_routine_uses_persisted_review(self) -> None:
@@ -43,6 +45,7 @@ class CliRoutineTests(unittest.TestCase):
             patch("stock_expert.cli.get_settings", return_value=self.settings),
             patch("stock_expert.cli.import_daily_csv_command", return_value=json.dumps({"ok": True})),
             patch("stock_expert.cli.daily_summary", return_value="daily"),
+            patch("stock_expert.cli.market_context_output", return_value="market") as market_context_output,
             patch("stock_expert.cli.picks_output", return_value="picks") as picks_output,
             patch("stock_expert.cli.bucketed_strategy_comparison_output", return_value="bucketed") as bucketed_strategy_comparison_output,
             patch("stock_expert.cli.downside_risk_output", return_value="downside") as downside_risk_output,
@@ -53,6 +56,7 @@ class CliRoutineTests(unittest.TestCase):
             exit_code = cli.main()
 
         self.assertEqual(exit_code, 0)
+        market_context_output.assert_called_once_with(cli.date(2026, 4, 21))
         bucketed_strategy_comparison_output.assert_called_once_with(self.settings, cli.date(2026, 4, 21))
         downside_risk_output.assert_called_once_with(self.settings, cli.date(2026, 4, 21))
         self.assertEqual(
