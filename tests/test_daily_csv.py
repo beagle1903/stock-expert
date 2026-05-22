@@ -5,6 +5,7 @@ import json
 import shutil
 import unittest
 import uuid
+from contextlib import closing
 from datetime import date
 from pathlib import Path
 
@@ -146,7 +147,7 @@ class DailyCsvImportTests(unittest.TestCase):
     def test_market_snapshot_table_migrates_new_columns(self) -> None:
         import sqlite3
 
-        with sqlite3.connect(self.settings.db_path) as conn:
+        with closing(sqlite3.connect(self.settings.db_path)) as conn:
             conn.execute(
                 """
                 CREATE TABLE market_snapshots (
@@ -177,7 +178,7 @@ class DailyCsvImportTests(unittest.TestCase):
 
         init_db(self.settings)
 
-        with sqlite3.connect(self.settings.db_path) as conn:
+        with closing(sqlite3.connect(self.settings.db_path)) as conn:
             columns = {row[1] for row in conn.execute("PRAGMA table_info(market_snapshots)")}
 
         self.assertIn("revenue", columns)

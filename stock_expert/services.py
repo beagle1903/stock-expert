@@ -243,7 +243,6 @@ def _select_bucketed_picks(
 def _ranked_candidate_rows(
     settings: Settings,
     as_of: date,
-    apply_chase_penalty: bool = True,
 ) -> tuple[list[PickRow], list[SignalRow], int | None]:
     signals = build_signals(settings, as_of)
     if not signals:
@@ -290,8 +289,7 @@ def _ranked_candidate_rows(
         )
         daily_change_pct = snapshot.daily_change_pct if snapshot else None
         score = score_signal(signal, weights) + signal.technical + signal.fundamental + signal.quality - signal.setup_penalty
-        if apply_chase_penalty:
-            score = apply_same_day_chase_penalty(settings, score, daily_change_pct)
+        score = apply_same_day_chase_penalty(settings, score, daily_change_pct)
         score = max(score - market_context_score_penalty(as_of, snapshot), 0.0)
         ranked.append(
             PickRow(
@@ -329,10 +327,9 @@ def _ranked_candidate_rows(
 def rank_candidates(
     settings: Settings,
     as_of: date,
-    apply_chase_penalty: bool = True,
 ) -> list[PickRow]:
     init_db(settings)
-    ranked, _, _ = _ranked_candidate_rows(settings, as_of, apply_chase_penalty)
+    ranked, _, _ = _ranked_candidate_rows(settings, as_of)
     return ranked
 
 
@@ -341,10 +338,9 @@ def generate_picks(
     as_of: date,
     pick_count: int | None = None,
     dry_run: bool = False,
-    apply_chase_penalty: bool = True,
 ) -> list[PickRow]:
     ensure_base_state(settings, as_of, dry_run=dry_run)
-    ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of, apply_chase_penalty)
+    ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of)
     if not signals:
         if not dry_run and snapshot_id is not None:
             replace_picks_for_date(settings, [], as_of, snapshot_id=snapshot_id)
@@ -364,10 +360,9 @@ def generate_bucketed_picks(
     settings: Settings,
     as_of: date,
     pick_count: int | None = None,
-    apply_chase_penalty: bool = True,
 ) -> list[PickRow]:
     ensure_base_state(settings, as_of, dry_run=True)
-    ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of, apply_chase_penalty)
+    ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of)
     if not signals or snapshot_id is None:
         return []
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
@@ -436,13 +431,12 @@ def picks_output(
     settings: Settings,
     as_of: date,
     dry_run: bool = False,
-    apply_chase_penalty: bool = True,
 ) -> str:
-    picks = generate_picks(settings, as_of, dry_run=dry_run, apply_chase_penalty=apply_chase_penalty)
+    picks = generate_picks(settings, as_of, dry_run=dry_run)
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     payload = {
         "dry_run": dry_run,
-        "chase_penalty": apply_chase_penalty,
+        "chase_penalty": True,
         "signal_date": as_of.isoformat(),
         "target_trade_date": next_weekday(as_of).isoformat(),
         "market_context": market_context_for_dates(as_of, next_weekday(as_of)),
@@ -581,26 +575,23 @@ def _strategy_review_summary(
 def bucketed_strategy_comparison_output(
     settings: Settings,
     review_date: date,
-    apply_chase_penalty: bool = True,
 ) -> str:
     signal_date = previous_weekday(review_date)
     score_picks = generate_picks(
         settings,
         signal_date,
         dry_run=True,
-        apply_chase_penalty=apply_chase_penalty,
     )
     bucketed_picks = generate_bucketed_picks(
         settings,
         signal_date,
-        apply_chase_penalty=apply_chase_penalty,
     )
     prices_by_ticker = {bar.ticker: bar for bar in get_prices_for_date(settings, review_date)}
     score_tickers = {pick.ticker for pick in score_picks}
     bucketed_tickers = {pick.ticker for pick in bucketed_picks}
     payload = {
         "dry_run": True,
-        "chase_penalty": apply_chase_penalty,
+        "chase_penalty": True,
         "signal_date": signal_date.isoformat(),
         "review_date": review_date.isoformat(),
         "market_context": market_context_for_dates(signal_date, review_date),
@@ -652,9 +643,8 @@ def _pick_result_rows(picks: list[PickRow], prices_by_ticker: dict[str, object],
 def _candidate_rankings(
     settings: Settings,
     signal_date: date,
-    apply_chase_penalty: bool,
 ) -> dict[str, tuple[int, PickRow]]:
-    candidates = rank_candidates(settings, signal_date, apply_chase_penalty=apply_chase_penalty)
+    candidates = rank_candidates(settings, signal_date)
     return {pick.ticker: (rank, pick) for rank, pick in enumerate(candidates, start=1)}
 
 
@@ -739,7 +729,6 @@ def review_output(
     settings: Settings,
     as_of: date,
     dry_run: bool = False,
-    apply_chase_penalty: bool = True,
 ) -> str:
     review_date = as_of
     signal_date = previous_weekday(review_date)
@@ -748,7 +737,6 @@ def review_output(
         settings,
         signal_date,
         dry_run=dry_run,
-        apply_chase_penalty=apply_chase_penalty,
     )
 
     if dry_run:
@@ -757,7 +745,7 @@ def review_output(
     else:
         recent = get_pick_results(settings, signal_date, review_date)
     recent_rows = [dict(row) for row in recent]
-    candidate_rankings = _candidate_rankings(settings, signal_date, apply_chase_penalty)
+    candidate_rankings = _candidate_rankings(settings, signal_date)
     returns = [
         (row["close_price"] - row["open_price"]) / row["open_price"]
         for row in recent_rows
@@ -835,7 +823,7 @@ def review_output(
 
     payload = {
         "dry_run": dry_run,
-        "chase_penalty": apply_chase_penalty,
+        "chase_penalty": True,
         "review_run_id": review_run_id,
         "signal_date": signal_date.isoformat(),
         "review_date": review_date.isoformat(),

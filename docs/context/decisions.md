@@ -11,7 +11,7 @@
 ## Current Notes
 
 - Daily CSV imports are the main runtime market-data source
-- `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily`, persisted `picks`, actual `review`, score-ranked vs bucketed review comparison, and a no-chase-penalty dry-run `picks`/`review` comparison
+- `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily`, persisted `picks`, actual `review`, score-ranked vs bucketed review comparison, and downside-risk diagnostics
 - `midday-routine` imports the same live CSVs, then runs `daily`, `picks`, and a dry-run `review`
 - Candidate scores still center on momentum and volume, with bounded technical/basic-analysis soft boosts from `teknik.csv` and `temel.csv`
 - Candidate scores subtract a capped setup penalty for weak or stretched snapshot context before ranking.
@@ -27,7 +27,7 @@
 - `data/ticker_map.csv` is used to persist company-name to ticker mappings across imports
 - Yahoo import remains available as a secondary path
 - `main` uses `data/stock_expert.db`; non-`main` branches default to branch-specific SQLite files unless `STOCK_EXPERT_DB_PATH` is set
-- `review --date YYYY-MM-DD` reports missed movers for the previous calendar day only for now; trading-day lookup can be revisited later
+- `review --date YYYY-MM-DD` evaluates the previous trading-day signal picks against the requested review date and reports missed movers for that review date
 - Missed movers are grouped into `missed_top_movers`, `missed_actionable`, and `missed_non_actionable`
 - KAP is not part of the active runtime workflow
 - Dated `data/YYYYMMDD` folders are legacy/manual archive inputs
