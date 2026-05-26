@@ -45,17 +45,24 @@ class ServiceDateTests(unittest.TestCase):
     def test_next_weekday_skips_user_confirmed_market_holiday(self) -> None:
         self.assertEqual(next_weekday(date(2026, 4, 30)), date(2026, 5, 4))
         self.assertEqual(next_weekday(date(2026, 5, 18)), date(2026, 5, 20))
+        self.assertEqual(next_weekday(date(2026, 5, 26)), date(2026, 6, 1))
 
     def test_previous_weekday_skips_user_confirmed_market_holiday(self) -> None:
         self.assertEqual(previous_weekday(date(2026, 5, 4)), date(2026, 4, 30))
         self.assertEqual(previous_weekday(date(2026, 5, 20)), date(2026, 5, 18))
+        self.assertEqual(previous_weekday(date(2026, 6, 1)), date(2026, 5, 26))
 
     def test_market_context_marks_political_shock_window(self) -> None:
-        context = market_context_for_dates(date(2026, 5, 21), date(2026, 5, 22), date(2026, 5, 25))
+        context = market_context_for_dates(date(2026, 5, 21), date(2026, 5, 22), date(2026, 5, 25), date(2026, 5, 26))
 
         self.assertEqual(
             [entry["tag"] for entry in context["tags"]],
-            ["political_shock_session", "political_shock_follow_through", "political_shock_follow_through"],
+            [
+                "political_shock_session",
+                "political_shock_follow_through",
+                "political_shock_follow_through",
+                "half_holiday_low_liquidity",
+            ],
         )
         self.assertIn("exogenous political-shock", context["interpretation"])
         self.assertEqual(context["selection_policy"], "shock_mode_penalty")

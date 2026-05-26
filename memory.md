@@ -61,6 +61,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-05-15 | Default persisted picks returned to score-ranked top 5; bucketed selection is dry-run/reporting only. | Recent DB-backed checks showed score-ranked top 5 outperforming bucketed selection, so `routine` reports score-ranked vs bucketed review comparison. |
 | 2026-05-15 | Removed no-chase comparison from the operator workflow and added downside-risk diagnostics for actual picks. | Equal-weight investing only cares about set membership, and the no-chase basket often matched the normal basket; downside flags catch falling intraday names such as large same-day drops with bearish hourly technicals. |
 | 2026-05-21 | Marked 2026-05-21, 2026-05-22, and 2026-05-25 as political-shock context and enabled shock-mode persisted selection on tagged signal dates. | The May 21 BIST selloff was treated as exogenous political risk; tagged signal dates add capped downside penalties for bearish hourly/daily/weekly context and large same-day drops. |
+| 2026-05-26 | Marked 2026-05-26 as a half-holiday/low-liquidity context and 2026-05-27 through 2026-05-29 as exact exchange-closed dates; 2026-06-01 remains open. | Keeps holiday-week picks targeted at June 1 while avoiding recurring religious-holiday rules, because those holidays shift each year. |
 
 ## Workflows
 
@@ -154,6 +155,7 @@ Live files:
 - A local `.env` can pin `STOCK_EXPERT_DB_PATH` and takes effect before branch-based default DB selection.
 - `review --date YYYY-MM-DD` evaluates realized market data for that date against picks generated from the previous weekday signal date.
 - `--dry-run` is the safe path for old-strategy comparisons because normal `picks`/`review` mutate SQLite state.
+- Religious/exchange holidays must be recorded as exact confirmed dates, not recurring month/day rules.
 - Workspace-local temp directories are safer than OS temp directories for tests in this environment.
 - `.test_tmp/` is a local test artifact folder and should stay ignored.
 

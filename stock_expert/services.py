@@ -39,14 +39,20 @@ from stock_expert.signals import (
 )
 
 USER_CONFIRMED_MARKET_HOLIDAYS = {
+    # Exact exchange-closed dates confirmed by the user; do not treat religious
+    # holidays as recurring month/day rules because they shift each year.
     date(2026, 5, 1),
     date(2026, 5, 19),
+    date(2026, 5, 27),
+    date(2026, 5, 28),
+    date(2026, 5, 29),
 }
 
 MARKET_CONTEXT_NOTES = {
     date(2026, 5, 21): "political_shock_session",
     date(2026, 5, 22): "political_shock_follow_through",
     date(2026, 5, 25): "political_shock_follow_through",
+    date(2026, 5, 26): "half_holiday_low_liquidity",
 }
 
 
