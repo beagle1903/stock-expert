@@ -31,5 +31,8 @@
 - `main` uses `data/stock_expert.db`; non-`main` branches default to branch-specific SQLite files unless `STOCK_EXPERT_DB_PATH` is set
 - `review --date YYYY-MM-DD` evaluates the previous trading-day signal picks against the requested review date and reports missed movers for that review date
 - Missed movers are grouped into `missed_top_movers`, `missed_actionable`, and `missed_non_actionable`
+- Persisted candidate outcomes provide rolling evidence for near-cutoff misses and score-ranked versus bucketed selection; bucketed picks remain reporting-only
+- Default pick exposure is reduced when the signal-date advancer ratio is below 30%, while ranking logic remains unchanged
+- Review weights move only from a rolling multi-session performance window instead of daily review drift
 - KAP is not part of the active runtime workflow
 - Dated `data/YYYYMMDD` folders are legacy/manual archive inputs

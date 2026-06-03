@@ -7,18 +7,21 @@ from datetime import date, timedelta
 from stock_expert.config import Settings
 from stock_expert.constants import MIN_DAILY_WIN_RETURN
 from stock_expert.database import (
+    get_candidate_outcomes,
     get_latest_weights,
     get_latest_snapshot_id,
     get_market_snapshots_for_date,
     get_pick_results,
     get_prices_for_date,
     get_recent_price_history,
+    get_recent_review_runs,
     get_review_run,
     get_top_movers,
     init_db,
     insert_review_run,
     insert_weights,
     replace_picks_for_date,
+    replace_candidate_outcomes,
     upsert_signals,
 )
 from stock_expert.models import PickRow, SignalRow, Weights
@@ -355,11 +358,112 @@ def generate_picks(
         return []
     if not dry_run:
         upsert_signals(settings, signals, snapshot_id=snapshot_id)
-    final_pick_count = pick_count or settings.default_pick_count
+    final_pick_count = pick_count or breadth_adjusted_pick_count(settings, get_prices_for_date(settings, as_of))
     limited = [_with_selection_bucket(pick, "score_ranked") for pick in ranked[:final_pick_count]]
     if not dry_run:
         replace_picks_for_date(settings, limited, as_of, snapshot_id=snapshot_id)
     return limited
+
+
+def breadth_adjusted_pick_count(settings: Settings, prices: object) -> int:
+    return int(market_breadth_exposure(settings, prices)["pick_count_cap"])
+
+
+def market_breadth_exposure(settings: Settings, prices: object) -> dict[str, object]:
+    rows = list(prices)
+    if not rows:
+        return {
+            "universe_count": 0,
+            "advancer_ratio": None,
+            "pick_count_cap": settings.default_pick_count,
+            "policy": "normal",
+        }
+    advancer_ratio = sum(1 for row in rows if row.close_price > row.open_price) / len(rows)
+    if advancer_ratio < 0.2:
+        cap = min(settings.default_pick_count, 2)
+    elif advancer_ratio < 0.3:
+        cap = min(settings.default_pick_count, 3)
+    else:
+        cap = settings.default_pick_count
+    return {
+        "universe_count": len(rows),
+        "advancer_ratio": round(advancer_ratio, 4),
+        "pick_count_cap": cap,
+        "policy": "reduced_for_weak_breadth" if cap < settings.default_pick_count else "normal",
+    }
+
+
+def _summary(values: list[float]) -> dict[str, object]:
+    wins = sum(1 for value in values if value >= MIN_DAILY_WIN_RETURN)
+    return {
+        "count": len(values),
+        "wins": wins,
+        "avg_return": round(sum(values) / len(values), 4) if values else 0.0,
+        "win_rate": round(wins / len(values), 4) if values else 0.0,
+    }
+
+
+def rolling_candidate_diagnostics(rows: list[object]) -> dict[str, object]:
+    normalized = [dict(row) for row in rows]
+
+    def returns_for(predicate: object) -> list[float]:
+        return [float(row["return_pct"]) for row in normalized if predicate(row)]
+
+    rank_bands = []
+    for label, low, high in [("1-5", 1, 5), ("6-20", 6, 20), ("21-50", 21, 50)]:
+        rank_bands.append({"band": label, **_summary(returns_for(lambda row, low=low, high=high: low <= int(row["candidate_rank"]) <= high))})
+
+    patterns = [
+        {"pattern": "setup_penalized", **_summary(returns_for(lambda row: float(row["setup_penalty"]) > 0))},
+        {"pattern": "breakout_technical", **_summary(returns_for(lambda row: float(row["technical"]) >= 0.06))},
+    ]
+    strategies = [
+        {"strategy": "score_ranked", **_summary(returns_for(lambda row: int(row["selected_score_ranked"]) == 1))},
+        {"strategy": "bucketed", **_summary(returns_for(lambda row: int(row["selected_bucketed"]) == 1))},
+    ]
+    return {
+        "session_count": len({row.get("review_date") for row in normalized if row.get("review_date")}),
+        "candidate_count": len(normalized),
+        "rank_bands": rank_bands,
+        "patterns": patterns,
+        "strategies": strategies,
+        "note": "Rolling evidence only; bucketed selection remains reporting-only.",
+    }
+
+
+def _candidate_outcome_rows(
+    candidates: list[PickRow],
+    score_tickers: set[str],
+    bucketed_picks: list[PickRow],
+    prices_by_ticker: dict[str, object],
+    limit: int = 50,
+) -> list[dict[str, object]]:
+    bucketed_by_ticker = {pick.ticker: pick.selection_bucket for pick in bucketed_picks}
+    rows = []
+    for rank, pick in enumerate(candidates[:limit], start=1):
+        price = prices_by_ticker.get(pick.ticker)
+        if price is None or not price.open_price:
+            continue
+        return_pct = (price.close_price - price.open_price) / price.open_price
+        rows.append(
+            {
+                "ticker": pick.ticker,
+                "candidate_rank": rank,
+                "score": pick.score,
+                "momentum": pick.momentum,
+                "volume": pick.volume,
+                "technical": pick.technical,
+                "fundamental": pick.fundamental,
+                "quality": pick.quality,
+                "setup_penalty": pick.setup_penalty,
+                "selected_score_ranked": 1 if pick.ticker in score_tickers else 0,
+                "selected_bucketed": 1 if pick.ticker in bucketed_by_ticker else 0,
+                "bucketed_bucket": bucketed_by_ticker.get(pick.ticker),
+                "return_pct": round(return_pct, 4),
+                "won": 1 if return_pct >= MIN_DAILY_WIN_RETURN else 0,
+            }
+        )
+    return rows
 
 
 def generate_bucketed_picks(
@@ -439,6 +543,7 @@ def picks_output(
     dry_run: bool = False,
 ) -> str:
     picks = generate_picks(settings, as_of, dry_run=dry_run)
+    exposure = market_breadth_exposure(settings, get_prices_for_date(settings, as_of))
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     payload = {
         "dry_run": dry_run,
@@ -446,6 +551,7 @@ def picks_output(
         "signal_date": as_of.isoformat(),
         "target_trade_date": next_weekday(as_of).isoformat(),
         "market_context": market_context_for_dates(as_of, next_weekday(as_of)),
+        "exposure": exposure,
         "picks": [
             {
                 "ticker": pick.ticker,
@@ -731,6 +837,25 @@ def next_review_weights(current: Weights, avg_return: float, win_rate: float, mi
     )
 
 
+def rolling_review_weights(current: Weights, sessions: list[object], min_sessions: int = 5) -> Weights:
+    rows = [dict(row) for row in sessions]
+    if len(rows) < min_sessions:
+        return current
+    avg_return = sum(float(row["avg_return"]) for row in rows) / len(rows)
+    avg_win_rate = sum(float(row["win_rate"]) for row in rows) / len(rows)
+    momentum = current.momentum_weight
+    if avg_return > 0.01 and avg_win_rate >= 0.5:
+        momentum += 0.02
+    elif avg_return < 0 or avg_win_rate < 0.35:
+        momentum -= 0.02
+    momentum = round(min(max(momentum, 0.4), 0.8), 2)
+    return Weights(
+        date=current.date,
+        momentum_weight=momentum,
+        volume_weight=round(1.0 - momentum, 2),
+    )
+
+
 def review_output(
     settings: Settings,
     as_of: date,
@@ -742,7 +867,7 @@ def review_output(
     generated_picks = generate_picks(
         settings,
         signal_date,
-        dry_run=dry_run,
+        dry_run=True,
     )
 
     if dry_run:
@@ -752,6 +877,7 @@ def review_output(
         recent = get_pick_results(settings, signal_date, review_date)
     recent_rows = [dict(row) for row in recent]
     candidate_rankings = _candidate_rankings(settings, signal_date)
+    ranked_candidates = [item[1] for item in sorted(candidate_rankings.values(), key=lambda item: item[0])]
     returns = [
         (row["close_price"] - row["open_price"]) / row["open_price"]
         for row in recent_rows
@@ -793,11 +919,13 @@ def review_output(
 
     current = get_latest_weights(settings) or default_weights(as_of)
     if recent_rows:
-        next_weights = next_review_weights(
+        rolling_sessions = [
+            {"avg_return": avg_return, "win_rate": win_rate},
+            *[dict(row) for row in get_recent_review_runs(settings, limit=19)],
+        ]
+        next_weights = rolling_review_weights(
             Weights(date=as_of, momentum_weight=current.momentum_weight, volume_weight=current.volume_weight),
-            avg_return=avg_return,
-            win_rate=win_rate,
-            missed_actionable_count=len(missed_actionable),
+            rolling_sessions,
         )
     else:
         next_weights = Weights(
@@ -826,6 +954,14 @@ def review_output(
                 momentum_weight=existing_review["momentum_weight"],
                 volume_weight=existing_review["volume_weight"],
             )
+        target_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, review_date)}
+        bucketed_picks = generate_bucketed_picks(settings, signal_date)
+        replace_candidate_outcomes(
+            settings,
+            signal_date,
+            review_date,
+            _candidate_outcome_rows(ranked_candidates, picked_tickers, bucketed_picks, target_prices),
+        )
 
     payload = {
         "dry_run": dry_run,
@@ -848,6 +984,7 @@ def review_output(
         "missed_top_movers": missed_top_movers,
         "missed_actionable": missed_actionable,
         "missed_non_actionable": missed_non_actionable,
+        "rolling_candidate_diagnostics": rolling_candidate_diagnostics(get_candidate_outcomes(settings, limit_sessions=20)),
         "adjustments": {
             "momentum_weight": next_weights.momentum_weight,
             "volume_weight": next_weights.volume_weight,
