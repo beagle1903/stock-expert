@@ -9,7 +9,7 @@ import shutil
 from unittest.mock import patch
 
 from stock_expert.config import Settings
-from stock_expert.database import connect, init_db, insert_review_run
+from stock_expert.database import connect, get_candidate_outcomes, init_db, insert_review_run
 from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, Weights
 from stock_expert.services import (
     bucketed_strategy_comparison_output,
@@ -25,6 +25,8 @@ from stock_expert.services import (
     picks_output,
     previous_weekday,
     review_output,
+    rolling_candidate_diagnostics,
+    rolling_review_weights,
 )
 from stock_expert.signals import (
     compute_fundamental_adjustment,
@@ -234,6 +236,18 @@ class ReviewOutputTests(unittest.TestCase):
         self.assertFalse(payload["dry_run"])
         self.assertEqual(payload["review_run_id"], 7)
 
+    def test_normal_review_recomputes_candidate_ranking_without_rewriting_picks(self) -> None:
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=[]) as generate_picks,
+            patch("stock_expert.services.get_pick_results", return_value=[]),
+            patch("stock_expert.services.get_top_movers", return_value=[]),
+            patch("stock_expert.services.get_latest_weights", return_value=None),
+        ):
+            review_output(self.settings, date(2026, 4, 21), dry_run=False)
+
+        generate_picks.assert_called_once_with(self.settings, date(2026, 4, 20), dry_run=True)
+
     def test_review_win_rate_requires_four_percent_return(self) -> None:
         recent_rows = [
             {"ticker": "AAA", "score": 1.0, "open_price": 100.0, "close_price": 103.0},
@@ -413,6 +427,50 @@ class ReviewOutputTests(unittest.TestCase):
         self.assertEqual(payload["review_run_id"], 7)
         self.assertEqual(payload["adjustments"]["momentum_weight"], 0.63)
 
+    def test_persisted_review_records_ranked_candidate_outcomes(self) -> None:
+        init_db(self.settings)
+        candidates = [
+            PickRow(date=date(2026, 4, 20), ticker="AAA", score=1.0, momentum=0.9, volume=0.8, risk="high"),
+            PickRow(date=date(2026, 4, 20), ticker="BBB", score=0.9, momentum=0.8, volume=0.7, risk="high", setup_penalty=0.03),
+        ]
+        prices = [
+            PriceBar(ticker="AAA", date=date(2026, 4, 21), open_price=100.0, close_price=105.0, volume=1_000_000),
+            PriceBar(ticker="BBB", date=date(2026, 4, 21), open_price=100.0, close_price=110.0, volume=1_000_000),
+        ]
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=[]),
+            patch("stock_expert.services.generate_bucketed_picks", return_value=[candidates[1]]),
+            patch("stock_expert.services.rank_candidates", return_value=candidates),
+            patch("stock_expert.services.get_pick_results", return_value=[{"ticker": "AAA", "score": 1.0, "open_price": 100.0, "close_price": 105.0}]),
+            patch("stock_expert.services.get_prices_for_date", return_value=prices),
+            patch("stock_expert.services.get_top_movers", return_value=[]),
+            patch("stock_expert.services.get_latest_weights", return_value=None),
+            patch("stock_expert.services.get_review_run", return_value=None),
+        ):
+            review_output(self.settings, date(2026, 4, 21), dry_run=False)
+
+        outcomes = get_candidate_outcomes(self.settings, limit_sessions=10)
+        self.assertEqual(len(outcomes), 2)
+        self.assertEqual(outcomes[0]["ticker"], "AAA")
+        self.assertEqual(outcomes[0]["candidate_rank"], 1)
+        self.assertEqual(outcomes[0]["selected_score_ranked"], 1)
+        self.assertEqual(outcomes[1]["selected_bucketed"], 1)
+
+    def test_rolling_candidate_diagnostics_compares_rank_bands_and_strategies(self) -> None:
+        rows = [
+            {"candidate_rank": 1, "return_pct": 0.05, "setup_penalty": 0.0, "technical": 0.06, "selected_score_ranked": 1, "selected_bucketed": 0},
+            {"candidate_rank": 8, "return_pct": 0.10, "setup_penalty": 0.03, "technical": 0.06, "selected_score_ranked": 0, "selected_bucketed": 1},
+        ]
+
+        payload = rolling_candidate_diagnostics(rows)
+
+        self.assertEqual(payload["rank_bands"][0]["band"], "1-5")
+        self.assertEqual(payload["rank_bands"][1]["band"], "6-20")
+        self.assertEqual(payload["strategies"][0]["strategy"], "score_ranked")
+        self.assertEqual(payload["strategies"][1]["strategy"], "bucketed")
+        self.assertGreater(payload["strategies"][1]["avg_return"], payload["strategies"][0]["avg_return"])
+
     def test_picks_output_includes_adjustments_block(self) -> None:
         pick = PickRow(
             date=date(2026, 4, 21),
@@ -442,6 +500,21 @@ class ReviewOutputTests(unittest.TestCase):
         self.assertEqual(payload["picks"][0]["adjustments"]["net_adjustment"], 0.04)
         self.assertEqual(payload["picks"][0]["signals"]["setup_penalty"], 0.02)
         self.assertEqual(payload["picks"][0]["selection_bucket"], "score_ranked")
+
+    def test_picks_output_explains_breadth_reduced_exposure(self) -> None:
+        prices = [
+            PriceBar(ticker=f"AAA{i}", date=date(2026, 4, 21), open_price=10.0, close_price=9.0 if i < 4 else 11.0, volume=1_000_000)
+            for i in range(5)
+        ]
+        with (
+            patch("stock_expert.services.generate_picks", return_value=[]),
+            patch("stock_expert.services.get_prices_for_date", return_value=prices),
+        ):
+            payload = json.loads(picks_output(self.settings, date(2026, 4, 21), dry_run=True))
+
+        self.assertEqual(payload["exposure"]["advancer_ratio"], 0.2)
+        self.assertEqual(payload["exposure"]["pick_count_cap"], 3)
+        self.assertEqual(payload["exposure"]["policy"], "reduced_for_weak_breadth")
 
     def test_downside_risk_output_flags_same_day_drop_and_hourly_sell(self) -> None:
         picks = [
@@ -509,6 +582,16 @@ class ReviewOutputTests(unittest.TestCase):
         self.assertEqual(strong.volume_weight, 0.37)
         self.assertEqual(weak.momentum_weight, 0.55)
         self.assertEqual(weak.volume_weight, 0.45)
+
+    def test_rolling_review_weights_requires_multiple_sessions(self) -> None:
+        current = Weights(date=date(2026, 4, 21), momentum_weight=0.6, volume_weight=0.4)
+        weak_session = {"avg_return": -0.05, "win_rate": 0.0}
+
+        unchanged = rolling_review_weights(current, [weak_session] * 4)
+        adjusted = rolling_review_weights(current, [weak_session] * 5)
+
+        self.assertEqual(unchanged.momentum_weight, 0.6)
+        self.assertEqual(adjusted.momentum_weight, 0.58)
 
 
 class OutputAndOrderingTests(unittest.TestCase):
@@ -610,6 +693,28 @@ class OutputAndOrderingTests(unittest.TestCase):
             picks = generate_picks(self.settings, date(2026, 4, 21), dry_run=True)
 
         self.assertEqual([pick.selection_bucket for pick in picks], ["score_ranked", "score_ranked", "score_ranked"])
+
+    def test_weak_market_breadth_reduces_default_pick_count(self) -> None:
+        signals = [
+            SignalRow(ticker=f"AAA{i}", date=date(2026, 4, 21), momentum=0.9, volume_spike=0.9, liquidity=1.0)
+            for i in range(6)
+        ]
+        prices = [
+            PriceBar(ticker=item.ticker, date=date(2026, 4, 21), open_price=10.0, close_price=9.0 if i < 5 else 11.0, volume=1_000_000)
+            for i, item in enumerate(signals)
+        ]
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.build_signals", return_value=signals),
+            patch("stock_expert.services.get_latest_snapshot_id", return_value=1),
+            patch("stock_expert.services.get_latest_weights", return_value=Weights(date=date(2026, 4, 21), momentum_weight=0.6, volume_weight=0.4)),
+            patch("stock_expert.services.get_prices_for_date", return_value=prices),
+            patch("stock_expert.services.get_market_snapshots_for_date", return_value=[]),
+            patch("stock_expert.services.passes_risk_filter", return_value=True),
+        ):
+            picks = generate_picks(self.settings, date(2026, 4, 21), dry_run=True)
+
+        self.assertEqual(len(picks), 2)
 
     def test_weak_snapshot_context_can_demote_close_candidate(self) -> None:
         signals = [

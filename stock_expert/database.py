@@ -110,6 +110,26 @@ CREATE TABLE IF NOT EXISTS review_pick_results (
     PRIMARY KEY (review_run_id, ticker),
     FOREIGN KEY (review_run_id) REFERENCES review_runs(id)
 );
+
+CREATE TABLE IF NOT EXISTS candidate_outcomes (
+    signal_date TEXT NOT NULL,
+    review_date TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    candidate_rank INTEGER NOT NULL,
+    score REAL NOT NULL,
+    momentum REAL NOT NULL,
+    volume REAL NOT NULL,
+    technical REAL NOT NULL,
+    fundamental REAL NOT NULL,
+    quality REAL NOT NULL,
+    setup_penalty REAL NOT NULL,
+    selected_score_ranked INTEGER NOT NULL,
+    selected_bucketed INTEGER NOT NULL,
+    bucketed_bucket TEXT,
+    return_pct REAL NOT NULL,
+    won INTEGER NOT NULL,
+    PRIMARY KEY (signal_date, review_date, ticker)
+);
 """
 
 
@@ -480,6 +500,72 @@ def get_pick_results(settings: Settings, signal_date: date, target_date: date) -
         )
 
 
+def replace_candidate_outcomes(
+    settings: Settings,
+    signal_date: date,
+    review_date: date,
+    rows: Iterable[dict[str, object]],
+) -> None:
+    outcome_rows = list(rows)
+    with connect(settings) as conn:
+        conn.execute(
+            "DELETE FROM candidate_outcomes WHERE signal_date = ? AND review_date = ?",
+            (signal_date.isoformat(), review_date.isoformat()),
+        )
+        conn.executemany(
+            """
+            INSERT INTO candidate_outcomes (
+                signal_date, review_date, ticker, candidate_rank, score, momentum, volume,
+                technical, fundamental, quality, setup_penalty, selected_score_ranked,
+                selected_bucketed, bucketed_bucket, return_pct, won
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    signal_date.isoformat(),
+                    review_date.isoformat(),
+                    row["ticker"],
+                    row["candidate_rank"],
+                    row["score"],
+                    row["momentum"],
+                    row["volume"],
+                    row["technical"],
+                    row["fundamental"],
+                    row["quality"],
+                    row["setup_penalty"],
+                    row["selected_score_ranked"],
+                    row["selected_bucketed"],
+                    row["bucketed_bucket"],
+                    row["return_pct"],
+                    row["won"],
+                )
+                for row in outcome_rows
+            ],
+        )
+
+
+def get_candidate_outcomes(settings: Settings, limit_sessions: int = 20) -> list[sqlite3.Row]:
+    init_db(settings)
+    with connect(settings) as conn:
+        return list(
+            conn.execute(
+                """
+                SELECT *
+                FROM candidate_outcomes
+                WHERE review_date IN (
+                    SELECT DISTINCT review_date
+                    FROM candidate_outcomes
+                    ORDER BY review_date DESC
+                    LIMIT ?
+                )
+                ORDER BY review_date DESC, candidate_rank ASC
+                """,
+                (limit_sessions,),
+            )
+        )
+
+
 def get_review_run(settings: Settings, as_of: date, review_date: date) -> sqlite3.Row | None:
     init_db(settings)
     with connect(settings) as conn:
@@ -493,6 +579,23 @@ def get_review_run(settings: Settings, as_of: date, review_date: date) -> sqlite
             """,
             (as_of.isoformat(), review_date.isoformat()),
         ).fetchone()
+
+
+def get_recent_review_runs(settings: Settings, limit: int = 20) -> list[sqlite3.Row]:
+    init_db(settings)
+    with connect(settings) as conn:
+        return list(
+            conn.execute(
+                """
+                SELECT as_of_date, review_date, avg_return, win_rate, pick_count, wins
+                FROM review_runs
+                WHERE pick_count > 0
+                ORDER BY review_date DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        )
 
 
 def insert_review_run(
