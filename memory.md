@@ -63,6 +63,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-05-21 | Marked 2026-05-21, 2026-05-22, and 2026-05-25 as political-shock context and enabled shock-mode persisted selection on tagged signal dates. | The May 21 BIST selloff was treated as exogenous political risk; tagged signal dates add capped downside penalties for bearish hourly/daily/weekly context and large same-day drops. |
 | 2026-05-26 | Marked 2026-05-26 as a half-holiday/low-liquidity context and 2026-05-27 through 2026-05-29 as exact exchange-closed dates; 2026-06-01 remains open. | Keeps holiday-week picks targeted at June 1 while avoiding recurring religious-holiday rules, because those holidays shift each year. |
 | 2026-06-03 | Added breadth-based exposure caps, persisted top-candidate outcomes, rolling candidate diagnostics, and rolling review-weight updates. | Avoids forcing five picks into weak markets and creates evidence for near-cutoff misses and score-ranked versus bucketed selection before changing the default strategy. |
+| 2026-06-03 | Added a project-local Codex Stop hook that requires relevant Markdown updates after development work. | Keeps feature, context, task, or durable memory documentation aligned with code changes; deliberate exceptions require a `DOCS_NOT_NEEDED` reason. |
 
 ## Workflows
 
@@ -141,6 +142,7 @@ Live files:
 - Follow the existing docs and folder structure.
 - Root guidance lives in `AGENTS.md`.
 - Feature docs live in `docs/features/`.
+- Review and trust project-local Codex hooks through `/hooks`; hook trust must be renewed after hook definition changes.
 
 ## Gotchas
 

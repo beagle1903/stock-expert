@@ -34,5 +34,6 @@
 - Persisted candidate outcomes provide rolling evidence for near-cutoff misses and score-ranked versus bucketed selection; bucketed picks remain reporting-only
 - Default pick exposure is reduced when the signal-date advancer ratio is below 30%, while ranking logic remains unchanged
 - Review weights move only from a rolling multi-session performance window instead of daily review drift
+- Project-local Codex Stop validation blocks development changes without relevant Markdown updates unless a deliberate `DOCS_NOT_NEEDED` reason is present
 - KAP is not part of the active runtime workflow
 - Dated `data/YYYYMMDD` folders are legacy/manual archive inputs
