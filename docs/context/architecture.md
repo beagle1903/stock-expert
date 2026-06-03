@@ -9,6 +9,7 @@
 - `stock_expert/models.py`: domain models
 - `stock_expert/config.py`: paths and thresholds
 - `stock_expert/yahoo.py`: Yahoo OHLCV downloader with CSV export and optional SQLite import
+- `.codex/hooks/validate_docs_update.py`: deterministic Codex Stop hook validator for development documentation updates
 
 ## Persistence
 
