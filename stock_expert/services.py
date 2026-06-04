@@ -421,10 +421,37 @@ def rolling_candidate_diagnostics(rows: list[object]) -> dict[str, object]:
         {"strategy": "score_ranked", **_summary(returns_for(lambda row: int(row["selected_score_ranked"]) == 1))},
         {"strategy": "bucketed", **_summary(returns_for(lambda row: int(row["selected_bucketed"]) == 1))},
     ]
+    cutoff_rows = []
+    for cutoff in [3, 5, 10, 20, 50]:
+        cutoff_rows.append(
+            {
+                "cutoff": f"top_{cutoff}",
+                **_summary(returns_for(lambda row, cutoff=cutoff: int(row["candidate_rank"]) <= cutoff)),
+            }
+        )
+    min_observations = max(1, len({row.get("review_date") for row in normalized if row.get("review_date")}))
+    eligible_cutoffs = [row for row in cutoff_rows if int(row["count"]) >= min_observations]
+    best_cutoff = None
+    if eligible_cutoffs:
+        best = sorted(
+            eligible_cutoffs,
+            key=lambda row: (
+                float(row["avg_return"]),
+                float(row["win_rate"]),
+                -int(str(row["cutoff"]).split("_")[1]),
+            ),
+            reverse=True,
+        )[0]
+        best_cutoff = best["cutoff"]
     return {
         "session_count": len({row.get("review_date") for row in normalized if row.get("review_date")}),
         "candidate_count": len(normalized),
         "rank_bands": rank_bands,
+        "cutoff_analysis": {
+            "cutoffs": cutoff_rows,
+            "best_cutoff": best_cutoff,
+            "min_observations": min_observations,
+        },
         "patterns": patterns,
         "strategies": strategies,
         "note": "Rolling evidence only; bucketed selection remains reporting-only.",

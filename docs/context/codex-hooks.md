@@ -8,7 +8,7 @@ This repository includes a project-local Codex Stop hook:
 - Validator: `.codex/hooks/validate_docs_update.py`
 - Tests: `tests/test_docs_stop_hook.py`
 
-The hook checks whether development files changed without a relevant Markdown update. Development files include Python code, tests, schema files, CLI code, configuration files, and project-local Codex hook files.
+The hook checks whether development files changed without a relevant Markdown update. It also blocks likely dead code in changed runtime or hook Python files before allowing completion. Development files include Python code, tests, schema files, CLI code, configuration files, and project-local Codex hook files.
 
 Accepted documentation locations:
 
@@ -51,6 +51,8 @@ At Stop, the validator reads Codex hook JSON from stdin and discovers changed fi
 - Commits between the current branch and its upstream merge base
 
 When development files changed without accepted documentation, it returns a blocking message listing the development files and documentation locations to update.
+
+When changed `stock_expert/*.py` or `.codex/hooks/*.py` files contain obvious dead code, the validator returns a blocking message first. The dead-code check uses Python `ast` from the standard library and currently flags unused imports plus unused top-level private functions/classes. Remove the unused code before finishing, or add real usage or test coverage if the item is intentionally retained.
 
 Documentation-free work is allowed only with a deliberate marker and short reason:
 

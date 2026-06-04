@@ -96,6 +96,24 @@ class DocsStopHookTests(unittest.TestCase):
 
         self.assertEqual(json.loads(result.stdout), {})
 
+    def test_blocks_changed_python_file_with_likely_dead_code(self) -> None:
+        fixture = REPO_ROOT / "stock_expert" / "_dead_code_hook_fixture.py"
+        fixture.write_text(
+            "import json\n\n"
+            "def _unused_helper():\n"
+            "    return 1\n",
+            encoding="utf-8",
+        )
+        self.addCleanup(fixture.unlink, missing_ok=True)
+
+        result = run_validator("stock_expert/_dead_code_hook_fixture.py", "docs/context/codex-hooks.md")
+
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["decision"], "block")
+        self.assertIn("Likely dead code", payload["reason"])
+        self.assertIn("unused import 'json'", payload["reason"])
+        self.assertIn("unused private function '_unused_helper'", payload["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()

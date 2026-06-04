@@ -12,6 +12,7 @@
 - Persists each review run and pick-level return results
 - Persists top-ranked candidate outcomes, including rank, score components, setup penalty, score-ranked selection, bucketed selection, and realized next-session return
 - Reports rolling rank-band, setup-penalty, breakout-technical, score-ranked, and bucketed outcome diagnostics
+- Reports cumulative cutoff analysis for top 3/5/10/20/50 candidate ranks and identifies the best observed cutoff from the rolling candidate-outcome window
 - Reuses an existing persisted review for the same signal/review date
 - Recomputes prior signal-date candidate rankings in dry-run mode so review cannot rewrite historical persisted picks
 - CSV-imported review returns use previous-close-to-latest price basis until a real open column/source is available

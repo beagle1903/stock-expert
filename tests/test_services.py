@@ -471,6 +471,30 @@ class ReviewOutputTests(unittest.TestCase):
         self.assertEqual(payload["strategies"][1]["strategy"], "bucketed")
         self.assertGreater(payload["strategies"][1]["avg_return"], payload["strategies"][0]["avg_return"])
 
+    def test_rolling_candidate_diagnostics_recommends_best_cutoff_from_rank_bands(self) -> None:
+        rows = [
+            {"review_date": "2026-04-21", "candidate_rank": 1, "return_pct": -0.03, "setup_penalty": 0.0, "technical": 0.0, "selected_score_ranked": 1, "selected_bucketed": 0},
+            {"review_date": "2026-04-21", "candidate_rank": 2, "return_pct": -0.02, "setup_penalty": 0.0, "technical": 0.0, "selected_score_ranked": 1, "selected_bucketed": 0},
+            {"review_date": "2026-04-21", "candidate_rank": 3, "return_pct": -0.01, "setup_penalty": 0.0, "technical": 0.0, "selected_score_ranked": 1, "selected_bucketed": 0},
+            {"review_date": "2026-04-21", "candidate_rank": 4, "return_pct": 0.08, "setup_penalty": 0.0, "technical": 0.0, "selected_score_ranked": 0, "selected_bucketed": 0},
+            {"review_date": "2026-04-21", "candidate_rank": 5, "return_pct": 0.06, "setup_penalty": 0.0, "technical": 0.0, "selected_score_ranked": 0, "selected_bucketed": 0},
+            {"review_date": "2026-04-22", "candidate_rank": 1, "return_pct": -0.02, "setup_penalty": 0.0, "technical": 0.0, "selected_score_ranked": 1, "selected_bucketed": 0},
+            {"review_date": "2026-04-22", "candidate_rank": 2, "return_pct": -0.01, "setup_penalty": 0.0, "technical": 0.0, "selected_score_ranked": 1, "selected_bucketed": 0},
+            {"review_date": "2026-04-22", "candidate_rank": 3, "return_pct": 0.00, "setup_penalty": 0.0, "technical": 0.0, "selected_score_ranked": 1, "selected_bucketed": 0},
+            {"review_date": "2026-04-22", "candidate_rank": 4, "return_pct": 0.09, "setup_penalty": 0.0, "technical": 0.0, "selected_score_ranked": 0, "selected_bucketed": 0},
+            {"review_date": "2026-04-22", "candidate_rank": 5, "return_pct": 0.07, "setup_penalty": 0.0, "technical": 0.0, "selected_score_ranked": 0, "selected_bucketed": 0},
+        ]
+
+        payload = rolling_candidate_diagnostics(rows)
+
+        self.assertEqual(payload["cutoff_analysis"]["best_cutoff"], "top_5")
+        self.assertEqual(payload["cutoff_analysis"]["cutoffs"][0]["cutoff"], "top_3")
+        self.assertEqual(payload["cutoff_analysis"]["cutoffs"][1]["cutoff"], "top_5")
+        self.assertGreater(
+            payload["cutoff_analysis"]["cutoffs"][1]["avg_return"],
+            payload["cutoff_analysis"]["cutoffs"][0]["avg_return"],
+        )
+
     def test_picks_output_includes_adjustments_block(self) -> None:
         pick = PickRow(
             date=date(2026, 4, 21),

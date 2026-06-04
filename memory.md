@@ -64,6 +64,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-05-26 | Marked 2026-05-26 as a half-holiday/low-liquidity context and 2026-05-27 through 2026-05-29 as exact exchange-closed dates; 2026-06-01 remains open. | Keeps holiday-week picks targeted at June 1 while avoiding recurring religious-holiday rules, because those holidays shift each year. |
 | 2026-06-03 | Added breadth-based exposure caps, persisted top-candidate outcomes, rolling candidate diagnostics, and rolling review-weight updates. | Avoids forcing five picks into weak markets and creates evidence for near-cutoff misses and score-ranked versus bucketed selection before changing the default strategy. |
 | 2026-06-03 | Added a project-local Codex Stop hook that requires relevant Markdown updates after development work. | Keeps feature, context, task, or durable memory documentation aligned with code changes; deliberate exceptions require a `DOCS_NOT_NEEDED` reason. |
+| 2026-06-04 | Rolling candidate diagnostics now include cumulative top 3/5/10/20/50 cutoff analysis and a best observed cutoff. | Turns persisted candidate outcomes into direct evidence for whether the pick-count cutoff should stay tight or expand before changing selection defaults. |
 
 ## Workflows
 
