@@ -9,11 +9,14 @@
 - Includes reviewed-pick and missed-mover attribution from recomputed signal-date ranks, signal components, boosts, and setup penalty context
 - Reviewed persisted picks can include `selection_bucket`, allowing later bucket-level performance checks
 - Counts a pick as a win only when return is at least 4%; smaller gains are treated as losses
-- Persists each review run and pick-level return results
+- Persists each review run, resulting weights, pick-level returns, and candidate outcomes in one transaction
 - Persists top-ranked candidate outcomes, including rank, score components, setup penalty, score-ranked selection, bucketed selection, and realized next-session return
 - Reports rolling rank-band, setup-penalty, breakout-technical, score-ranked, and bucketed outcome diagnostics
 - Reports cumulative cutoff analysis for top 3/5/10/20/50 candidate ranks and identifies the best observed cutoff from the rolling candidate-outcome window
-- Reuses an existing persisted review for the same signal/review date
+- Reuses an existing persisted review for the same signal/review date without replacing its candidate evidence
+- Historical ranking uses signal-date weights, and rolling weight calculations exclude future review sessions
+- Review runs retain signal snapshot, weight date, and strategy version metadata
+- Breadth-capped misses are attributed as `excluded_by_breadth_cap`
 - Recomputes prior signal-date candidate rankings in dry-run mode so review cannot rewrite historical persisted picks
 - CSV-imported review returns use previous-close-to-latest price basis until a real open column/source is available
 - Supports `--dry-run` for non-mutating strategy comparisons

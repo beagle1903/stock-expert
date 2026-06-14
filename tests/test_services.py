@@ -12,6 +12,8 @@ from stock_expert.config import Settings
 from stock_expert.database import connect, get_candidate_outcomes, init_db, insert_review_run
 from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, Weights
 from stock_expert.services import (
+    RankingContext,
+    _attribution_for_pick,
     bucketed_strategy_comparison_output,
     cap_setup_penalty_for_strong_momentum,
     daily_summary,
@@ -24,6 +26,7 @@ from stock_expert.services import (
     next_weekday,
     picks_output,
     previous_weekday,
+    rank_candidates,
     review_output,
     rolling_candidate_diagnostics,
     rolling_review_weights,
@@ -68,6 +71,12 @@ class ServiceDateTests(unittest.TestCase):
         )
         self.assertIn("exogenous political-shock", context["interpretation"])
         self.assertEqual(context["selection_policy"], "shock_mode_penalty")
+
+    def test_half_holiday_uses_liquidity_policy_without_shock_penalty(self) -> None:
+        context = market_context_for_dates(date(2026, 5, 26))
+
+        self.assertEqual(context["selection_policy"], "reduced_liquidity")
+        self.assertIn("low-liquidity", context["interpretation"])
 
 
 class EnrichmentSignalTests(unittest.TestCase):
@@ -182,6 +191,7 @@ class EnrichmentSignalTests(unittest.TestCase):
 
         self.assertEqual(market_context_score_penalty(date(2026, 4, 21), weak), 0.0)
         self.assertEqual(market_context_score_penalty(date(2026, 5, 21), weak), 0.16)
+        self.assertEqual(market_context_score_penalty(date(2026, 5, 26), weak), 0.0)
 
     def _settings_stub(self) -> Settings:
         return Settings(base_dir=Path("."), data_dir=Path("data"), db_path=Path("data/test.db"))
@@ -208,12 +218,12 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_top_movers", return_value=[]),
             patch("stock_expert.services.get_latest_weights", return_value=None),
             patch("stock_expert.services.insert_weights") as insert_weights,
-            patch("stock_expert.services.insert_review_run") as insert_review_run,
+            patch("stock_expert.services.persist_review_bundle") as persist_review_bundle,
         ):
             payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=True))
 
         insert_weights.assert_not_called()
-        insert_review_run.assert_not_called()
+        persist_review_bundle.assert_not_called()
         self.assertTrue(payload["dry_run"])
         self.assertIsNone(payload["review_run_id"])
 
@@ -225,14 +235,11 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_pick_results", return_value=recent_rows),
             patch("stock_expert.services.get_top_movers", return_value=[]),
             patch("stock_expert.services.get_latest_weights", return_value=None),
-            patch("stock_expert.services.get_review_run", return_value=None),
-            patch("stock_expert.services.insert_weights") as insert_weights,
-            patch("stock_expert.services.insert_review_run", return_value=7) as insert_review_run,
+            patch("stock_expert.services.persist_review_bundle", return_value=(7, True)) as persist_review_bundle,
         ):
             payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
 
-        insert_weights.assert_called_once()
-        insert_review_run.assert_called_once()
+        persist_review_bundle.assert_called_once()
         self.assertFalse(payload["dry_run"])
         self.assertEqual(payload["review_run_id"], 7)
 
@@ -246,7 +253,12 @@ class ReviewOutputTests(unittest.TestCase):
         ):
             review_output(self.settings, date(2026, 4, 21), dry_run=False)
 
-        generate_picks.assert_called_once_with(self.settings, date(2026, 4, 20), dry_run=True)
+        generate_picks.assert_called_once_with(
+            self.settings,
+            date(2026, 4, 20),
+            dry_run=True,
+            ranking_context=None,
+        )
 
     def test_review_win_rate_requires_four_percent_return(self) -> None:
         recent_rows = [
@@ -259,9 +271,7 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_pick_results", return_value=recent_rows),
             patch("stock_expert.services.get_top_movers", return_value=[]),
             patch("stock_expert.services.get_latest_weights", return_value=None),
-            patch("stock_expert.services.get_review_run", return_value=None),
-            patch("stock_expert.services.insert_weights"),
-            patch("stock_expert.services.insert_review_run", return_value=7),
+            patch("stock_expert.services.persist_review_bundle", return_value=(7, True)),
         ):
             payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
 
@@ -280,12 +290,12 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_latest_weights", return_value=None),
             patch("stock_expert.services.get_review_run", return_value=None),
             patch("stock_expert.services.insert_weights") as insert_weights,
-            patch("stock_expert.services.insert_review_run", return_value=7) as insert_review_run,
+            patch("stock_expert.services.persist_review_bundle") as persist_review_bundle,
         ):
             payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
 
         insert_weights.assert_not_called()
-        insert_review_run.assert_not_called()
+        persist_review_bundle.assert_not_called()
         self.assertIsNone(payload["review_run_id"])
         self.assertEqual(payload["performance"]["evaluation_status"], "no_prior_picks")
         self.assertIn("No persisted picks", payload["performance"]["note"])
@@ -369,9 +379,7 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_pick_results", return_value=recent_rows),
             patch("stock_expert.services.get_top_movers", return_value=movers),
             patch("stock_expert.services.get_latest_weights", return_value=None),
-            patch("stock_expert.services.get_review_run", return_value=None),
-            patch("stock_expert.services.insert_weights"),
-            patch("stock_expert.services.insert_review_run", return_value=7),
+            patch("stock_expert.services.persist_review_bundle", return_value=(7, True)),
         ):
             payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
 
@@ -417,13 +425,11 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_top_movers", return_value=[]),
             patch("stock_expert.services.get_latest_weights", return_value=Weights(date=date(2026, 4, 21), momentum_weight=0.63, volume_weight=0.37)),
             patch("stock_expert.services.get_review_run", return_value=existing_review),
-            patch("stock_expert.services.insert_weights") as insert_weights,
-            patch("stock_expert.services.insert_review_run") as insert_review_run,
+            patch("stock_expert.services.persist_review_bundle", return_value=(7, False)) as persist_review_bundle,
         ):
             payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
 
-        insert_weights.assert_not_called()
-        insert_review_run.assert_not_called()
+        persist_review_bundle.assert_called_once()
         self.assertEqual(payload["review_run_id"], 7)
         self.assertEqual(payload["adjustments"]["momentum_weight"], 0.63)
 
@@ -555,7 +561,12 @@ class ReviewOutputTests(unittest.TestCase):
         ):
             payload = json.loads(downside_risk_output(self.settings, date(2026, 4, 21)))
 
-        generate_picks_mock.assert_called_once_with(self.settings, date(2026, 4, 21), dry_run=True)
+        generate_picks_mock.assert_called_once_with(
+            self.settings,
+            date(2026, 4, 21),
+            dry_run=True,
+            ranking_context=None,
+        )
         self.assertEqual(payload["summary"]["pick_count"], 2)
         self.assertEqual(payload["summary"]["flagged_count"], 1)
         self.assertEqual(payload["summary"]["high_risk_count"], 1)
@@ -584,7 +595,7 @@ class ReviewOutputTests(unittest.TestCase):
         ]
         with (
             patch("stock_expert.services.generate_picks", return_value=score_ranked),
-            patch("stock_expert.services.generate_bucketed_picks", return_value=bucketed),
+            patch("stock_expert.services.generate_bucketed_picks", return_value=bucketed) as generate_bucketed_picks,
             patch("stock_expert.services.get_prices_for_date", return_value=prices),
         ):
             payload = json.loads(bucketed_strategy_comparison_output(self.settings, date(2026, 4, 21)))
@@ -595,6 +606,29 @@ class ReviewOutputTests(unittest.TestCase):
         self.assertEqual(payload["strategies"][1]["wins"], 2)
         self.assertEqual(payload["overlap"]["bucketed_only"], ["CCC"])
         self.assertIn("persisted picks use score_ranked", payload["selection_note"])
+        generate_bucketed_picks.assert_called_once_with(
+            self.settings,
+            date(2026, 4, 20),
+            pick_count=len(score_ranked),
+            ranking_context=None,
+        )
+
+    def test_attribution_explains_breadth_cap_exclusion(self) -> None:
+        candidate = (
+            3,
+            PickRow(
+                date=date(2026, 4, 20),
+                ticker="AAA",
+                score=0.8,
+                momentum=0.8,
+                volume=0.8,
+                risk="high",
+            ),
+        )
+
+        attribution = _attribution_for_pick(self.settings, candidate, effective_pick_count=2)
+
+        self.assertEqual(attribution["selection_note"], "excluded_by_breadth_cap")
 
     def test_next_review_weights_reacts_to_results(self) -> None:
         current = Weights(date=date(2026, 4, 21), momentum_weight=0.6, volume_weight=0.4)
@@ -630,6 +664,27 @@ class OutputAndOrderingTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.settings.base_dir, ignore_errors=True)
+
+    def test_ranking_context_reuses_signal_date_ranking(self) -> None:
+        context = RankingContext()
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.build_signals", return_value=[]) as build_signals,
+            patch("stock_expert.services.get_latest_snapshot_id", return_value=1),
+        ):
+            generate_picks(
+                self.settings,
+                date(2026, 4, 21),
+                dry_run=True,
+                ranking_context=context,
+            )
+            rank_candidates(
+                self.settings,
+                date(2026, 4, 21),
+                ranking_context=context,
+            )
+
+        build_signals.assert_called_once()
 
     def test_enrichment_reorders_close_candidates_but_not_strong_base_signal(self) -> None:
         signals = [

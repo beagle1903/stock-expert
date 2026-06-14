@@ -8,6 +8,7 @@ from datetime import date
 from stock_expert.config import get_settings
 from stock_expert.daily_csv import import_daily_csv_command, import_daily_csv_folder_command
 from stock_expert.services import (
+    RankingContext,
     bucketed_strategy_comparison_output,
     daily_summary,
     downside_risk_output,
@@ -176,6 +177,7 @@ def main() -> int:
         return 0
     if args.command in {"routine", "midday-routine"}:
         as_of = date.fromisoformat(args.as_of)
+        ranking_context = RankingContext()
         import_result = json.loads(
             import_daily_csv_command(settings=settings, snapshot_date=args.as_of, data_dir=args.data_dir)
         )
@@ -189,22 +191,28 @@ def main() -> int:
         print("Market Context:")
         print(market_context_output(as_of))
         print()
-        print(daily_summary(settings, as_of))
+        print(daily_summary(settings, as_of, ranking_context=ranking_context))
         print()
-        print(picks_output(settings, as_of))
+        print(picks_output(settings, as_of, ranking_context=ranking_context))
         print()
         if args.command == "midday-routine":
             print("Dry-Run Review:")
-            print(review_output(settings, as_of, dry_run=True))
+            print(review_output(settings, as_of, dry_run=True, ranking_context=ranking_context))
         else:
             print("Review:")
-            print(review_output(settings, as_of))
+            print(review_output(settings, as_of, ranking_context=ranking_context))
             print()
             print("Score-Ranked vs Bucketed Review Comparison:")
-            print(bucketed_strategy_comparison_output(settings, as_of))
+            print(
+                bucketed_strategy_comparison_output(
+                    settings,
+                    as_of,
+                    ranking_context=ranking_context,
+                )
+            )
             print()
             print("Downside Risk Diagnostic:")
-            print(downside_risk_output(settings, as_of))
+            print(downside_risk_output(settings, as_of, ranking_context=ranking_context))
         return 0
 
     parser.error(f"Unsupported command: {args.command}")

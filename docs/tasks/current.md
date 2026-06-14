@@ -22,3 +22,6 @@
 - Daily CSV import flow is available
 - Live root CSV routine supports repeated same-day imports
 - Routine and midday dry-run behavior are covered by tests
+- Snapshot and review persistence are atomic and idempotent
+- Historical review evidence is point-in-time and immutable
+- Standard-library trace coverage remains at or above 90% across production modules

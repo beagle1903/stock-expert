@@ -96,7 +96,11 @@ CREATE TABLE IF NOT EXISTS review_runs (
     pick_count INTEGER NOT NULL,
     wins INTEGER NOT NULL,
     momentum_weight REAL NOT NULL,
-    volume_weight REAL NOT NULL
+    volume_weight REAL NOT NULL,
+    signal_snapshot_id INTEGER,
+    weight_date TEXT,
+    strategy_version TEXT NOT NULL DEFAULT 'score-v1',
+    UNIQUE (as_of_date, review_date)
 );
 
 CREATE TABLE IF NOT EXISTS review_pick_results (
@@ -112,6 +116,7 @@ CREATE TABLE IF NOT EXISTS review_pick_results (
 );
 
 CREATE TABLE IF NOT EXISTS candidate_outcomes (
+    review_run_id INTEGER NOT NULL,
     signal_date TEXT NOT NULL,
     review_date TEXT NOT NULL,
     ticker TEXT NOT NULL,
@@ -128,8 +133,15 @@ CREATE TABLE IF NOT EXISTS candidate_outcomes (
     bucketed_bucket TEXT,
     return_pct REAL NOT NULL,
     won INTEGER NOT NULL,
-    PRIMARY KEY (signal_date, review_date, ticker)
+    PRIMARY KEY (signal_date, review_date, ticker),
+    FOREIGN KEY (review_run_id) REFERENCES review_runs(id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_snapshot_runs_date_id
+ON snapshot_runs(snapshot_date, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_candidate_outcomes_review_rank
+ON candidate_outcomes(review_date DESC, candidate_rank);
 """
 
 
@@ -137,6 +149,7 @@ CREATE TABLE IF NOT EXISTS candidate_outcomes (
 def connect(settings: Settings) -> Iterator[sqlite3.Connection]:
     connection = sqlite3.connect(settings.db_path)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     try:
         yield connection
         connection.commit()
@@ -150,6 +163,7 @@ def init_db(settings: Settings) -> None:
         _migrate_intraday_snapshots(conn)
         _ensure_market_snapshot_enrichment_columns(conn)
         _ensure_picks_selection_bucket_column(conn)
+        _ensure_review_integrity(conn)
 
 
 def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -261,6 +275,48 @@ def _ensure_picks_selection_bucket_column(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE picks ADD COLUMN selection_bucket TEXT NOT NULL DEFAULT 'score_ranked'")
 
 
+def _ensure_review_integrity(conn: sqlite3.Connection) -> None:
+    if not _has_column(conn, "review_runs", "signal_snapshot_id"):
+        conn.execute("ALTER TABLE review_runs ADD COLUMN signal_snapshot_id INTEGER")
+    if not _has_column(conn, "review_runs", "weight_date"):
+        conn.execute("ALTER TABLE review_runs ADD COLUMN weight_date TEXT")
+    if not _has_column(conn, "review_runs", "strategy_version"):
+        conn.execute("ALTER TABLE review_runs ADD COLUMN strategy_version TEXT NOT NULL DEFAULT 'score-v1'")
+    if not _has_column(conn, "candidate_outcomes", "review_run_id"):
+        conn.execute("ALTER TABLE candidate_outcomes ADD COLUMN review_run_id INTEGER")
+
+    duplicate_ids = [
+        int(row["id"])
+        for row in conn.execute(
+            """
+            SELECT id
+            FROM review_runs
+            WHERE id NOT IN (
+                SELECT MAX(id)
+                FROM review_runs
+                GROUP BY as_of_date, review_date
+            )
+            """
+        )
+    ]
+    if duplicate_ids:
+        placeholders = ",".join("?" for _ in duplicate_ids)
+        conn.execute(f"DELETE FROM review_pick_results WHERE review_run_id IN ({placeholders})", duplicate_ids)
+        conn.execute(f"DELETE FROM review_runs WHERE id IN ({placeholders})", duplicate_ids)
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_review_runs_signal_review
+        ON review_runs(as_of_date, review_date)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_candidate_outcomes_review_rank
+        ON candidate_outcomes(review_date DESC, candidate_rank)
+        """
+    )
+
+
 def create_snapshot_run(settings: Settings, snapshot_date: date, source_label: str, source_dir: str) -> int:
     init_db(settings)
     with connect(settings) as conn:
@@ -272,6 +328,32 @@ def create_snapshot_run(settings: Settings, snapshot_date: date, source_label: s
             (snapshot_date.isoformat(), source_label, source_dir),
         )
         return int(cursor.lastrowid)
+
+
+def persist_daily_snapshot(
+    settings: Settings,
+    snapshot_date: date,
+    source_label: str,
+    source_dir: str,
+    market_rows: Iterable[MarketSnapshot],
+    price_rows: Iterable[tuple[str, date, float, float, float]],
+) -> int:
+    init_db(settings)
+    with connect(settings) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO snapshot_runs (snapshot_date, source_label, source_dir)
+            VALUES (?, ?, ?)
+            """,
+            (snapshot_date.isoformat(), source_label, source_dir),
+        )
+        snapshot_id = int(cursor.lastrowid)
+        _upsert_market_snapshots_conn(conn, market_rows, snapshot_id)
+        _upsert_prices_conn(
+            conn,
+            [(snapshot_id, ticker, day.isoformat(), open_p, close_p, volume) for ticker, day, open_p, close_p, volume in price_rows],
+        )
+        return snapshot_id
 
 
 def get_latest_snapshot_id(settings: Settings, target_date: date) -> int | None:
@@ -311,26 +393,58 @@ def _latest_snapshot_ids_between(conn: sqlite3.Connection, start_date: date, end
 
 
 def upsert_prices(settings: Settings, rows: Iterable[tuple]) -> None:
-    normalized = []
-    for row in rows:
-        if len(row) == 6:
-            snapshot_id, ticker, day, open_p, close_p, volume = row
-        else:
-            ticker, day, open_p, close_p, volume = row
-            snapshot_id = get_latest_snapshot_id(settings, day) or create_snapshot_run(settings, day, "legacy", "unknown")
-        normalized.append((snapshot_id, ticker, day.isoformat(), open_p, close_p, volume))
+    raw_rows = list(rows)
+    init_db(settings)
     with connect(settings) as conn:
-        conn.executemany(
-            """
-            INSERT INTO stocks (snapshot_id, ticker, date, open_price, close_price, volume)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT (snapshot_id, ticker) DO UPDATE SET
-                open_price = excluded.open_price,
-                close_price = excluded.close_price,
-                volume = excluded.volume
-            """,
-            normalized,
-        )
+        legacy_dates = sorted({row[1] for row in raw_rows if len(row) == 5})
+        snapshot_ids: dict[date, int] = {}
+        if legacy_dates:
+            placeholders = ",".join("?" for _ in legacy_dates)
+            for row in conn.execute(
+                f"""
+                SELECT id, snapshot_date
+                FROM snapshot_runs
+                WHERE snapshot_date IN ({placeholders})
+                ORDER BY id DESC
+                """,
+                [day.isoformat() for day in legacy_dates],
+            ):
+                snapshot_ids.setdefault(date.fromisoformat(row["snapshot_date"]), int(row["id"]))
+            for day in legacy_dates:
+                if day in snapshot_ids:
+                    continue
+                cursor = conn.execute(
+                    """
+                    INSERT INTO snapshot_runs (snapshot_date, source_label, source_dir)
+                    VALUES (?, 'legacy', 'unknown')
+                    """,
+                    (day.isoformat(),),
+                )
+                snapshot_ids[day] = int(cursor.lastrowid)
+
+        normalized = []
+        for row in raw_rows:
+            if len(row) == 6:
+                snapshot_id, ticker, day, open_p, close_p, volume = row
+            else:
+                ticker, day, open_p, close_p, volume = row
+                snapshot_id = snapshot_ids[day]
+            normalized.append((snapshot_id, ticker, day.isoformat(), open_p, close_p, volume))
+        _upsert_prices_conn(conn, normalized)
+
+
+def _upsert_prices_conn(conn: sqlite3.Connection, rows: Iterable[tuple]) -> None:
+    conn.executemany(
+        """
+        INSERT INTO stocks (snapshot_id, ticker, date, open_price, close_price, volume)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT (snapshot_id, ticker) DO UPDATE SET
+            open_price = excluded.open_price,
+            close_price = excluded.close_price,
+            volume = excluded.volume
+        """,
+        rows,
+    )
 
 
 def upsert_signals(settings: Settings, rows: Iterable[SignalRow], snapshot_id: int) -> None:
@@ -392,7 +506,15 @@ def insert_weights(settings: Settings, row: Weights) -> None:
 
 def upsert_market_snapshots(settings: Settings, rows: Iterable[MarketSnapshot], snapshot_id: int) -> None:
     with connect(settings) as conn:
-        conn.executemany(
+        _upsert_market_snapshots_conn(conn, rows, snapshot_id)
+
+
+def _upsert_market_snapshots_conn(
+    conn: sqlite3.Connection,
+    rows: Iterable[MarketSnapshot],
+    snapshot_id: int,
+) -> None:
+    conn.executemany(
             """
             INSERT INTO market_snapshots (
                 snapshot_id, date, ticker, company_name, last_price, high_price, low_price, daily_change_pct, volume,
@@ -449,7 +571,7 @@ def upsert_market_snapshots(settings: Settings, rows: Iterable[MarketSnapshot], 
                 )
                 for row in rows
             ],
-        )
+    )
 
 
 def get_latest_weights(settings: Settings) -> Weights | None:
@@ -461,6 +583,28 @@ def get_latest_weights(settings: Settings) -> Weights | None:
             ORDER BY date DESC
             LIMIT 1
             """
+        ).fetchone()
+    if row is None:
+        return None
+    return Weights(
+        date=date.fromisoformat(row["date"]),
+        momentum_weight=row["momentum_weight"],
+        volume_weight=row["volume_weight"],
+    )
+
+
+def get_weights_as_of(settings: Settings, target_date: date) -> Weights | None:
+    init_db(settings)
+    with connect(settings) as conn:
+        row = conn.execute(
+            """
+            SELECT date, momentum_weight, volume_weight
+            FROM weights
+            WHERE date <= ?
+            ORDER BY date DESC
+            LIMIT 1
+            """,
+            (target_date.isoformat(),),
         ).fetchone()
     if row is None:
         return None
@@ -500,51 +644,6 @@ def get_pick_results(settings: Settings, signal_date: date, target_date: date) -
         )
 
 
-def replace_candidate_outcomes(
-    settings: Settings,
-    signal_date: date,
-    review_date: date,
-    rows: Iterable[dict[str, object]],
-) -> None:
-    outcome_rows = list(rows)
-    with connect(settings) as conn:
-        conn.execute(
-            "DELETE FROM candidate_outcomes WHERE signal_date = ? AND review_date = ?",
-            (signal_date.isoformat(), review_date.isoformat()),
-        )
-        conn.executemany(
-            """
-            INSERT INTO candidate_outcomes (
-                signal_date, review_date, ticker, candidate_rank, score, momentum, volume,
-                technical, fundamental, quality, setup_penalty, selected_score_ranked,
-                selected_bucketed, bucketed_bucket, return_pct, won
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (
-                    signal_date.isoformat(),
-                    review_date.isoformat(),
-                    row["ticker"],
-                    row["candidate_rank"],
-                    row["score"],
-                    row["momentum"],
-                    row["volume"],
-                    row["technical"],
-                    row["fundamental"],
-                    row["quality"],
-                    row["setup_penalty"],
-                    row["selected_score_ranked"],
-                    row["selected_bucketed"],
-                    row["bucketed_bucket"],
-                    row["return_pct"],
-                    row["won"],
-                )
-                for row in outcome_rows
-            ],
-        )
-
-
 def get_candidate_outcomes(settings: Settings, limit_sessions: int = 20) -> list[sqlite3.Row]:
     init_db(settings)
     with connect(settings) as conn:
@@ -581,21 +680,166 @@ def get_review_run(settings: Settings, as_of: date, review_date: date) -> sqlite
         ).fetchone()
 
 
-def get_recent_review_runs(settings: Settings, limit: int = 20) -> list[sqlite3.Row]:
+def get_recent_review_runs(
+    settings: Settings,
+    limit: int = 20,
+    before_review_date: date | None = None,
+) -> list[sqlite3.Row]:
     init_db(settings)
     with connect(settings) as conn:
+        where = "WHERE pick_count > 0"
+        params: list[object] = []
+        if before_review_date is not None:
+            where += " AND review_date < ?"
+            params.append(before_review_date.isoformat())
+        params.append(limit)
         return list(
             conn.execute(
-                """
+                f"""
                 SELECT as_of_date, review_date, avg_return, win_rate, pick_count, wins
                 FROM review_runs
-                WHERE pick_count > 0
+                {where}
                 ORDER BY review_date DESC
                 LIMIT ?
                 """,
-                (limit,),
+                params,
             )
         )
+
+
+def persist_review_bundle(
+    settings: Settings,
+    as_of: date,
+    review_date: date,
+    avg_return: float,
+    win_rate: float,
+    picks: Iterable[sqlite3.Row],
+    weights: Weights,
+    candidate_outcomes: Iterable[dict[str, object]],
+    signal_snapshot_id: int | None,
+    strategy_version: str = "score-v1",
+) -> tuple[int, bool]:
+    init_db(settings)
+    pick_rows = list(picks)
+    outcome_rows = list(candidate_outcomes)
+    wins = sum(1 for row in pick_rows if _review_pick_won(row))
+    with connect(settings) as conn:
+        cursor = conn.execute(
+            """
+            INSERT OR IGNORE INTO review_runs (
+                as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                momentum_weight, volume_weight, signal_snapshot_id, weight_date,
+                strategy_version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                as_of.isoformat(),
+                review_date.isoformat(),
+                avg_return,
+                win_rate,
+                len(pick_rows),
+                wins,
+                weights.momentum_weight,
+                weights.volume_weight,
+                signal_snapshot_id,
+                weights.date.isoformat(),
+                strategy_version,
+            ),
+        )
+        if cursor.rowcount == 0:
+            existing = conn.execute(
+                """
+                SELECT id
+                FROM review_runs
+                WHERE as_of_date = ? AND review_date = ?
+                """,
+                (as_of.isoformat(), review_date.isoformat()),
+            ).fetchone()
+            return int(existing["id"]), False
+
+        review_run_id = int(cursor.lastrowid)
+        conn.execute(
+            """
+            INSERT INTO weights (date, kap_weight, momentum_weight, volume_weight)
+            VALUES (?, 0.0, ?, ?)
+            ON CONFLICT (date) DO UPDATE SET
+                momentum_weight = excluded.momentum_weight,
+                volume_weight = excluded.volume_weight
+            """,
+            (weights.date.isoformat(), weights.momentum_weight, weights.volume_weight),
+        )
+        _insert_review_pick_results_conn(conn, review_run_id, pick_rows)
+        _insert_candidate_outcomes_conn(conn, review_run_id, as_of, review_date, outcome_rows)
+        return review_run_id, True
+
+
+def _insert_review_pick_results_conn(
+    conn: sqlite3.Connection,
+    review_run_id: int,
+    pick_rows: Iterable[sqlite3.Row],
+) -> None:
+    conn.executemany(
+        """
+        INSERT INTO review_pick_results (
+            review_run_id, ticker, score, open_price, close_price, return_pct, won
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                review_run_id,
+                row["ticker"],
+                row["score"],
+                row["open_price"],
+                row["close_price"],
+                (row["close_price"] - row["open_price"]) / row["open_price"] if row["open_price"] else 0.0,
+                1 if _review_pick_won(row) else 0,
+            )
+            for row in pick_rows
+        ],
+    )
+
+
+def _insert_candidate_outcomes_conn(
+    conn: sqlite3.Connection,
+    review_run_id: int,
+    signal_date: date,
+    review_date: date,
+    outcome_rows: Iterable[dict[str, object]],
+) -> None:
+    conn.executemany(
+        """
+        INSERT INTO candidate_outcomes (
+            review_run_id, signal_date, review_date, ticker, candidate_rank, score,
+            momentum, volume, technical, fundamental, quality, setup_penalty,
+            selected_score_ranked, selected_bucketed, bucketed_bucket, return_pct, won
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                review_run_id,
+                signal_date.isoformat(),
+                review_date.isoformat(),
+                row["ticker"],
+                row["candidate_rank"],
+                row["score"],
+                row["momentum"],
+                row["volume"],
+                row["technical"],
+                row["fundamental"],
+                row["quality"],
+                row["setup_penalty"],
+                row["selected_score_ranked"],
+                row["selected_bucketed"],
+                row["bucketed_bucket"],
+                row["return_pct"],
+                row["won"],
+            )
+            for row in outcome_rows
+        ],
+    )
 
 
 def insert_review_run(

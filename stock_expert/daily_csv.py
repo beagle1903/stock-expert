@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import csv
 import json
-from datetime import date, timedelta
+import math
+from datetime import date
 from pathlib import Path
 
 from stock_expert.config import Settings
-from stock_expert.database import create_snapshot_run, init_db, upsert_market_snapshots, upsert_prices
+from stock_expert.database import persist_daily_snapshot
 from stock_expert.models import MarketSnapshot
+from stock_expert.trading_calendar import previous_trading_session
 
 
 HEADER_MAP = str.maketrans(
@@ -78,13 +80,17 @@ def _parse_number(value: str) -> float:
 
 def _parse_optional_number(value: str) -> float:
     try:
-        return _parse_number(value)
+        parsed = _parse_number(value)
+        return parsed if math.isfinite(parsed) else 0.0
     except (AttributeError, ValueError):
         return 0.0
 
 
 def _parse_required_row_number(row: dict[str, str], key: str) -> float:
-    return _parse_number(row[key])
+    parsed = _parse_number(row[key])
+    if not math.isfinite(parsed):
+        raise ValueError(f"{key} must be finite")
+    return parsed
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
@@ -162,6 +168,8 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
             monthly_perf_pct = _parse_required_row_number(perf, "1AYLIK")
             ytd_perf_pct = _parse_required_row_number(perf, "YTD")
             yearly_perf_pct = _parse_required_row_number(perf, "1YILLIK")
+            if last_price <= 0 or high_price <= 0 or low_price <= 0 or volume < 0:
+                raise ValueError("price and volume values are outside their valid domain")
         except (KeyError, ValueError):
             skipped_malformed_count += 1
             continue
@@ -193,15 +201,14 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
         )
         price_rows.append((ticker, target_date, reference_price, last_price, volume))
 
-    init_db(settings)
-    snapshot_id = create_snapshot_run(
+    snapshot_id = persist_daily_snapshot(
         settings=settings,
         snapshot_date=target_date,
         source_label="daily_csv",
         source_dir=data_dir,
+        market_rows=snapshots,
+        price_rows=price_rows,
     )
-    upsert_market_snapshots(settings, snapshots, snapshot_id=snapshot_id)
-    upsert_prices(settings, [(snapshot_id, *row) for row in price_rows])
     distinct_tickers = len({snapshot.ticker for snapshot in snapshots})
 
     return json.dumps(
@@ -222,13 +229,6 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
     )
 
 
-def _previous_weekday(day: date) -> date:
-    previous = day - timedelta(days=1)
-    while previous.weekday() >= 5:
-        previous -= timedelta(days=1)
-    return previous
-
-
 def import_daily_csv_folder_command(settings: Settings, folder: str) -> str:
     folder_path = settings.base_dir / folder
     folder_date = folder_path.name
@@ -236,7 +236,7 @@ def import_daily_csv_folder_command(settings: Settings, folder: str) -> str:
     if len(folder_date) == 8 and folder_date.isdigit():
         label_date = date(int(folder_date[:4]), int(folder_date[4:6]), int(folder_date[6:]))
         target_trade_date = label_date
-        snapshot_date = _previous_weekday(label_date).isoformat()
+        snapshot_date = previous_trading_session(label_date).isoformat()
     else:
         snapshot_date = folder_date
     result = json.loads(import_daily_csv_command(settings=settings, snapshot_date=snapshot_date, data_dir=folder))

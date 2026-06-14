@@ -11,6 +11,7 @@
 - Default persisted selection is score-ranked, capped at 5 picks
 - Weak market breadth reduces the default exposure cap to 3 picks below a 30% advancer ratio and 2 picks below a 20% advancer ratio
 - Bucketed selection remains available for dry-run/reporting comparison: 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`
+- Score-ranked and bucketed comparisons use the same effective breadth-adjusted pick count
 - Wide diagnostic rankings use score order for review attribution and missed-mover analysis
 - Needs multiple imported days for non-zero momentum and volume signals
 - Applies a small score penalty to overextended same-day movers above `+8%`
@@ -20,3 +21,4 @@
 - Pick JSON exposes breadth `exposure`, `setup_penalty`, `net_adjustment`, and `selection_bucket` so reduced exposure and candidate ranking are visible
 - `routine` reports normal persisted picks, score-ranked vs bucketed review comparison, plus downside-risk diagnostics after the live CSV import
 - `midday-routine` reports normal picks after the live CSV import
+- Routine outputs share a request-scoped ranking cache so each signal date is ranked once

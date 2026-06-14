@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
-from datetime import date, timedelta
+from dataclasses import dataclass, field, replace
+from datetime import date
 
 from stock_expert.config import Settings
 from stock_expert.constants import MIN_DAILY_WIN_RETURN
@@ -17,11 +17,11 @@ from stock_expert.database import (
     get_recent_review_runs,
     get_review_run,
     get_top_movers,
+    get_weights_as_of,
     init_db,
-    insert_review_run,
     insert_weights,
+    persist_review_bundle,
     replace_picks_for_date,
-    replace_candidate_outcomes,
     upsert_signals,
 )
 from stock_expert.models import PickRow, SignalRow, Weights
@@ -40,22 +40,28 @@ from stock_expert.signals import (
     score_signal,
     technical_label_score,
 )
+from stock_expert.trading_calendar import next_trading_session, previous_trading_session
 
-USER_CONFIRMED_MARKET_HOLIDAYS = {
-    # Exact exchange-closed dates confirmed by the user; do not treat religious
-    # holidays as recurring month/day rules because they shift each year.
-    date(2026, 5, 1),
-    date(2026, 5, 19),
-    date(2026, 5, 27),
-    date(2026, 5, 28),
-    date(2026, 5, 29),
-}
+
+@dataclass
+class RankingContext:
+    rankings: dict[date, tuple[list[PickRow], list[SignalRow], int | None]] = field(default_factory=dict)
 
 MARKET_CONTEXT_NOTES = {
     date(2026, 5, 21): "political_shock_session",
     date(2026, 5, 22): "political_shock_follow_through",
     date(2026, 5, 25): "political_shock_follow_through",
     date(2026, 5, 26): "half_holiday_low_liquidity",
+}
+
+POLITICAL_SHOCK_DATES = {
+    date(2026, 5, 21),
+    date(2026, 5, 22),
+    date(2026, 5, 25),
+}
+
+LOW_LIQUIDITY_DATES = {
+    date(2026, 5, 26),
 }
 
 
@@ -65,17 +71,27 @@ def market_context_for_dates(*days: date) -> dict[str, object]:
         for day in sorted(set(days))
         if day in MARKET_CONTEXT_NOTES
     ]
+    has_shock = any(day in POLITICAL_SHOCK_DATES for day in days)
+    has_low_liquidity = any(day in LOW_LIQUIDITY_DATES for day in days)
+    if has_shock:
+        selection_policy = "shock_mode_penalty"
+        interpretation = (
+            "Treat these sessions as exogenous political-shock context; use ranking and review output "
+            "defensively. Shock-tagged signal dates apply extra downside penalties."
+        )
+    elif has_low_liquidity:
+        selection_policy = "reduced_liquidity"
+        interpretation = (
+            "Treat this half-holiday as low-liquidity context; exposure policy may reduce participation "
+            "without applying political-shock score penalties."
+        )
+    else:
+        selection_policy = "normal"
+        interpretation = None
     return {
         "tags": notes,
-        "selection_policy": (
-            "shock_mode_penalty" if any(day in MARKET_CONTEXT_NOTES for day in days) else "normal"
-        ),
-        "interpretation": (
-            "Treat these sessions as exogenous political-shock context; use ranking and review output "
-            "defensively. Tagged signal dates apply extra downside penalties to persisted selection."
-            if notes
-            else None
-        ),
+        "selection_policy": selection_policy,
+        "interpretation": interpretation,
     }
 
 
@@ -84,7 +100,7 @@ def market_context_output(*days: date) -> str:
 
 
 def market_context_score_penalty(as_of: date, snapshot: object | None) -> float:
-    if as_of not in MARKET_CONTEXT_NOTES or snapshot is None:
+    if as_of not in POLITICAL_SHOCK_DATES or snapshot is None:
         return 0.0
 
     penalty = 0.0
@@ -115,17 +131,11 @@ def default_weights(day: date) -> Weights:
 
 
 def previous_weekday(day: date) -> date:
-    previous = day - timedelta(days=1)
-    while previous.weekday() >= 5 or previous in USER_CONFIRMED_MARKET_HOLIDAYS:
-        previous -= timedelta(days=1)
-    return previous
+    return previous_trading_session(day)
 
 
 def next_weekday(day: date) -> date:
-    next_day = day + timedelta(days=1)
-    while next_day.weekday() >= 5 or next_day in USER_CONFIRMED_MARKET_HOLIDAYS:
-        next_day += timedelta(days=1)
-    return next_day
+    return next_trading_session(day)
 
 
 def ensure_base_state(settings: Settings, as_of: date, dry_run: bool = False) -> None:
@@ -252,6 +262,19 @@ def _select_bucketed_picks(
 def _ranked_candidate_rows(
     settings: Settings,
     as_of: date,
+    ranking_context: RankingContext | None = None,
+) -> tuple[list[PickRow], list[SignalRow], int | None]:
+    if ranking_context is not None and as_of in ranking_context.rankings:
+        return ranking_context.rankings[as_of]
+    result = _compute_ranked_candidate_rows(settings, as_of)
+    if ranking_context is not None:
+        ranking_context.rankings[as_of] = result
+    return result
+
+
+def _compute_ranked_candidate_rows(
+    settings: Settings,
+    as_of: date,
 ) -> tuple[list[PickRow], list[SignalRow], int | None]:
     signals = build_signals(settings, as_of)
     if not signals:
@@ -259,7 +282,7 @@ def _ranked_candidate_rows(
     snapshot_id = get_latest_snapshot_id(settings, as_of)
     if snapshot_id is None:
         return [], signals, None
-    weights = get_latest_weights(settings) or default_weights(as_of)
+    weights = get_weights_as_of(settings, as_of) or default_weights(as_of)
     latest_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, as_of)}
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     ranked: list[PickRow] = []
@@ -336,9 +359,10 @@ def _ranked_candidate_rows(
 def rank_candidates(
     settings: Settings,
     as_of: date,
+    ranking_context: RankingContext | None = None,
 ) -> list[PickRow]:
     init_db(settings)
-    ranked, _, _ = _ranked_candidate_rows(settings, as_of)
+    ranked, _, _ = _ranked_candidate_rows(settings, as_of, ranking_context)
     return ranked
 
 
@@ -347,9 +371,10 @@ def generate_picks(
     as_of: date,
     pick_count: int | None = None,
     dry_run: bool = False,
+    ranking_context: RankingContext | None = None,
 ) -> list[PickRow]:
     ensure_base_state(settings, as_of, dry_run=dry_run)
-    ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of)
+    ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of, ranking_context)
     if not signals:
         if not dry_run and snapshot_id is not None:
             replace_picks_for_date(settings, [], as_of, snapshot_id=snapshot_id)
@@ -497,16 +522,22 @@ def generate_bucketed_picks(
     settings: Settings,
     as_of: date,
     pick_count: int | None = None,
+    ranking_context: RankingContext | None = None,
 ) -> list[PickRow]:
     ensure_base_state(settings, as_of, dry_run=True)
-    ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of)
+    ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of, ranking_context)
     if not signals or snapshot_id is None:
         return []
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
-    return _select_bucketed_picks(ranked, snapshots, pick_count or settings.default_pick_count)
+    final_pick_count = settings.default_pick_count if pick_count is None else pick_count
+    return _select_bucketed_picks(ranked, snapshots, final_pick_count)
 
 
-def daily_summary(settings: Settings, as_of: date) -> str:
+def daily_summary(
+    settings: Settings,
+    as_of: date,
+    ranking_context: RankingContext | None = None,
+) -> str:
     init_db(settings)
     bars = get_prices_for_date(settings, as_of)
     snapshots = get_market_snapshots_for_date(settings, as_of)
@@ -547,7 +578,13 @@ def daily_summary(settings: Settings, as_of: date) -> str:
         else:
             lines.append("- No daily technical leaders found")
 
-        ranked_leaders = generate_picks(settings, as_of, pick_count=3, dry_run=True)
+        ranked_leaders = generate_picks(
+            settings,
+            as_of,
+            pick_count=3,
+            dry_run=True,
+            ranking_context=ranking_context,
+        )
         highlighted = [pick for pick in ranked_leaders if pick.technical > 0 or (pick.fundamental + pick.quality) > 0]
         if highlighted:
             lines.append("")
@@ -568,8 +605,14 @@ def picks_output(
     settings: Settings,
     as_of: date,
     dry_run: bool = False,
+    ranking_context: RankingContext | None = None,
 ) -> str:
-    picks = generate_picks(settings, as_of, dry_run=dry_run)
+    picks = generate_picks(
+        settings,
+        as_of,
+        dry_run=dry_run,
+        ranking_context=ranking_context,
+    )
     exposure = market_breadth_exposure(settings, get_prices_for_date(settings, as_of))
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     payload = {
@@ -628,8 +671,17 @@ def _pick_summary(pick: PickRow, rank: int) -> dict[str, object]:
     }
 
 
-def downside_risk_output(settings: Settings, as_of: date) -> str:
-    picks = generate_picks(settings, as_of, dry_run=True)
+def downside_risk_output(
+    settings: Settings,
+    as_of: date,
+    ranking_context: RankingContext | None = None,
+) -> str:
+    picks = generate_picks(
+        settings,
+        as_of,
+        dry_run=True,
+        ranking_context=ranking_context,
+    )
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     entries = []
     for rank, pick in enumerate(picks, start=1):
@@ -714,16 +766,20 @@ def _strategy_review_summary(
 def bucketed_strategy_comparison_output(
     settings: Settings,
     review_date: date,
+    ranking_context: RankingContext | None = None,
 ) -> str:
     signal_date = previous_weekday(review_date)
     score_picks = generate_picks(
         settings,
         signal_date,
         dry_run=True,
+        ranking_context=ranking_context,
     )
     bucketed_picks = generate_bucketed_picks(
         settings,
         signal_date,
+        pick_count=len(score_picks),
+        ranking_context=ranking_context,
     )
     prices_by_ticker = {bar.ticker: bar for bar in get_prices_for_date(settings, review_date)}
     score_tickers = {pick.ticker for pick in score_picks}
@@ -782,12 +838,17 @@ def _pick_result_rows(picks: list[PickRow], prices_by_ticker: dict[str, object],
 def _candidate_rankings(
     settings: Settings,
     signal_date: date,
+    ranking_context: RankingContext | None = None,
 ) -> dict[str, tuple[int, PickRow]]:
-    candidates = rank_candidates(settings, signal_date)
+    candidates = rank_candidates(settings, signal_date, ranking_context=ranking_context)
     return {pick.ticker: (rank, pick) for rank, pick in enumerate(candidates, start=1)}
 
 
-def _attribution_for_pick(settings: Settings, candidate: tuple[int, PickRow] | None) -> dict[str, object]:
+def _attribution_for_pick(
+    settings: Settings,
+    candidate: tuple[int, PickRow] | None,
+    effective_pick_count: int | None = None,
+) -> dict[str, object]:
     if candidate is None:
         return {
             "data_status": "not_in_current_ranked_candidates",
@@ -796,7 +857,10 @@ def _attribution_for_pick(settings: Settings, candidate: tuple[int, PickRow] | N
         }
 
     rank, pick = candidate
-    note = "inside_top_pick_cutoff" if rank <= settings.default_pick_count else "below_top_pick_cutoff"
+    active_cutoff = effective_pick_count or settings.default_pick_count
+    note = "inside_top_pick_cutoff" if rank <= active_cutoff else "below_top_pick_cutoff"
+    if active_cutoff < rank <= settings.default_pick_count:
+        note = "excluded_by_breadth_cap"
     if pick.setup_penalty > 0:
         note = "penalized_by_setup_context"
     return {
@@ -825,6 +889,7 @@ def _reviewed_pick_entries(
     settings: Settings,
     rows: list[dict[str, object]],
     candidate_rankings: dict[str, tuple[int, PickRow]],
+    effective_pick_count: int | None = None,
 ) -> list[dict[str, object]]:
     entries = []
     for row in rows:
@@ -838,7 +903,11 @@ def _reviewed_pick_entries(
                 "selection_bucket": row.get("selection_bucket", "unknown") if isinstance(row, dict) else "unknown",
                 "return": round(return_pct, 4),
                 "won": return_pct >= MIN_DAILY_WIN_RETURN,
-                "attribution": _attribution_for_pick(settings, candidate_rankings.get(row["ticker"])),
+                "attribution": _attribution_for_pick(
+                    settings,
+                    candidate_rankings.get(row["ticker"]),
+                    effective_pick_count,
+                ),
             }
         )
     return entries
@@ -887,6 +956,7 @@ def review_output(
     settings: Settings,
     as_of: date,
     dry_run: bool = False,
+    ranking_context: RankingContext | None = None,
 ) -> str:
     review_date = as_of
     signal_date = previous_weekday(review_date)
@@ -895,6 +965,7 @@ def review_output(
         settings,
         signal_date,
         dry_run=True,
+        ranking_context=ranking_context,
     )
 
     if dry_run:
@@ -903,7 +974,9 @@ def review_output(
     else:
         recent = get_pick_results(settings, signal_date, review_date)
     recent_rows = [dict(row) for row in recent]
-    candidate_rankings = _candidate_rankings(settings, signal_date)
+    signal_prices = get_prices_for_date(settings, signal_date)
+    effective_pick_count = breadth_adjusted_pick_count(settings, signal_prices)
+    candidate_rankings = _candidate_rankings(settings, signal_date, ranking_context)
     ranked_candidates = [item[1] for item in sorted(candidate_rankings.values(), key=lambda item: item[0])]
     returns = [
         (row["close_price"] - row["open_price"]) / row["open_price"]
@@ -934,7 +1007,11 @@ def review_output(
             "date": entry["date"],
             "close_change_return": entry["close_change_return"],
             "reason": reason,
-            "attribution": _attribution_for_pick(settings, candidate_rankings.get(entry["ticker"])),
+            "attribution": _attribution_for_pick(
+                settings,
+                candidate_rankings.get(entry["ticker"]),
+                effective_pick_count,
+            ),
         }
         missed_top_movers.append(review_entry)
         if bucket == "actionable":
@@ -944,11 +1021,18 @@ def review_output(
         if len(missed_top_movers) >= 12:
             break
 
-    current = get_latest_weights(settings) or default_weights(as_of)
+    current = get_weights_as_of(settings, signal_date) or default_weights(signal_date)
     if recent_rows:
         rolling_sessions = [
             {"avg_return": avg_return, "win_rate": win_rate},
-            *[dict(row) for row in get_recent_review_runs(settings, limit=19)],
+            *[
+                dict(row)
+                for row in get_recent_review_runs(
+                    settings,
+                    limit=19,
+                    before_review_date=review_date,
+                )
+            ],
         ]
         next_weights = rolling_review_weights(
             Weights(date=as_of, momentum_weight=current.momentum_weight, volume_weight=current.volume_weight),
@@ -962,33 +1046,36 @@ def review_output(
         )
     review_run_id = None
     if not dry_run and recent_rows:
-        existing_review = get_review_run(settings, signal_date, review_date)
-        if existing_review is None:
-            insert_weights(settings, next_weights)
-            review_run_id = insert_review_run(
-                settings=settings,
-                as_of=signal_date,
-                review_date=review_date,
-                avg_return=avg_return,
-                win_rate=win_rate,
-                picks=recent_rows,
-                weights=next_weights,
-            )
-        else:
-            review_run_id = int(existing_review["id"])
+        target_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, review_date)}
+        bucketed_picks = generate_bucketed_picks(
+            settings,
+            signal_date,
+            pick_count=effective_pick_count,
+            ranking_context=ranking_context,
+        )
+        review_run_id, created = persist_review_bundle(
+            settings=settings,
+            as_of=signal_date,
+            review_date=review_date,
+            avg_return=avg_return,
+            win_rate=win_rate,
+            picks=recent_rows,
+            weights=next_weights,
+            candidate_outcomes=_candidate_outcome_rows(
+                ranked_candidates,
+                picked_tickers,
+                bucketed_picks,
+                target_prices,
+            ),
+            signal_snapshot_id=get_latest_snapshot_id(settings, signal_date),
+        )
+        if not created:
+            existing_review = get_review_run(settings, signal_date, review_date)
             next_weights = Weights(
                 date=as_of,
                 momentum_weight=existing_review["momentum_weight"],
                 volume_weight=existing_review["volume_weight"],
             )
-        target_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, review_date)}
-        bucketed_picks = generate_bucketed_picks(settings, signal_date)
-        replace_candidate_outcomes(
-            settings,
-            signal_date,
-            review_date,
-            _candidate_outcome_rows(ranked_candidates, picked_tickers, bucketed_picks, target_prices),
-        )
 
     payload = {
         "dry_run": dry_run,
@@ -1007,7 +1094,12 @@ def review_output(
             "min_win_return": MIN_DAILY_WIN_RETURN,
             "price_basis": "stored open_price; daily_csv imports use previous_close_to_last",
         },
-        "reviewed_picks": _reviewed_pick_entries(settings, recent_rows, candidate_rankings),
+        "reviewed_picks": _reviewed_pick_entries(
+            settings,
+            recent_rows,
+            candidate_rankings,
+            effective_pick_count,
+        ),
         "missed_top_movers": missed_top_movers,
         "missed_actionable": missed_actionable,
         "missed_non_actionable": missed_non_actionable,

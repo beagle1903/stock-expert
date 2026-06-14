@@ -8,10 +8,17 @@ import uuid
 from contextlib import closing
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 from stock_expert.config import Settings
-from stock_expert.daily_csv import import_daily_csv_command
-from stock_expert.database import create_snapshot_run, get_market_snapshots_for_date, init_db, upsert_market_snapshots
+from stock_expert.daily_csv import import_daily_csv_command, import_daily_csv_folder_command
+from stock_expert.database import (
+    create_snapshot_run,
+    get_latest_snapshot_id,
+    get_market_snapshots_for_date,
+    init_db,
+    upsert_market_snapshots,
+)
 from stock_expert.models import MarketSnapshot
 
 
@@ -143,6 +150,44 @@ class DailyCsvImportTests(unittest.TestCase):
 
         self.assertEqual(payload["rows_read"], 0)
         self.assertEqual(payload["skipped_malformed_count"], 1)
+
+    def test_non_finite_required_price_row_is_skipped(self) -> None:
+        self._write_minimal_csv_set("2,10B", "12,77")
+        path = self.settings.data_dir / "fiyat.csv"
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.reader(handle))
+        rows[1][1] = "NaN"
+        with path.open("w", encoding="utf-8-sig", newline="") as handle:
+            csv.writer(handle).writerows(rows)
+
+        payload = json.loads(import_daily_csv_command(self.settings, "2026-04-21"))
+
+        self.assertEqual(payload["rows_read"], 0)
+        self.assertEqual(payload["skipped_malformed_count"], 1)
+
+    def test_failed_snapshot_write_rolls_back_new_run(self) -> None:
+        self._write_minimal_csv_set("2,10B", "12,77")
+        previous_id = create_snapshot_run(self.settings, date(2026, 4, 21), "test", "previous")
+
+        with patch("stock_expert.database._upsert_prices_conn", side_effect=RuntimeError("write failed")):
+            with self.assertRaisesRegex(RuntimeError, "write failed"):
+                import_daily_csv_command(self.settings, "2026-04-21")
+
+        self.assertEqual(get_latest_snapshot_id(self.settings, date(2026, 4, 21)), previous_id)
+
+    def test_folder_import_uses_holiday_aware_previous_session(self) -> None:
+        with patch(
+            "stock_expert.daily_csv.import_daily_csv_command",
+            return_value=json.dumps({"snapshot_id": 1}),
+        ) as import_command:
+            payload = json.loads(import_daily_csv_folder_command(self.settings, "data/20260601"))
+
+        import_command.assert_called_once_with(
+            settings=self.settings,
+            snapshot_date="2026-05-26",
+            data_dir="data/20260601",
+        )
+        self.assertEqual(payload["target_trade_date"], "2026-06-01")
 
     def test_market_snapshot_table_migrates_new_columns(self) -> None:
         import sqlite3

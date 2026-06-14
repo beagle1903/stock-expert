@@ -65,6 +65,9 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-06-03 | Added breadth-based exposure caps, persisted top-candidate outcomes, rolling candidate diagnostics, and rolling review-weight updates. | Avoids forcing five picks into weak markets and creates evidence for near-cutoff misses and score-ranked versus bucketed selection before changing the default strategy. |
 | 2026-06-03 | Added a project-local Codex Stop hook that requires relevant Markdown updates after development work. | Keeps feature, context, task, or durable memory documentation aligned with code changes; deliberate exceptions require a `DOCS_NOT_NEEDED` reason. |
 | 2026-06-04 | Rolling candidate diagnostics now include cumulative top 3/5/10/20/50 cutoff analysis and a best observed cutoff. | Turns persisted candidate outcomes into direct evidence for whether the pick-count cutoff should stay tight or expand before changing selection defaults. |
+| 2026-06-14 | Snapshot publication and persisted reviews now use atomic transactions; historical review inputs are date-bounded and candidate evidence is immutable on rerun. | Prevents partial latest snapshots, future-state leakage, duplicate reviews, and rewritten strategy evidence. |
+| 2026-06-14 | Trading-session routing moved to one shared calendar, routine rankings are request-cached, and unknown git state uses an isolated database. | Keeps holiday alignment consistent, reduces repeated ranking work, and protects the main database outside an explicit `main` branch. |
+| 2026-06-14 | Production line coverage is measured with the standard-library `trace` module because `coverage.py` is not installed; focused Yahoo, signal, CLI, config, and database tests raised weighted coverage to about 94%. | Keeps coverage verification dependency-free while protecting secondary ingestion and direct command routes. |
 
 ## Workflows
 

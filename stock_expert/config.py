@@ -56,11 +56,24 @@ def _default_db_path(base_dir: Path, data_dir: Path) -> Path:
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         branch_name = ""
-    if not branch_name or branch_name == "main":
+    if branch_name == "main":
         return data_dir / "stock_expert.db"
+    if not branch_name:
+        try:
+            short_sha = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=base_dir,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+        except (OSError, subprocess.CalledProcessError):
+            short_sha = ""
+        identity = _sanitize_branch_name(short_sha) or "unknown"
+        return data_dir / f"stock_expert_detached_{identity}.db"
     sanitized = _sanitize_branch_name(branch_name)
     if not sanitized:
-        return data_dir / "stock_expert.db"
+        return data_dir / "stock_expert_detached_unknown.db"
     return data_dir / f"stock_expert_{sanitized}.db"
 
 

@@ -4,7 +4,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stdout
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from stock_expert import cli
 from stock_expert.config import Settings
@@ -20,6 +20,141 @@ class CliRoutineTests(unittest.TestCase):
         self.assertEqual(args.command, "midday-routine")
         self.assertEqual(args.as_of, "2026-04-21")
 
+    def test_direct_daily_picks_and_review_commands_route_arguments(self) -> None:
+        cases = [
+            (
+                ["stocks", "daily", "--date", "2026-04-21"],
+                "daily_summary",
+                {"args": (self.settings, cli.date(2026, 4, 21)), "kwargs": {}},
+            ),
+            (
+                ["stocks", "picks", "--date", "2026-04-21", "--dry-run"],
+                "picks_output",
+                {"args": (self.settings, cli.date(2026, 4, 21)), "kwargs": {"dry_run": True}},
+            ),
+            (
+                ["stocks", "review", "--date", "2026-04-21", "--dry-run"],
+                "review_output",
+                {"args": (self.settings, cli.date(2026, 4, 21)), "kwargs": {"dry_run": True}},
+            ),
+        ]
+        for argv, target, expected in cases:
+            with self.subTest(command=argv[1]):
+                with (
+                    patch("stock_expert.cli.get_settings", return_value=self.settings),
+                    patch(f"stock_expert.cli.{target}", return_value="output") as command,
+                    patch("sys.argv", argv),
+                    redirect_stdout(io.StringIO()) as stdout,
+                ):
+                    self.assertEqual(cli.main(), 0)
+
+                command.assert_called_once_with(*expected["args"], **expected["kwargs"])
+                self.assertIn("output", stdout.getvalue())
+
+    def test_download_and_excel_import_commands_route_all_options(self) -> None:
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.download_ohlcv_command", return_value="downloaded") as download,
+            patch(
+                "sys.argv",
+                [
+                    "stocks",
+                    "download-ohlcv",
+                    "--tickers",
+                    "ADEL",
+                    "THYAO.IS",
+                    "--days",
+                    "10",
+                    "--output",
+                    "data/out.csv",
+                    "--import-db",
+                    "--pause-seconds",
+                    "0.2",
+                    "--max-retries",
+                    "2",
+                ],
+            ),
+            redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(cli.main(), 0)
+
+        download.assert_called_once_with(
+            settings=self.settings,
+            tickers=["ADEL", "THYAO.IS"],
+            days=10,
+            output_path="data/out.csv",
+            import_db=True,
+            pause_seconds=0.2,
+            max_retries=2,
+        )
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.import_ohlcv_excel_command", return_value="imported") as bulk_import,
+            patch(
+                "sys.argv",
+                [
+                    "stocks",
+                    "import-ohlcv-excel",
+                    "--input",
+                    "data/tickers.xlsx",
+                    "--start-date",
+                    "2026-04-01",
+                    "--end-date",
+                    "2026-04-21",
+                    "--pause-seconds",
+                    "0.3",
+                    "--max-retries",
+                    "3",
+                    "--batch-size",
+                    "10",
+                    "--batch-pause-seconds",
+                    "4",
+                ],
+            ),
+            redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(cli.main(), 0)
+
+        bulk_import.assert_called_once_with(
+            settings=self.settings,
+            input_path="data/tickers.xlsx",
+            start_date="2026-04-01",
+            end_date="2026-04-21",
+            pause_seconds=0.3,
+            max_retries=3,
+            batch_size=10,
+            batch_pause_seconds=4.0,
+        )
+
+    def test_daily_csv_and_folder_import_commands_route_arguments(self) -> None:
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.import_daily_csv_command", return_value="csv") as csv_import,
+            patch(
+                "sys.argv",
+                ["stocks", "import-daily-csv", "--date", "2026-04-21", "--data-dir", "data/live"],
+            ),
+            redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(cli.main(), 0)
+
+        csv_import.assert_called_once_with(
+            settings=self.settings,
+            snapshot_date="2026-04-21",
+            data_dir="data/live",
+        )
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.import_daily_csv_folder_command", return_value="folder") as folder_import,
+            patch("sys.argv", ["stocks", "import-daily-folder", "--folder", "data/20260421"]),
+            redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(cli.main(), 0)
+
+        folder_import.assert_called_once_with(settings=self.settings, folder="data/20260421")
+
     def test_midday_routine_uses_dry_run_review(self) -> None:
         with (
             patch("stock_expert.cli.get_settings", return_value=self.settings),
@@ -34,7 +169,12 @@ class CliRoutineTests(unittest.TestCase):
             exit_code = cli.main()
 
         self.assertEqual(exit_code, 0)
-        review_output.assert_called_once_with(self.settings, cli.date(2026, 4, 21), dry_run=True)
+        review_output.assert_called_once_with(
+            self.settings,
+            cli.date(2026, 4, 21),
+            dry_run=True,
+            ranking_context=ANY,
+        )
         output = stdout.getvalue()
         self.assertIn('"routine": "midday-routine"', output)
         self.assertIn("Market Context:", output)
@@ -57,15 +197,31 @@ class CliRoutineTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         market_context_output.assert_called_once_with(cli.date(2026, 4, 21))
-        bucketed_strategy_comparison_output.assert_called_once_with(self.settings, cli.date(2026, 4, 21))
-        downside_risk_output.assert_called_once_with(self.settings, cli.date(2026, 4, 21))
+        bucketed_strategy_comparison_output.assert_called_once_with(
+            self.settings,
+            cli.date(2026, 4, 21),
+            ranking_context=ANY,
+        )
+        downside_risk_output.assert_called_once_with(
+            self.settings,
+            cli.date(2026, 4, 21),
+            ranking_context=ANY,
+        )
         self.assertEqual(
             picks_output.call_args_list,
             [
-                unittest.mock.call(self.settings, cli.date(2026, 4, 21)),
+                unittest.mock.call(
+                    self.settings,
+                    cli.date(2026, 4, 21),
+                    ranking_context=ANY,
+                ),
             ],
         )
-        review_output.assert_called_once_with(self.settings, cli.date(2026, 4, 21))
+        review_output.assert_called_once_with(
+            self.settings,
+            cli.date(2026, 4, 21),
+            ranking_context=ANY,
+        )
         output = stdout.getvalue()
         self.assertIn('"routine": "routine"', output)
         self.assertIn("Review:", output)

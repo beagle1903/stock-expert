@@ -37,3 +37,10 @@
 - Project-local Codex Stop validation blocks development changes without relevant Markdown updates unless a deliberate `DOCS_NOT_NEEDED` reason is present
 - KAP is not part of the active runtime workflow
 - Dated `data/YYYYMMDD` folders are legacy/manual archive inputs
+- Trading-session routing has one owner in `stock_expert/trading_calendar.py`; services and dated-folder imports must use it
+- CSV snapshot runs are published atomically only after all market and price rows validate and persist
+- Historical ranking uses weights effective on or before the signal date; rolling reviews exclude later review dates
+- Persisted review bundles are immutable on rerun and include signal snapshot, weight date, and strategy version metadata
+- Score-ranked and bucketed diagnostics compare the same breadth-adjusted exposure count
+- A routine-scoped `RankingContext` reuses each signal-date ranking across operator outputs
+- Detached HEAD and failed git detection use isolated databases instead of `data/stock_expert.db`
