@@ -1,0 +1,23 @@
+{
+  "name": "stock-expert",
+  "version": "1.0.0",
+  "description": "Project-local workflow shortcuts for the stock expert repository.",
+  "author": {
+    "name": "Local"
+  },
+  "interface": {
+    "displayName": "Stock Expert",
+    "shortDescription": "BIST routine workflow shortcuts",
+    "longDescription": "Project-local Codex commands for the stock expert repository, including the persisted daily routine workflow.",
+    "developerName": "Local",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Run the stock expert routine"
+    ]
+  }
+}

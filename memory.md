@@ -69,6 +69,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-06-14 | Snapshot publication and persisted reviews now use atomic transactions; historical review inputs are date-bounded and candidate evidence is immutable on rerun. | Prevents partial latest snapshots, future-state leakage, duplicate reviews, and rewritten strategy evidence. |
 | 2026-06-14 | Trading-session routing moved to one shared calendar, routine rankings are request-cached, and unknown git state uses an isolated database. | Keeps holiday alignment consistent, reduces repeated ranking work, and protects the main database outside an explicit `main` branch. |
 | 2026-06-14 | Production line coverage is measured with the standard-library `trace` module because `coverage.py` is not installed; focused Yahoo, signal, CLI, config, and database tests raised weighted coverage to about 94%. | Keeps coverage verification dependency-free while protecting secondary ingestion and direct command routes. |
+| 2026-06-22 | Added a repo-scoped Codex plugin marketplace with `/stock-expert:routine`. | Gives the routine workflow a project-local slash command without relying on deprecated global custom prompts. |
 
 ## Workflows
 

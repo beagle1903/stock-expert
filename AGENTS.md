@@ -16,6 +16,7 @@ Rules:
 - Keep responses under 300 words
 - Do not modify `docs/scratch/*`
 - Follow existing structure
+- In this repo, `/routine` means run the full persisted routine workflow, then verify SQLite persistence and `git status --short`
 - Use `memory.md` for durable repo memory: decisions, gotchas, workflows, and other expensive-to-rediscover context
 - After every development change, update relevant Markdown in `docs/features/`, `docs/context/`, `docs/tasks/`, or `memory.md`
 - Use `DOCS_NOT_NEEDED: <reason>` in `docs/tasks/current.md` or the final response only when documentation is deliberately unnecessary

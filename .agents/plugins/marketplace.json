@@ -1,0 +1,20 @@
+{
+  "name": "stock-expert-local",
+  "interface": {
+    "displayName": "Stock Expert Local"
+  },
+  "plugins": [
+    {
+      "name": "stock-expert",
+      "source": {
+        "source": "local",
+        "path": "./plugins/stock-expert"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
