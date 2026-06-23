@@ -8,8 +8,9 @@
 - Adds bounded soft boosts from daily/weekly technical labels and basic-analysis quality fields
 - Subtracts a capped setup penalty for bearish technical alignment, missing/weak fundamentals, abnormal volume context, and stretched weekly/monthly momentum
 - Caps setup penalty for strong momentum, full-liquidity, strong-technical candidates so stretched context does not fully suppress breakout setups
-- Default persisted selection is score-ranked, capped at 5 picks
+- Default persisted selection is score-ranked, capped at 5 picks unless rolling candidate evidence favors a tighter top-3 cutoff
 - Weak market breadth reduces the default exposure cap to 3 picks below a 30% advancer ratio and 2 picks below a 20% advancer ratio
+- Rolling candidate evidence available before the signal date can reduce default exposure to 3 picks when `top_3` is the best observed cutoff and top-5 average return is negative
 - Bucketed selection remains available for dry-run/reporting comparison: 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`
 - Score-ranked and bucketed comparisons use the same effective breadth-adjusted pick count
 - Wide diagnostic rankings use score order for review attribution and missed-mover analysis
@@ -18,7 +19,7 @@
 - Uses the latest `signal_date` snapshot to generate picks for the next weekday `target_trade_date`
 - Multiple same-day imports can coexist; date-based picks use the latest snapshot
 - Supports `--dry-run` for safe comparison runs
-- Pick JSON exposes breadth `exposure`, `setup_penalty`, `net_adjustment`, and `selection_bucket` so reduced exposure and candidate ranking are visible
+- Pick JSON exposes breadth/rolling-evidence `exposure`, `setup_penalty`, `net_adjustment`, and `selection_bucket` so reduced exposure and candidate ranking are visible
 - `routine` reports normal persisted picks, score-ranked vs bucketed review comparison, plus downside-risk diagnostics after the live CSV import
 - `midday-routine` reports normal picks after the live CSV import
 - Routine outputs share a request-scoped ranking cache so each signal date is ranked once

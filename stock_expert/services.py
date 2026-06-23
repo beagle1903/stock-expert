@@ -383,11 +383,58 @@ def generate_picks(
         return []
     if not dry_run:
         upsert_signals(settings, signals, snapshot_id=snapshot_id)
-    final_pick_count = pick_count or breadth_adjusted_pick_count(settings, get_prices_for_date(settings, as_of))
+    prices = get_prices_for_date(settings, as_of)
+    final_pick_count = pick_count or adaptive_default_pick_count(
+        settings,
+        prices,
+        before_review_date=as_of,
+    )
     limited = [_with_selection_bucket(pick, "score_ranked") for pick in ranked[:final_pick_count]]
     if not dry_run:
         replace_picks_for_date(settings, limited, as_of, snapshot_id=snapshot_id)
     return limited
+
+
+def adaptive_default_pick_count(
+    settings: Settings,
+    prices: object,
+    before_review_date: date | None = None,
+) -> int:
+    return int(adaptive_pick_exposure(settings, prices, before_review_date=before_review_date)["pick_count_cap"])
+
+
+def adaptive_pick_exposure(
+    settings: Settings,
+    prices: object,
+    before_review_date: date | None = None,
+) -> dict[str, object]:
+    exposure = market_breadth_exposure(settings, prices)
+    cap = int(exposure["pick_count_cap"])
+    diagnostics = rolling_candidate_diagnostics(
+        get_candidate_outcomes(
+            settings,
+            limit_sessions=20,
+            before_review_date=before_review_date,
+        )
+    )
+    cutoff_analysis = diagnostics["cutoff_analysis"]
+    if cutoff_analysis["best_cutoff"] != "top_3":
+        return exposure
+    cutoff_rows = {row["cutoff"]: row for row in cutoff_analysis["cutoffs"]}
+    top_three = cutoff_rows.get("top_3")
+    top_five = cutoff_rows.get("top_5")
+    if top_three is None or top_five is None:
+        return exposure
+    if top_five["avg_return"] < 0 and top_three["avg_return"] > top_five["avg_return"]:
+        adjusted = dict(exposure)
+        adjusted["breadth_pick_count_cap"] = cap
+        adjusted["pick_count_cap"] = min(cap, 3)
+        adjusted["policy"] = "reduced_for_rolling_top_3" if cap > 3 else exposure["policy"]
+        adjusted["evidence_cutoff"] = "top_3"
+        adjusted["evidence_top_3_avg_return"] = top_three["avg_return"]
+        adjusted["evidence_top_5_avg_return"] = top_five["avg_return"]
+        return adjusted
+    return exposure
 
 
 def breadth_adjusted_pick_count(settings: Settings, prices: object) -> int:
@@ -613,7 +660,11 @@ def picks_output(
         dry_run=dry_run,
         ranking_context=ranking_context,
     )
-    exposure = market_breadth_exposure(settings, get_prices_for_date(settings, as_of))
+    exposure = adaptive_pick_exposure(
+        settings,
+        get_prices_for_date(settings, as_of),
+        before_review_date=as_of,
+    )
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     payload = {
         "dry_run": dry_run,
@@ -975,7 +1026,11 @@ def review_output(
         recent = get_pick_results(settings, signal_date, review_date)
     recent_rows = [dict(row) for row in recent]
     signal_prices = get_prices_for_date(settings, signal_date)
-    effective_pick_count = breadth_adjusted_pick_count(settings, signal_prices)
+    effective_pick_count = adaptive_default_pick_count(
+        settings,
+        signal_prices,
+        before_review_date=signal_date,
+    )
     candidate_rankings = _candidate_rankings(settings, signal_date, ranking_context)
     ranked_candidates = [item[1] for item in sorted(candidate_rankings.values(), key=lambda item: item[0])]
     returns = [
@@ -1103,7 +1158,13 @@ def review_output(
         "missed_top_movers": missed_top_movers,
         "missed_actionable": missed_actionable,
         "missed_non_actionable": missed_non_actionable,
-        "rolling_candidate_diagnostics": rolling_candidate_diagnostics(get_candidate_outcomes(settings, limit_sessions=20)),
+        "rolling_candidate_diagnostics": rolling_candidate_diagnostics(
+            get_candidate_outcomes(
+                settings,
+                limit_sessions=20,
+                before_review_date=next_weekday(review_date),
+            )
+        ),
         "adjustments": {
             "momentum_weight": next_weights.momentum_weight,
             "volume_weight": next_weights.volume_weight,

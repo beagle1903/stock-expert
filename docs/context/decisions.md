@@ -15,7 +15,7 @@
 - `midday-routine` imports the same live CSVs, then runs `daily`, `picks`, and a dry-run `review`
 - Candidate scores still center on momentum and volume, with bounded technical/basic-analysis soft boosts from `teknik.csv` and `temel.csv`
 - Candidate scores subtract a capped setup penalty for weak or stretched snapshot context before ranking.
-- Default persisted picks are score-ranked top 5 after recent DB-backed checks favored score-ranked selection over bucketed selection.
+- Default persisted picks remain score-ranked, but point-in-time rolling candidate evidence can tighten default exposure to top 3 when `top_3` is the best observed cutoff and top-5 average return is negative.
 - Bucket-composed picks remain available for dry-run/reporting comparison: 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`.
 - Persisted and comparison picks include `selection_bucket` so later reviews can evaluate selection behavior.
 - Review win rate now requires at least 4% return; smaller positive returns count as losses.
@@ -32,7 +32,7 @@
 - `review --date YYYY-MM-DD` evaluates the previous trading-day signal picks against the requested review date and reports missed movers for that review date
 - Missed movers are grouped into `missed_top_movers`, `missed_actionable`, and `missed_non_actionable`
 - Persisted candidate outcomes provide rolling evidence for near-cutoff misses and score-ranked versus bucketed selection; bucketed picks remain reporting-only
-- Default pick exposure is reduced when the signal-date advancer ratio is below 30%, while ranking logic remains unchanged
+- Default pick exposure is reduced when the signal-date advancer ratio is below 30% or when rolling candidate evidence favors a tighter top-3 cutoff, while ranking logic remains unchanged
 - Review weights move only from a rolling multi-session performance window instead of daily review drift
 - Project-local Codex Stop validation blocks development changes without relevant Markdown updates unless a deliberate `DOCS_NOT_NEEDED` reason is present
 - KAP is not part of the active runtime workflow

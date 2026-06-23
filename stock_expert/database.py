@@ -644,23 +644,34 @@ def get_pick_results(settings: Settings, signal_date: date, target_date: date) -
         )
 
 
-def get_candidate_outcomes(settings: Settings, limit_sessions: int = 20) -> list[sqlite3.Row]:
+def get_candidate_outcomes(
+    settings: Settings,
+    limit_sessions: int = 20,
+    before_review_date: date | None = None,
+) -> list[sqlite3.Row]:
     init_db(settings)
+    where = ""
+    params: list[object] = []
+    if before_review_date is not None:
+        where = "WHERE review_date < ?"
+        params.append(before_review_date.isoformat())
+    params.append(limit_sessions)
     with connect(settings) as conn:
         return list(
             conn.execute(
-                """
+                f"""
                 SELECT *
                 FROM candidate_outcomes
                 WHERE review_date IN (
                     SELECT DISTINCT review_date
                     FROM candidate_outcomes
+                    {where}
                     ORDER BY review_date DESC
                     LIMIT ?
                 )
                 ORDER BY review_date DESC, candidate_rank ASC
                 """,
-                (limit_sessions,),
+                params,
             )
         )
 

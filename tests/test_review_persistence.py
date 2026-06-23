@@ -10,6 +10,7 @@ from unittest.mock import patch
 from stock_expert.config import Settings
 from stock_expert.database import (
     connect,
+    get_candidate_outcomes,
     get_weights_as_of,
     init_db,
     insert_weights,
@@ -119,6 +120,39 @@ class ReviewPersistenceTests(unittest.TestCase):
         self.assertEqual(review_count, 1)
         self.assertEqual(outcome["score"], 1.0)
         self.assertEqual(outcome["review_run_id"], first_id)
+
+    def test_candidate_outcomes_can_exclude_future_review_dates(self) -> None:
+        persist_review_bundle(
+            self.settings,
+            as_of=date(2026, 4, 20),
+            review_date=date(2026, 4, 21),
+            avg_return=0.05,
+            win_rate=1.0,
+            picks=self._picks(),
+            weights=Weights(date=date(2026, 4, 21), momentum_weight=0.62, volume_weight=0.38),
+            candidate_outcomes=self._outcomes(score=1.0),
+            signal_snapshot_id=7,
+        )
+        persist_review_bundle(
+            self.settings,
+            as_of=date(2026, 4, 22),
+            review_date=date(2026, 4, 23),
+            avg_return=-0.10,
+            win_rate=0.0,
+            picks=self._picks(),
+            weights=Weights(date=date(2026, 4, 23), momentum_weight=0.5, volume_weight=0.5),
+            candidate_outcomes=self._outcomes(score=9.0),
+            signal_snapshot_id=9,
+        )
+
+        outcomes = get_candidate_outcomes(
+            self.settings,
+            limit_sessions=10,
+            before_review_date=date(2026, 4, 23),
+        )
+
+        self.assertEqual([row["review_date"] for row in outcomes], ["2026-04-21"])
+        self.assertEqual([row["score"] for row in outcomes], [1.0])
 
 
 if __name__ == "__main__":
