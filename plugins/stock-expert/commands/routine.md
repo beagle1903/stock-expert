@@ -39,10 +39,14 @@ git status --short
 
 Keep the handoff short. Report:
 
-- Basket tickers
+- Pick list / basket tickers
+- Review results
 - Snapshot and review ids
 - Signal and target/review dates
 - SQLite verification result
 - `git status --short` result
+
+Always include both the new pick list and the persisted review in the final
+handoff, even when there are no review wins or no downside-risk flags.
 
 Do not expand into strategy analysis unless requested.

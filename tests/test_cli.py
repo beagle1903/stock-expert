@@ -178,6 +178,7 @@ class CliRoutineTests(unittest.TestCase):
         output = stdout.getvalue()
         self.assertIn('"routine": "midday-routine"', output)
         self.assertIn("Market Context:", output)
+        self.assertIn("Pick List:", output)
         self.assertIn("Dry-Run Review:", output)
 
     def test_routine_uses_persisted_review(self) -> None:
@@ -224,6 +225,7 @@ class CliRoutineTests(unittest.TestCase):
         )
         output = stdout.getvalue()
         self.assertIn('"routine": "routine"', output)
+        self.assertIn("Pick List:", output)
         self.assertIn("Review:", output)
         self.assertIn("Score-Ranked vs Bucketed Review Comparison:", output)
         self.assertIn("Downside Risk Diagnostic:", output)

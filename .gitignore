@@ -8,6 +8,7 @@ __pycache__/
 .venv/
 venv/
 .env
+.codex/config.toml
 
 data/stock_expert.db
 data/stock_expert_*.db

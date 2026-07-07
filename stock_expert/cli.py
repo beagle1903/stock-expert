@@ -193,6 +193,7 @@ def main() -> int:
         print()
         print(daily_summary(settings, as_of, ranking_context=ranking_context))
         print()
+        print("Pick List:")
         print(picks_output(settings, as_of, ranking_context=ranking_context))
         print()
         if args.command == "midday-routine":
