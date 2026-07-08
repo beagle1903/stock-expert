@@ -1,10 +1,11 @@
 {
   "name": "stock-expert",
-  "version": "1.0.0+codex.20260707155200",
+  "version": "1.0.0+codex.20260708075409",
   "description": "Project-local workflow shortcuts for the stock expert repository.",
   "author": {
     "name": "Local"
   },
+  "skills": "./skills/",
   "interface": {
     "displayName": "Stock Expert",
     "shortDescription": "BIST routine workflow shortcuts",

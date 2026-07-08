@@ -70,6 +70,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-06-14 | Trading-session routing moved to one shared calendar, routine rankings are request-cached, and unknown git state uses an isolated database. | Keeps holiday alignment consistent, reduces repeated ranking work, and protects the main database outside an explicit `main` branch. |
 | 2026-06-14 | Production line coverage is measured with the standard-library `trace` module because `coverage.py` is not installed; focused Yahoo, signal, CLI, config, and database tests raised weighted coverage to about 94%. | Keeps coverage verification dependency-free while protecting secondary ingestion and direct command routes. |
 | 2026-06-22 | Added a repo-scoped Codex plugin marketplace with `/stock-expert:routine`. | Gives the routine workflow a project-local slash command without relying on deprecated global custom prompts. |
+| 2026-07-08 | The repo-scoped Codex plugin now declares `skills/routine/SKILL.md` as well as `commands/routine.md`. | Codex composer autocomplete indexes skills in this build; a command-only local plugin can install successfully while still showing no `/stock-expert:routine` suggestion. |
 
 ## Workflows
 
@@ -149,6 +150,7 @@ Live files:
 - Root guidance lives in `AGENTS.md`.
 - Feature docs live in `docs/features/`.
 - Review and trust project-local Codex hooks through `/hooks`; hook trust must be renewed after hook definition changes.
+- The local Codex plugin is sourced from `.agents/plugins/marketplace.json` and `plugins/stock-expert`; reinstall it with `codex plugin add stock-expert@stock-expert-local` after changing plugin metadata.
 
 ## Gotchas
 

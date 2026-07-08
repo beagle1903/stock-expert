@@ -28,8 +28,14 @@ D:\miniconda3\python.exe -m stock_expert routine
 
 After the command finishes:
 
-1. Verify the printed `snapshot_id`, `review_run_id`, and related `review_pick_results` rows in `data\stock_expert.db`.
-2. Run:
+1. Resolve the active SQLite database path with:
+
+```powershell
+D:\miniconda3\python.exe -c "from stock_expert.config import get_settings; print(get_settings().db_path)"
+```
+
+2. Verify the printed `snapshot_id`, `review_run_id`, and related `review_pick_results` rows in that active database.
+3. Run:
 
 ```powershell
 git status --short
