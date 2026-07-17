@@ -72,6 +72,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-06-14 | Production line coverage is measured with the standard-library `trace` module because `coverage.py` is not installed; focused Yahoo, signal, CLI, config, and database tests raised weighted coverage to about 94%. | Keeps coverage verification dependency-free while protecting secondary ingestion and direct command routes. |
 | 2026-06-22 | Added a repo-scoped Codex plugin marketplace with `/stock-expert:routine`. | Gives the routine workflow a project-local slash command without relying on deprecated global custom prompts. |
 | 2026-07-08 | The repo-scoped Codex plugin now declares `skills/routine/SKILL.md` as well as `commands/routine.md`. | Codex composer autocomplete indexes skills in this build; a command-only local plugin can install successfully while still showing no `/stock-expert:routine` suggestion. |
+| 2026-07-17 | The approved frontend direction is a dark Evidence Console implemented under `frontend/` with typed mock data behind a repository interface. | Keeps the first web slice faithful to persisted CLI entities while isolating presentation from future API access and avoiding invented trading capabilities. |
 
 ## Workflows
 

@@ -11,6 +11,14 @@
 - `stock_expert/config.py`: paths and thresholds
 - `stock_expert/yahoo.py`: Yahoo OHLCV downloader with CSV export and optional SQLite import
 - `.codex/hooks/validate_docs_update.py`: deterministic Codex Stop hook validator for development documentation updates
+- `frontend/`: React/Vite Evidence Console prototype with typed domain mocks
+- `frontend/src/data/dashboardRepository.ts`: frontend data-access seam; currently mock-only and isolated from Python/SQLite
+
+## Frontend Boundary
+
+- Presentation components consume `DashboardData` instead of importing Python or SQLite concerns.
+- `mockDashboardRepository` is the only active adapter; a future API adapter can replace it without changing strategy logic or persistence semantics.
+- The prototype is read-only decision support. It does not expose order execution, live quotes, portfolios, forecasts, or target prices.
 
 ## Persistence
 

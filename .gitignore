@@ -10,6 +10,14 @@ venv/
 .env
 .codex/config.toml
 
+frontend/node_modules/
+frontend/dist/
+frontend/output/
+frontend/.npm-cache/
+frontend/public/qa/
+frontend/.playwright-cli/
+frontend/.npmrc
+
 data/stock_expert.db
 data/stock_expert_*.db
 data/fiyat.csv

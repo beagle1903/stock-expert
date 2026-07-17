@@ -1,5 +1,15 @@
 # Stock Expert
 
+## Frontend Prototype
+
+The approved dark Evidence Console lives in `frontend/`. It uses typed mock data shaped around the current persisted picks/review workflow and does not connect to SQLite yet.
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
 Python CLI for BIST intraday idea generation and review.
 
 Current runtime mode: daily CSV snapshots.

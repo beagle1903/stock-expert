@@ -25,3 +25,9 @@
 - Snapshot and review persistence are atomic and idempotent
 - Historical review evidence is point-in-time and immutable
 - Standard-library trace coverage remains at or above 90% across production modules
+
+## Frontend Prototype
+
+- Dark Evidence Console implemented under `frontend/` with typed mock data and an explicit future repository boundary.
+- Responsive browser and design QA are recorded in `frontend/design-qa.md`.
+- Live API integration remains deferred; Python strategy and SQLite behavior are unchanged.
