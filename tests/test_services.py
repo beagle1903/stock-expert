@@ -57,6 +57,11 @@ class ServiceDateTests(unittest.TestCase):
         self.assertEqual(previous_weekday(date(2026, 5, 20)), date(2026, 5, 18))
         self.assertEqual(previous_weekday(date(2026, 6, 1)), date(2026, 5, 26))
 
+    def test_trading_date_helpers_skip_recurring_july_15_holiday(self) -> None:
+        self.assertEqual(next_weekday(date(2026, 7, 14)), date(2026, 7, 16))
+        self.assertEqual(previous_weekday(date(2026, 7, 16)), date(2026, 7, 14))
+        self.assertEqual(next_weekday(date(2027, 7, 14)), date(2027, 7, 16))
+
     def test_market_context_marks_political_shock_window(self) -> None:
         context = market_context_for_dates(date(2026, 5, 21), date(2026, 5, 22), date(2026, 5, 25), date(2026, 5, 26))
 

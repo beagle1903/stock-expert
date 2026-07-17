@@ -1,51 +1,55 @@
 # Performance Review
 
-Scope: full codebase plus `git diff HEAD~5..HEAD`. No production code or live data was changed.
+Scope: full production code, tests/docs, current worktree, and recent commits through `9ff2846`. No production code or durable data was changed. Read-only checks used the current 17.2 MB SQLite database (96 snapshot runs; 49,707 price rows; 1,299 candidate outcomes).
 
-## P1: Routine recomputes identical rankings up to eight times
+## P0
 
-**References:** `stock_expert/cli.py:192-207`, `stock_expert/services.py:138-160`, `stock_expert/services.py:252-333`, `stock_expert/services.py:550`, `stock_expert/services.py:572`, `stock_expert/services.py:632`, `stock_expert/services.py:719-727`, `stock_expert/services.py:786`, `stock_expert/services.py:894-906`, `stock_expert/services.py:985`
+No P0 performance findings.
 
-**Impact:** CLI latency and SQLite reads grow by roughly 8x the cost of one ranking pass. Each pass reloads and sorts ten sessions of prices, reconstructs all signals, reloads latest prices/snapshots/weights, and sorts the universe.
+## P1: Database initialization and connection churn remain on every hot-path read
 
-**Evidence:** Instrumenting `picks_output`, dry-run `review_output`, strategy comparison, and downside diagnostics produced 6 `build_signals` calls, 6 recent-history loads, 7 date-price loads, and 9 weight loads. The real routine additionally ranks in `daily_summary`; persisted review adds another bucketed ranking. A standalone dry-run picks command took about 464 ms on the current 36,066-row database.
+**Evidence:** `stock_expert/database.py:160-166` runs the full schema plus all migration/integrity checks; many getters call it directly (`:359-372`, `:596-608`, `:647-676`, `:679-718`, `:997-1016`, `:1019-1034`). `get_prices_for_date` and `get_market_snapshots_for_date` first call `get_latest_snapshot_id`, so each logical read opens multiple connections. A read-only instrumented full diagnostic flow (`daily`, picks, review, comparison, downside risk) recorded **40 `init_db` calls and 61 query connections even after initialization itself was replaced with a no-op**. `RankingContext` at `stock_expert/services.py:46-49` caches only ranked rows.
 
-**Suggested fix:** Introduce a request-scoped `RankingContext` containing ranked candidates, signals, snapshot id, prices, snapshots, weights, and exposure. Compute it once per signal date in `routine`, then pass it to daily, picks, review attribution, bucketed selection, comparison, and downside formatting. Keep public commands able to build their own context.
+**Impact:** Repeated DDL parsing, PRAGMAs, schema inspection, duplicate-review scans, commits, and SQLite opens dominate local work as commands and history grow; they also extend lock windows during the persisted routine.
 
-## P1: Yahoo bulk import performs schema/query work once per OHLCV row
+**Suggested fix:** Initialize/migrate once in `cli.main`, make repository getters migration-free, and introduce one request-scoped data context/connection that caches snapshot ids, prices, snapshots, weights, candidate outcomes, and exposure per date. Add a routine regression test asserting bounded initialization/query counts.
 
-**References:** `stock_expert/database.py:147-152`, `stock_expert/database.py:264-290`, `stock_expert/database.py:313-321`, `stock_expert/yahoo.py:141-190`, `stock_expert/yahoo.py:221-266`
+## P1: Historical Yahoo import ignores the requested end date while downloading
 
-**Impact:** Importing `T` tickers over `D` dates performs `T*D` snapshot lookups. Every lookup calls `init_db`, opens a connection, executes the full schema, and runs migration checks. Large imports can spend most time in SQLite setup rather than insertion.
+**Evidence:** `stock_expert/yahoo.py:36-44` always requests through the current time. `import_ohlcv_excel_command` computes `lookback_days` from today to `start` (`:225`) and only discards rows after download (`:237-240`). Thus a request for a closed historical interval downloads every session from the requested start through today for every ticker.
 
-**Evidence:** A synthetic 500-ticker x 30-day input caused 15,000 `get_latest_snapshot_id` calls before the single `executemany`. This is an N-row database round-trip pattern.
+**Impact:** Old ranges cause years of unnecessary network transfer, JSON parsing, retries, and provider load. Runtime grows with `today - start`, not the requested interval.
 
-**Suggested fix:** Materialize rows once, collect distinct dates, resolve/create one snapshot id per date in a single connection/transaction, map rows in memory, then execute one bulk upsert. Make `init_db` an application-start/migration operation rather than a per-query dependency.
+**Suggested fix:** Change the fetch API to accept explicit `period1`/`period2` (with a small boundary buffer), pass the requested start/end, and test that a past one-month import emits a one-month Yahoo query.
 
-## P2: Date-oriented queries have no supporting indexes
+## P2: Adaptive exposure diagnostics are recomputed throughout one routine
 
-**References:** `stock_expert/database.py:13-132`, `stock_expert/database.py:277-310`, `stock_expert/database.py:548-597`
+**Evidence:** `adaptive_pick_exposure` loads and re-aggregates candidate outcomes (`stock_expert/services.py:406-437`). The same flow calls it from pick generation, pick formatting, review, comparison, and downside diagnostics (`:369-395`, `:651-709`, `:1006-1126`). Instrumentation observed **7 candidate-outcome loads**. The current indexed query took about **610 ms for 100 executions**; one execution is small, but repetition is avoidable.
 
-**Impact:** Snapshot, review, and diagnostic lookups degrade to table scans and temporary B-trees as history grows.
+**Impact:** The June adaptive-selection change reintroduced repeated DB/aggregation work around the ranking cache, and cost grows with the rolling window and candidate cap.
 
-**Evidence:** `EXPLAIN QUERY PLAN` reports scans for latest snapshot and review lookup. Candidate diagnostics scan `candidate_outcomes` and create temporary B-trees for distinct/order operations. Current tables contain 69 snapshot runs, 42 reviews, and 300 outcomes, so impact is currently masked.
+**Suggested fix:** Cache `(before_review_date, limit_sessions)` outcomes/diagnostics and per-date exposure in `RankingContext`; pass the computed exposure into formatting/review helpers.
 
-**Suggested fix:** Add indexes on `snapshot_runs(snapshot_date, id DESC)`, `review_runs(as_of_date, review_date, id DESC)`, and `candidate_outcomes(review_date DESC, candidate_rank)`. Add query-plan tests against representative data.
+## P2: Bulk Yahoo paths retain duplicate full result sets
 
-## P2: Yahoo downloads retain two full copies of all rows
+**Evidence:** Both download paths accumulate dictionary `csv_rows` and tuple `db_rows` for every retained row before sorting/writing/importing (`stock_expert/yahoo.py:141-190`, `:221-266`). Requests are also strictly serial with a new `urlopen` connection per ticker (`:45`, `:146-181`, `:227-260`).
 
-**References:** `stock_expert/yahoo.py:141-178`, `stock_expert/yahoo.py:221-253`
+**Impact:** Multi-year, market-wide imports consume memory proportional to all rows twice and delay durable progress until the final ticker; serial TLS/request overhead compounds the configured throttling.
 
-**Impact:** `csv_rows` dictionaries and `db_rows` tuples grow together for the complete download, increasing peak memory and delaying persistence until all network work finishes.
+**Suggested fix:** Stream CSV rows and flush SQLite rows in bounded transactional batches. Keep conservative rate limits; if concurrency is added, make it small/configurable and backoff-aware.
 
-**Suggested fix:** Stream CSV output and flush database rows in bounded batches, while retaining only counters, failures, and downloaded ticker names.
+## P2: Review-date lookup lacks a supporting index
 
-## Residual Risks / Test Gaps
+**Evidence:** `get_recent_review_runs` filters/orders by `review_date` (`stock_expert/database.py:694-718`), but schema indexes only review identity `(as_of_date, review_date)` (`:306-310`). `EXPLAIN QUERY PLAN` on the live DB reports a full `review_runs` scan plus a temporary B-tree for ordering.
 
-- No routine-level performance budget or ranking-call-count regression test.
-- No benchmark covering multi-year Yahoo imports.
-- No representative large-history SQLite query-plan test.
+**Impact:** Currently masked by 54 rows, but review history makes each rolling-weight lookup increasingly scan/sort bound.
 
-## Summary
+**Suggested fix:** Add `review_runs(review_date DESC)` (optionally a partial index for `pick_count > 0`) and a representative query-plan test.
 
-No P0 findings. Two P1 issues can dominate CLI/import latency; two P2 issues will matter as persisted history or download ranges grow.
+## Sound performance-sensitive areas
+
+- Latest-snapshot and candidate-outcome indexes are used by SQLite; the previous review's missing-index findings were substantially fixed.
+- `upsert_prices` resolves distinct dates once and uses `executemany`; the former per-row snapshot lookup was fixed.
+- Ranking is linear over the universe plus one `O(N log N)` sort, and signal windows are bounded to ten sessions.
+- Atomic bulk snapshot/review transactions and bounded 20-session/50-candidate diagnostics keep write and analysis sets controlled.
+- Daily CSV/XLSX in-memory parsing is acceptable for the current BIST-sized inputs; the scaling concern is specifically large OHLCV history.

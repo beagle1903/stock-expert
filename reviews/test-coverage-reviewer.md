@@ -1,53 +1,48 @@
-# Test Coverage Review
+# Test Coverage and Quality Review
 
-Scope: entire repository, with emphasis on `git diff HEAD~5..HEAD`.
+## Scope and verification
 
-Verification: `D:\miniconda3\python.exe -m unittest discover -s tests -v` passed all 56 tests in 3.178s. `coverage.py` is not installed, so coverage was assessed by code/test inspection.
+- Reviewed all production modules, all 93 unit tests, and changes from `48dd62a..HEAD`.
+- `D:\miniconda3\python.exe -m unittest discover -s tests -v`: **93/93 passed**.
+- Independent `trace` run: **2,251/2,390 executable production lines = 94.18% weighted coverage**. Lowest modules: `database.py` 90.44%, `services.py` 92.84%. The documented >=90% line-coverage claim is currently credible.
+- P0 findings: **none**.
 
-## P0
+## P1 — Point-in-time adaptive policy is not tested through the real storage/service boundary
 
-No P0 findings.
+**Evidence:** `stock_expert/services.py:406-437` relies on `get_candidate_outcomes(..., before_review_date=...)`; `stock_expert/database.py:647-676` owns the exclusion query. The service tests replace that query with mocks (`tests/test_services.py:606-630`, `tests/test_services.py:864-898`) and even inject outcomes dated *after* the signal date. Because the mocks ignore `before_review_date`, those tests prove the top-3 calculation but not the anti-leakage contract. The database-only test (`tests/test_review_persistence.py:124-155`) proves filtering in isolation, not that `generate_picks`, `picks_output`, and `review_output` pass the correct boundary.
 
-## P1 Findings
+**Impact:** A future argument regression could silently use later outcomes to change historical/current exposure while all tests remain green, violating the repository's no-future-data rule.
 
-### P1: Dated-folder imports do not test exchange holidays and currently route June 1 incorrectly
+**Suggested fix/tests:** Add a real temporary-SQLite integration test that persists favorable pre-signal and contradictory post-signal candidate outcomes, invokes `generate_picks(..., dry_run=True)` without mocking `get_candidate_outcomes`, and proves post-signal rows cannot change the pick count. Add mock call assertions for `before_review_date=signal_date` in `generate_picks`/`picks_output`, and for the intended inclusive-current-review boundary in `review_output`.
 
-- Evidence: `stock_expert/daily_csv.py:225-239` uses a weekend-only `_previous_weekday`, while the canonical helper in `stock_expert/services.py:117-128` skips confirmed closures. Direct inspection produced `2026-05-29` from the folder helper versus the correct `2026-05-26` from the service helper for target date `2026-06-01`. `tests/test_daily_csv.py:18-186` has no folder-import test.
-- Impact: `import-daily-folder --folder data/20260601` can persist the snapshot under a closed exchange date, breaking pick/review date alignment.
-- Suggested fix: Add parameterized folder-import tests for weekends, `2026-05-01`, and the `2026-05-27` through `2026-05-29` closure. Reuse one holiday-aware trading-date helper in both import and service paths.
+## P1 — Destructive legacy migrations have almost no fixture-based coverage
 
-### P1: Review rerun tests miss mutable historical candidate outcomes
+**Evidence:** `init_db` always invokes migrations (`stock_expert/database.py:160-166`), but trace shows the legacy snapshot migration at `database.py:173-259` and duplicate-review cleanup/column upgrades at `database.py:278-305` are unexecuted. `tests/test_database_prices.py:45-63` starts from the current schema and tests legacy-shaped *upsert input*, not migration from an old database.
 
-- Evidence: `stock_expert/services.py:965-990` reuses an existing review run but still unconditionally calls `replace_candidate_outcomes`. `tests/test_services.py:410-428` asserts only that weights/review rows are not reinserted; `tests/test_services.py:430-458` tests only first-write outcome persistence.
-- Impact: rerunning an old review after ranking logic or source snapshots change can silently rewrite historical diagnostic evidence while retaining the original review ID.
-- Suggested fix: Add an integration test that persists a review, changes recomputed candidates, reruns the same date, and asserts candidate outcomes remain byte-for-byte unchanged. Gate outcome persistence to first review creation or version diagnostic methodology explicitly.
+**Impact:** A schema upgrade can drop or misassociate stocks, signals, picks, snapshots, review results, or candidate evidence in the user's durable SQLite database without a failing test.
 
-### P1: No failure-injection test protects review persistence atomicity
+**Suggested fix/tests:** Build minimal pre-migration SQLite fixtures for each supported legacy schema. Run `init_db` twice and assert row-for-row preservation, correct snapshot ownership, enrichment defaults, `selection_bucket`, review metadata, duplicate resolution (including child rows), foreign-key integrity, indexes, and idempotency. Include a forced-failure case proving migration rollback.
 
-- Evidence: `stock_expert/services.py:967-990` writes weights, review rows, and candidate outcomes through separate transactions (`stock_expert/database.py:378-392`, `601-653`, `503-545`). Existing tests mock successful calls but never raise between them.
-- Impact: a failure after weight insertion can leave strategy weights advanced without a matching review; a later failure can leave a review without diagnostics.
-- Suggested fix: Add SQLite integration tests that inject failures after each write boundary and assert rollback/no partial state. Implement one transaction-scoped persistence operation for the review unit of work.
+## P2 — The >=90% quality gate is documented but not executable or enforced
 
-### P1: Daily CSV import has no partial-write rollback test
+**Evidence:** `docs/tasks/current.md:27` requires >=90%, but `pyproject.toml` defines no test/coverage command and there is no CI workflow or checked-in trace reporter. Coverage currently passes, but `database.py` has only 0.44 percentage points of per-module headroom.
 
-- Evidence: `stock_expert/daily_csv.py:196-204` creates a snapshot run, writes market snapshots, then writes prices in separate transactions. `tests/test_daily_csv.py:68-185` covers successful, malformed, unmapped, and column-migration cases only.
-- Impact: a price-write failure can leave the newest snapshot selected with incomplete data, causing empty signals/picks or inconsistent summaries.
-- Suggested fix: Inject failures into each persistence step and assert no latest partial snapshot remains. Persist snapshot metadata, market snapshots, and prices in one transaction.
+**Impact:** New untested production code can merge while the documented done criterion silently becomes false; rounded `trace --summary` output can also obscure a near-threshold regression.
 
-## P2 Findings
+**Suggested fix/tests:** Add a standard-library coverage script that runs discovery under `trace`, counts exact executable/hit lines for `stock_expert/*.py`, and exits nonzero if weighted or per-module coverage falls below the agreed threshold. Test the reporter itself and run it in the normal verification workflow.
 
-### P2: Yahoo secondary ingestion is effectively untested
+## P2 — Routine tests verify labels and mocked routing, not a real end-to-end persisted workflow
 
-- Evidence: `stock_expert/yahoo.py:29-280` contains symbol normalization, response parsing, retries, XLSX parsing, CSV output, and SQLite import. No test imports or patches `stock_expert.yahoo`.
-- Impact: API shape changes, retry off-by-one errors, malformed workbooks, and DB import regressions can ship unnoticed.
-- Suggested fix: Add mocked tests for null OHLCV rows, HTTP 429/`Retry-After`, transient retry exhaustion, malformed Yahoo payloads, minimal XLSX parsing, date filtering, and optional DB import.
+**Evidence:** `tests/test_cli.py:158-230` mocks import, summaries, picks, review, and diagnostics. Persistence tests cover lower-level bundles, but no test invokes a routine against four CSV fixtures and a temporary database, then verifies snapshot, picks, review, weights, candidate outcomes, idempotent rerun, and dry-run boundaries together.
 
-## Residual Risks / Test Gaps
+**Impact:** Cross-layer ordering/date/snapshot regressions can pass unit tests even though the operator's primary command fails or writes inconsistent state.
 
-- No concurrency test verifies single review creation; `review_runs` has no uniqueness constraint for `(as_of_date, review_date)`.
-- CLI tests cover only `routine` and `midday-routine`; direct command routing and invalid-date/error exits are untested.
-- Breadth tests cover `<0.2` and exactly `0.2`, but not exactly `0.3`, empty universes, or custom pick caps.
+**Suggested fix/tests:** Add one compact CLI/service integration fixture with mapped equities and two trading dates. Exercise `routine` and `midday-routine`; assert output sections plus exact database effects, rerun idempotency, latest-snapshot selection, holiday routing, and that midday review adds no review/weight/outcome rows.
 
-## Summary
+## Areas adequately covered
 
-The suite is green, but recent persistence and diagnostic features lack rollback and rerun-integrity coverage. The holiday-folder mismatch is directly reproducible and should be addressed first.
+- Atomic daily snapshot rollback and review-bundle rollback/idempotency.
+- Latest-snapshot reads, historical weight cutoff, and candidate date filtering in isolation.
+- Ranking/enrichment bounds, breadth/adaptive exposure behavior, attribution, and 4% win threshold.
+- Yahoo normalization/parsing/retry/export/import paths and CLI argument routing.
+- Shared holiday routing and documentation-stop hook behavior.

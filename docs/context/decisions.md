@@ -19,7 +19,8 @@
 - Bucket-composed picks remain available for dry-run/reporting comparison: 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`.
 - Persisted and comparison picks include `selection_bucket` so later reviews can evaluate selection behavior.
 - Review win rate now requires at least 4% return; smaller positive returns count as losses.
-- Market holidays are exact confirmed closed dates, not recurring month/day rules; religious holidays shift each year.
+- Variable-date market holidays remain exact confirmed closed dates; stable annual closures may use recurring month/day rules.
+- July 15, Democracy and National Unity Day, is modeled as a recurring annual BIST closure.
 - The 2026 holiday-week routing treats 2026-05-26 as a half-holiday/low-liquidity context, skips 2026-05-27 through 2026-05-29, and leaves 2026-06-01 open.
 - Daily CSV imports skip unmapped company names instead of fabricating ticker symbols from company-name prefixes.
 - Daily CSV `open_price` stores a previous-close reference derived from daily percentage change; outputs label this as previous-close-to-latest price basis instead of true intraday open-to-close.

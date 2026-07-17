@@ -1,98 +1,59 @@
 # Architecture Review
 
-Scope: entire repository plus `git diff HEAD~5..HEAD`, focused on module boundaries, persistence contracts, coupling, idempotency, data flow, migrations, maintainability, and documented decisions.
+## Scope
+
+Reviewed repository guidance, architecture/decision/feature docs, all production modules, tests, the local routine plugin, `git status`, recent history, and the integrity-focused changes in `48dd62a`. Ran all 93 unit tests successfully.
 
 ## Findings
 
-### P1 - A failed CSV import can publish a partial snapshot as the latest snapshot
+### P1 — Yahoo imports mutate published daily snapshots
 
-**Evidence:** `stock_expert/daily_csv.py:196-204` creates and commits `snapshot_runs` first, then writes `market_snapshots` and `stocks` through two more independently committed database calls. `stock_expert/database.py:264-290` treats the highest run id as the latest snapshot without any completion state.
+Evidence: `stock_expert/yahoo.py:187-190` and `:265-266` send five-field rows to `upsert_prices`. `stock_expert/database.py:395-423` resolves those rows to the latest existing snapshot for each date without considering `source_label`; `:436-445` then updates conflicting stock rows in place.
 
-**Impact:** If either row write fails, the committed run remains the newest snapshot for that date. All date-based reads can then select an empty or half-populated snapshot, causing missing picks, mismatched price/snapshot context, or replacement of valid persisted picks with an empty set.
+Impact: if a `daily_csv` snapshot already exists, an optional Yahoo import can overwrite its price basis after publication while leaving its `market_snapshots` rows unchanged. Picks, review returns, and historical evidence can therefore change without a new snapshot run, contradicting the documented atomic/immutable snapshot model.
 
-**Reasoning:** A snapshot is the project's main operating input and must be an atomic publication unit. The current API exposes the run before its dependent rows are durable.
+Suggested fix: make every ingestion publish a source-owned `snapshot_run` and immutable child rows. Require an explicit snapshot id in the low-level writer; remove the legacy “find latest snapshot of any source” behavior. Define whether Yahoo history is a separate dataset/read model or a selectable snapshot source.
 
-**Suggested fix:** Add one database operation that inserts `snapshot_runs`, `market_snapshots`, and `stocks` on the same connection and transaction. Alternatively add a `status` column (`loading`/`complete`) and make all latest-snapshot queries select only `complete`, setting it only after both row sets succeed. Add fault-injection tests for failure before each write.
+### P1 — Idempotent review persistence is not idempotent review output
 
-### P1 - Historical ranking and review-weight calculations use future state
+Evidence: `stock_expert/services.py:1015-1126` recomputes picks, results, attribution, movers, and weights from current “latest” snapshots before attempting the idempotent insert. On conflict only weights are reloaded (`:1127-1133`). `get_review_run` returns only id and weights (`stock_expert/database.py:679-691`), while the response continues to emit recomputed data (`stock_expert/services.py:1135-1173`).
 
-**Evidence:** `_ranked_candidate_rows()` requests the globally latest weights regardless of its `as_of` argument (`stock_expert/services.py:252-264`; `stock_expert/database.py:455-464`). Historical review recomputation calls this path for `signal_date` (`stock_expert/services.py:894-907`). Rolling review weights also load the latest weight and the latest 19 review runs without filtering to rows before the requested review date (`stock_expert/services.py:947-955`; `stock_expert/database.py:584-597`).
+Impact: rerunning a persisted review after a new same-date import or strategy-code change can display performance and attribution that disagree with the immutable `review_runs`, `review_pick_results`, and `candidate_outcomes` rows. It can even report `no_prior_picks` although a review already exists.
 
-**Impact:** Re-running an older review after later sessions exist can rank candidates with later weights and calculate its adjustment from future review outcomes. This makes historical diagnostics non-reproducible and violates the documented decisions "No future data leakage" and "Only use data available at decision time" (`docs/context/decisions.md:6-7`).
+Suggested fix: check for an existing review first. For a persisted rerun, hydrate the complete response from review-owned tables and recorded snapshot/version metadata. Keep current-strategy recomputation behind an explicit dry-run/comparison path.
 
-**Reasoning:** Date-parameterized workflows need date-bounded dependencies. A global "latest" query is only valid for today's forward run, not historical recomputation.
+### P1 — Upgrade migration does not establish the declared candidate ownership
 
-**Suggested fix:** Replace `get_latest_weights()` in date-scoped flows with `get_weights_as_of(date)` using `WHERE date <= ?`. Add `before_review_date` to `get_recent_review_runs()` and filter `review_date < ?`. Persist or pass the exact weight version used by the signal snapshot. Add tests that insert later weights/reviews and prove an older review output is unchanged.
+Evidence: fresh schema declares `candidate_outcomes.review_run_id NOT NULL` with a foreign key (`stock_expert/database.py:118-137`), but upgrades only execute `ALTER TABLE ... ADD COLUMN review_run_id INTEGER` (`:278-286`). Existing outcomes are neither backfilled nor table-rebuilt, and duplicate review cleanup removes only pick results and review runs (`:288-305`).
 
-### P1 - Idempotent review reruns overwrite historical candidate evidence with current logic
+Impact: upgraded production databases retain nullable, unowned candidate evidence and no actual foreign-key constraint on that column. This diverges from fresh installs and from the documented review-owned immutable evidence model.
 
-**Evidence:** Even when an existing review is found and reused, `review_output()` always recomputes bucketed/ranked candidates and calls `replace_candidate_outcomes()` (`stock_expert/services.py:965-991`). That function deletes the prior rows and inserts replacements (`stock_expert/database.py:503-545`). The table key contains only dates and ticker, with no `review_run_id`, `signal_snapshot_id`, or strategy/version identity (`stock_expert/database.py:114-131`).
+Suggested fix: implement a transactional, versioned table-rebuild migration: map legacy outcomes to the retained review run, validate orphan/duplicate policy, copy into the canonical NOT NULL/FK table, swap tables, and assert `PRAGMA foreign_key_check` plus schema shape in migration tests.
 
-**Impact:** A rerun after a newer same-day snapshot, weight change, or ranking-code change silently rewrites the rolling evidence used to justify strategy cutoffs. The persisted review result stays fixed while its supporting candidate population changes, so the review is only partially idempotent.
+### P2 — Snapshot ownership is not database-enforced
 
-**Reasoning:** Analytical evidence intended for longitudinal decisions must be anchored to the immutable decision context that produced it.
+Evidence: `stocks`, `signals`, `picks`, and `market_snapshots` declare `snapshot_id` but no foreign key to `snapshot_runs` (`stock_expert/database.py:22-86`). Only review child tables declare ownership FKs (`:106-137`).
 
-**Suggested fix:** Persist candidate outcomes only when creating the review run, in the same transaction. Add `review_run_id`, `signal_snapshot_id`, weight/version fields, and a strategy version/hash. On ordinary reruns, read the existing rows. If backfills are needed, write a new version rather than replacing evidence in place. Extend `tests/test_services.py:410-458` to assert candidate rows are unchanged on rerun.
+Impact: low-level calls can create orphan rows or associate rows with a snapshot of the wrong date/source. Application conventions carry an integrity rule central to nearly every read path.
 
-### P1 - Review persistence is not an atomic or database-enforced idempotent operation
+Suggested fix: rebuild child tables with `FOREIGN KEY (snapshot_id) REFERENCES snapshot_runs(id)` and suitable delete semantics; validate row date equals the parent snapshot date in the repository layer or remove redundant child dates.
 
-**Evidence:** `review_output()` writes weights, the review run/results, and candidate outcomes through three separate database transactions (`stock_expert/services.py:965-991`). `review_runs` has no unique constraint on `(as_of_date, review_date)` (`stock_expert/database.py:89-100`), so idempotency relies on a non-atomic check followed by insert.
+### P2 — Ranking cache identity is underspecified
 
-**Impact:** A failure after `insert_weights()` can change future rankings without recording the review that caused it. A failure before candidate outcomes leaves an incomplete review bundle. Concurrent invocations can both pass `get_review_run()` and create duplicate review runs.
+Evidence: `RankingContext` caches only by `date` (`stock_expert/services.py:46-48`, `:262-272`), although ranking depends on database path, latest snapshot id, settings thresholds, and effective weights.
 
-**Reasoning:** The review run, pick results, resulting weights, and candidate outcomes form one domain transaction.
+Impact: reuse across settings/databases or after a same-day import silently returns stale/wrong rankings. The CLI currently scopes it safely, but the service API does not encode that invariant.
 
-**Suggested fix:** Introduce `persist_review_bundle()` that uses one connection and transaction, add `UNIQUE(as_of_date, review_date)`, and use `INSERT ... ON CONFLICT` or handle the uniqueness error by loading the existing run. Include rollback and concurrent-idempotency tests.
+Suggested fix: key cache entries by immutable ranking inputs (database identity, snapshot id, weight date/version, settings fingerprint), or make the context a routine object bound to one settings instance and captured snapshot set.
 
-### P2 - Persistence relationships are mostly unenforced and under-documented
+## Reviewed With No Architecture Finding
 
-**Evidence:** `stocks`, `signals`, `picks`, and `market_snapshots` carry `snapshot_id` but declare no foreign key to `snapshot_runs` (`stock_expert/database.py:14-87`). The only declared foreign key is `review_pick_results.review_run_id`, while connections do not enable SQLite foreign-key enforcement (`stock_expert/database.py:102-144`). `candidate_outcomes` is linked only by duplicated date strings. The architecture document still lists only six tables and omits `review_runs`, `review_pick_results`, and `candidate_outcomes` (`docs/context/architecture.md:14-18`).
+- Daily CSV run + market/price publication is one transaction and rollback behavior is tested.
+- Review run, weights, pick results, and new candidate outcomes commit atomically.
+- Shared trading-calendar routing replaced duplicated weekday logic cleanly.
+- Branch-aware database isolation and the routine-scoped cache fit the documented operator workflow.
+- CLI/plugin command routing remains thin and delegates business work to package services.
 
-**Impact:** Cleanup or manual repair can leave orphan rows, and maintainers cannot infer lifecycle/ownership rules from either schema enforcement or architecture documentation.
+## P0
 
-**Reasoning:** Snapshot and review ownership are core persistence boundaries, not optional metadata.
-
-**Suggested fix:** Enable `PRAGMA foreign_keys = ON`, migrate snapshot-owned tables to reference `snapshot_runs(id)`, link candidate outcomes to `review_runs`, and define deliberate cascade/restrict behavior. Update the architecture persistence inventory and lifecycle description.
-
-### P2 - Detached or unrecognized git state falls back to the main database
-
-**Evidence:** `_default_db_path()` maps an empty branch name to `data/stock_expert.db` (`stock_expert/config.py:49-64`). `git branch --show-current` returns an empty string in detached HEAD state, and command failure is also converted to an empty string. This is the same path reserved for `main`, despite the documented isolation goal (`memory.md:46`; `docs/context/decisions.md:31`).
-
-**Impact:** Running commands from a detached worktree, exported source tree, or environment where git lookup fails can silently read and mutate the primary database. This defeats the branch-isolation safeguard precisely when repository identity is uncertain.
-
-**Reasoning:** Unknown execution context should fail closed or choose an isolated database, not assume stable `main`.
-
-**Suggested fix:** Resolve `main` only when the branch name is explicitly `main`. For empty/error states, use a deterministic isolated filename such as `stock_expert_detached_<short-sha>.db`, require `STOCK_EXPERT_DB_PATH`, or abort mutating commands with a clear message. Add unit tests for main, feature branch, detached HEAD, git failure, and environment override.
-
-### P2 - Trading-session policy is duplicated across modules and already disagrees
-
-**Evidence:** The canonical service helpers skip weekends and `USER_CONFIRMED_MARKET_HOLIDAYS` (`stock_expert/services.py:44-52`, `stock_expert/services.py:117-128`). The CSV-folder adapter defines a separate `_previous_weekday()` that skips only weekends and uses it to assign the imported snapshot date (`stock_expert/daily_csv.py:225-242`). For a folder labeled `20260601`, the adapter derives `2026-05-29`, while the service policy correctly derives `2026-05-26` because May 27-29 are closed.
-
-**Impact:** The legacy/manual folder command can persist a snapshot under a closed exchange date. Subsequent picks and reviews then disagree about which session the data represents, undermining snapshot ownership and the documented exact-holiday decision.
-
-**Reasoning:** Trading-session calculation is a domain policy and should have one owner. Keeping a private approximation in an input adapter guarantees drift whenever the holiday calendar changes.
-
-**Suggested fix:** Move trading-session helpers and the exact-date calendar into a dependency-neutral module such as `stock_expert/trading_calendar.py`, and make both services and import adapters use it. Add folder-import tests for weekends and the May 27-29, 2026 closure window.
-
-## Residual Risks And Test Gaps
-
-- No test simulates import failure between run creation and dependent row writes.
-- No test proves historical reviews exclude later weights, snapshots, or review sessions.
-- No test verifies candidate outcomes remain immutable on an idempotent rerun.
-- No test covers concurrent review execution or transaction rollback.
-- Migration coverage does not validate review/candidate constraints or foreign-key behavior.
-- No config test covers detached HEAD or git-command failure database selection.
-- No folder-import test verifies that snapshot-date derivation shares the holiday-aware trading calendar.
-
-## Verification
-
-- `D:\miniconda3\python.exe -m unittest discover -s tests -v`
-- Result: 56 tests passed.
-
-## Summary
-
-No P0 findings. Four P1 findings affect snapshot publication, temporal correctness, evidence immutability, and review transaction integrity. Three P2 findings cover unenforced persistence ownership, architecture-document drift, unsafe fallback database selection, and duplicated trading-calendar policy.
-
-Paths changed:
-
-- `reviews/architecture-reviewer.md`
+No P0 architecture findings.

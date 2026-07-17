@@ -1,134 +1,106 @@
 # Parallel Code Review Summary
 
-Scope: full repository and `git diff HEAD~5..HEAD`, reviewed independently for security, architecture, test coverage, performance, and business logic.
+## Review status
 
-Verification: all 56 unit tests passed. Reviewers used isolated temporary databases and did not modify live data or production code.
+Five specialist reviews completed: security, architecture, test coverage, performance, and business logic. Reviewers inspected the full codebase and recent Git changes. The test reviewer independently verified **93/93 tests pass** and **94.18% weighted production trace coverage**. No P0 issue was found.
 
-Synthesis method: duplicate findings were merged by root cause, severity was normalized by user/data-integrity impact, and cited locations were checked against the current working tree.
+## P0 — Critical
 
-## P0
+None.
 
-No P0 findings.
+## P1 — High priority
 
-## P1
+### 1. Preserve immutable snapshot and review evidence
 
-### 1. Make daily CSV snapshot publication validated and atomic
+Yahoo imports can overwrite rows in an already-published daily snapshot (`stock_expert/yahoo.py:187-190,265-266`; `stock_expert/database.py:395-445`). Persisted review reruns also recompute results from current latest snapshots while reusing the old review identity (`stock_expert/services.py:1015-1173`). Together these can make historical output disagree with stored audit evidence.
 
-Malformed non-finite values can fail after `snapshot_runs` is committed, leaving an empty run as the latest snapshot. The same multi-transaction design permits other partial imports.
+**Actionable agent prompt:**
 
-References: `stock_expert/daily_csv.py:52-76`, `stock_expert/daily_csv.py:196-204`, `stock_expert/database.py:264-290`.
+> Refactor ingestion so every source publishes a source-owned immutable `snapshot_run`; require explicit snapshot ownership in low-level writers and remove cross-source latest-snapshot mutation. For non-dry-run reviews, detect an existing review before recomputation and hydrate the complete response from review-owned rows and persisted snapshot/version metadata. Keep live recomputation in an explicitly labeled dry-run/comparison path. Add regression tests proving Yahoo imports cannot mutate daily CSV snapshots and persisted review reruns remain stable after newer same-date imports or strategy changes. Update architecture, persistence, and feature docs.
 
-**Actionable agent prompt**
+### 2. Repair and test legacy SQLite ownership migrations
 
-> Validate every imported numeric field with `math.isfinite` and appropriate domain constraints. Add one transaction-scoped database API that creates the snapshot run and inserts market/price rows atomically. Ensure failed imports leave the previous latest snapshot active. Add fault-injection and `NaN`/`INF` regression tests.
+Upgrades add nullable `candidate_outcomes.review_run_id` without backfill or an actual foreign key, diverging from the fresh schema (`stock_expert/database.py:118-137,278-305`). Destructive legacy migrations are largely unexecuted by tests.
 
-### 2. Preserve point-in-time historical review evidence
+**Actionable agent prompt:**
 
-Historical ranking uses globally latest weights, rolling calculations can include later reviews, and reruns replace candidate outcomes. Old evidence can therefore change after future data or code changes.
+> Implement a transactional, versioned table-rebuild migration for `candidate_outcomes`: map legacy rows to retained review runs, define orphan/duplicate handling, enforce `NOT NULL` and the foreign key, and validate with `PRAGMA foreign_key_check`. Add pre-migration SQLite fixtures for every supported legacy shape; run `init_db` twice and assert preservation, ownership, indexes, idempotency, duplicate cleanup, and rollback on forced failure. Update schema/decision docs.
 
-References: `stock_expert/services.py:252-264`, `stock_expert/services.py:894-991`, `stock_expert/database.py:455-545`, `stock_expert/database.py:584-597`.
+### 3. Complete the authoritative BIST trading calendar
 
-**Actionable agent prompt**
+The hard-coded calendar omits confirmed full-day closures, including 2026-04-23 and the imminent 2026-07-15 (`stock_expert/trading_calendar.py:6-18`). This can route picks, imports, and reviews to non-trading dates.
 
-> Add date-bounded weight and review queries, persist the signal snapshot, weight version, and strategy version used by each review, and never replace candidate outcomes for an existing review. Add tests that insert later weights/reviews/snapshots and prove an older review remains byte-for-byte stable.
+**Actionable agent prompt:**
 
-### 3. Persist each review as one idempotent transaction
+> Replace the partial closure list with a versioned authoritative annual BIST calendar supporting full closures and half-days. Add 2026-04-23 and 2026-07-15 immediately, define routine behavior on closed dates, and add forward/backward boundary tests for every 2026 closure across services and dated-folder routing. Document the calendar source and annual update workflow.
 
-Weights, review rows, results, and candidate outcomes are written in separate transactions, while `review_runs` lacks a database uniqueness constraint.
+### 4. Remove hot-path database initialization and connection churn
 
-References: `stock_expert/services.py:965-991`, `stock_expert/database.py:89-131`, `stock_expert/database.py:503-653`.
+A full diagnostic flow triggered 40 `init_db` calls and 61 query connections even with initialization bypassed; getters repeatedly initialize and open nested connections (`stock_expert/database.py:160-166` and getter paths).
 
-**Actionable agent prompt**
+**Actionable agent prompt:**
 
-> Implement `persist_review_bundle()` using one SQLite transaction. Add `UNIQUE(as_of_date, review_date)`, link outcomes to `review_run_id`, and handle conflicts by loading the existing bundle. Add rollback tests at every write boundary and a concurrent idempotency test.
+> Move initialization/migration to one CLI startup boundary and make getters migration-free. Introduce a request-scoped repository/data context that shares a connection and caches snapshot IDs, prices, market snapshots, weights, candidate outcomes, and adaptive exposure. Add instrumentation tests that cap initialization and query counts for the full routine while preserving atomic writes and branch-specific DB selection. Update architecture docs.
 
-### 4. Unify holiday-aware trading-session routing
+### 5. Honor Yahoo historical import end dates
 
-The dated-folder importer skips weekends only. For `20260601` it stores `2026-05-29`, although the correct prior BIST session is `2026-05-26`.
+Yahoo fetching always requests through now, then discards rows after the requested end date (`stock_expert/yahoo.py:36-44,225-240`). Closed historical ranges therefore over-fetch potentially years of data.
 
-References: `stock_expert/daily_csv.py:225-244`, `stock_expert/services.py:44-52`, `stock_expert/services.py:117-128`.
+**Actionable agent prompt:**
 
-**Actionable agent prompt**
+> Change the Yahoo fetch API to accept explicit start/end epochs with only a small documented boundary buffer. Pass the requested interval from both import commands and add request-construction tests proving a past one-month import fetches only that interval. Preserve retry/backoff and timezone boundary correctness.
 
-> Move trading-session calculations and exact closures into a dependency-neutral calendar module used by services and import adapters. Add folder-import tests for weekends, May 1, 2026, and the May 27-29, 2026 closure window, including `20260601 -> 2026-05-26`.
+### 6. Add real point-in-time adaptive-policy integration coverage
 
-### 5. Compare selection strategies at equal exposure
+Current service tests mock candidate outcomes and can inject future-dated rows, so they do not verify the storage/service anti-leakage boundary (`stock_expert/services.py:406-437`; `tests/test_services.py:606-630,864-898`).
 
-Breadth caps reduce score-ranked picks to two or three names, while bucketed diagnostics still use five, confounding selection quality with exposure.
+**Actionable agent prompt:**
 
-References: `stock_expert/services.py:345-393`, `stock_expert/services.py:496-506`, `stock_expert/services.py:714-740`.
+> Add temporary-SQLite integration tests with favorable pre-signal and contradictory post-signal outcomes, then call real `generate_picks`, `picks_output`, and `review_output` paths. Prove post-boundary evidence cannot change historical exposure and assert each service passes the intended `before_review_date`. Avoid mocks at the repository boundary.
 
-**Actionable agent prompt**
+## P2 — Medium priority
 
-> Compute one effective signal-date pick cap and pass it to both score-ranked and bucketed selection. Report policy-count and equal-count comparisons separately if both are needed. Add weak-breadth tests proving the compared baskets use the intended exposure.
+### Data integrity and business behavior
 
-### 6. Eliminate repeated ranking work in `routine`
+- Enforce snapshot ownership with foreign keys on `stocks`, `signals`, `picks`, and `market_snapshots`; validate parent date/source consistency.
+- Require a documented minimum of complete, common sessions before adaptive top-3 selection; add coverage and effect-size/stability thresholds.
+- Split missed-mover attribution into decisive cutoff reason and non-decisive context flags instead of overwriting breadth exclusion with setup penalty.
+- Report companion-CSV join losses by source and warn/fail below a configured universe-retention threshold.
+- Key `RankingContext` by database, snapshot, settings, and weight identity, or bind it explicitly to one immutable routine context.
 
-The same signal-date ranking is rebuilt up to eight times, repeatedly loading history, snapshots, prices, and weights.
+**Actionable agent prompt:**
 
-References: `stock_expert/cli.py:192-207`, `stock_expert/services.py:138-160`, `stock_expert/services.py:252-333`, `stock_expert/services.py:719-727`, `stock_expert/services.py:894-985`.
+> Harden strategy and snapshot integrity: add snapshot-owner foreign keys via safe migrations; require complete common-session evidence and stability thresholds for adaptive exposure; make attribution fields non-overwriting; expose companion-file join retention; and make ranking cache identity include all immutable inputs. Add focused migration, sparse-evidence, attribution, join-loss, and stale-cache tests, then update feature/architecture docs.
 
-**Actionable agent prompt**
+### Security and ingestion resilience
 
-> Introduce a request-scoped ranking context computed once per signal date and reused by daily output, picks, persisted review attribution, comparisons, and diagnostics. Preserve standalone command behavior. Add a routine-level call-count regression test and latency benchmark.
+- Restrict `--output` to an approved directory, prevent traversal/symlink clobbering, require `.csv`, and write atomically.
+- Bound CSV/XLSX/HTTP sizes, rows, fields, decompression ratios, and ticker counts.
+- Apply one strict BIST ticker validator to direct CLI and workbook input; reject control characters and malformed identifiers.
+- Pin/bound the build dependency and use hash-locked release/CI constraints.
 
-### 7. Remove per-row SQLite initialization from Yahoo imports
+**Actionable agent prompt:**
 
-A 500-ticker by 30-day import performs 15,000 snapshot lookups, each reopening SQLite and running schema initialization/migration checks.
+> Harden all ingestion boundaries: resolve and contain output paths, reject symlink/reparse escapes, use atomic replacement, enforce resource limits before allocation/decompression, centralize ticker validation, and make build dependencies reproducible. Add traversal, absolute-path, symlink, overwrite, zip-bomb/oversize, ANSI/newline, Unicode, and dependency-verification tests. Document operational limits.
 
-References: `stock_expert/database.py:147-152`, `stock_expert/database.py:264-321`, `stock_expert/yahoo.py:141-190`, `stock_expert/yahoo.py:221-266`.
+### Performance and verification
 
-**Actionable agent prompt**
+- Cache adaptive outcomes/exposure within one routine; current flow reloads them about seven times.
+- Stream/batch Yahoo rows instead of retaining duplicate CSV and DB result sets; keep any concurrency small and backoff-aware.
+- Add an index supporting `review_runs(review_date DESC)` and verify the query plan.
+- Add an executable standard-library trace gate for the documented >=90% target.
+- Add one compact persisted end-to-end test for `routine` and `midday-routine`, including rerun idempotency and dry-run boundaries.
 
-> Resolve or create snapshot IDs once per distinct date using one connection and transaction, map rows in memory, and bulk upsert them. Move schema initialization to application startup. Add a test asserting snapshot lookup count scales with distinct dates, not OHLCV rows.
+**Actionable agent prompt:**
 
-## P2
+> Optimize and enforce the operator workflow: cache adaptive diagnostics per routine, stream/batch Yahoo imports, add and query-plan-test the review-date index, create a precise standard-library trace gate, and add a temporary-database end-to-end routine fixture covering snapshot, picks, review, weights, outcomes, reruns, holidays, and midday non-mutation. Update testing and performance documentation.
 
-### Persistence and operational safety
+## Recommended execution order
 
-- Add foreign keys and deliberate cascade/restrict behavior for snapshot/review ownership.
-- Fail closed or use an isolated database for detached HEAD and git lookup failures.
-- Add indexes for latest snapshot, review lookup, and candidate diagnostic access paths.
-
-**Actionable agent prompt**
-
-> Add migrations for foreign keys, review ownership, and indexes on `snapshot_runs(snapshot_date, id DESC)`, `review_runs(as_of_date, review_date, id DESC)`, and `candidate_outcomes(review_date DESC, candidate_rank)`. Enable `PRAGMA foreign_keys = ON`, test orphan rejection/query plans, and make unknown git state select an isolated database.
-
-### Input and resource hardening
-
-- CLI path arguments can escape intended roots.
-- CSV, XLSX, and Yahoo responses are parsed without practical size bounds.
-- Yahoo downloads retain duplicate full-size row collections.
-
-**Actionable agent prompt**
-
-> Centralize root-contained path resolution; reject absolute paths, traversal, and junction escapes. Stream CSV/download output, cap HTTP and archive-member sizes/compression ratios, and batch database writes. Add traversal, oversized payload, archive-bomb, and bounded-memory tests.
-
-### Operator-facing business semantics
-
-- Miss attribution uses the default five-pick cutoff instead of the active breadth cap.
-- Half-holiday context receives political-shock penalties and wording.
-
-**Actionable agent prompt**
-
-> Pass the effective breadth cap into attribution and emit `excluded_by_breadth_cap` where appropriate. Replace generic context-note handling with typed policy metadata so half-holiday liquidity policy is distinct from political-shock policy. Add focused tests for both cases.
-
-### Coverage gaps
-
-- Yahoo ingestion has no direct tests.
-- Direct CLI command routing and invalid-date exits are lightly covered.
-- No performance budget or representative large-history query-plan test exists.
-
-**Actionable agent prompt**
-
-> Add mocked Yahoo parser/retry/import tests, direct CLI error-path tests, breadth boundary cases, and representative performance/query-plan checks. Keep tests isolated from live SQLite and network access.
-
-## Source Reports
-
-- `reviews/security-reviewer.md`
-- `reviews/architecture-reviewer.md`
-- `reviews/test-coverage-reviewer.md`
-- `reviews/performance-reviewer.md`
-- `reviews/business-logic-reviewer.md`
-
-DOCS_NOT_NEEDED: This task produced review artifacts only; production behavior and project documentation were not changed.
+1. Calendar closure hotfix.
+2. Immutable snapshot/review behavior.
+3. Legacy migration repair plus fixture coverage.
+4. Database lifecycle/context refactor.
+5. Yahoo interval correction.
+6. Point-in-time integration tests.
+7. P2 integrity, security, observability, and performance hardening.

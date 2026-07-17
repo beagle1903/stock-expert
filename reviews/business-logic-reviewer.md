@@ -1,51 +1,50 @@
-# Business Logic Review
+# Business-Logic Review
 
-Scope: entire codebase plus `git diff HEAD~5..HEAD`, with emphasis on BIST session routing, snapshot and review alignment, strategy/exposure semantics, persistence integrity, and operator-facing explanations.
+Scope: full strategy path plus recent commits `48dd62a..9ff2846`. All 93 unit tests pass. No P0 finding.
 
-## P1 Findings
+## P1 — BIST calendar omits confirmed full-day closures
 
-### P1: Dated-folder imports route across exchange holidays as ordinary weekdays
+**Evidence:** `stock_expert/trading_calendar.py:6-14` lists only five closures. `is_trading_session()` at `:17-18` therefore treats other weekday exchange holidays as sessions. In particular, `next_trading_session(2026-07-14)` returns `2026-07-15`, and `previous_trading_session(2026-07-16)` returns `2026-07-15`; Borsa İstanbul's published 2026 Pay Market calendar says 15 July is closed. The same defect exists for 23 April (`2026-04-22 -> 2026-04-23`). These helpers directly drive target dates and reviews (`stock_expert/services.py:133-138, 672-674, 1012-1014`) and dated-folder routing (`stock_expert/daily_csv.py:232-245`). Existing calendar tests only cover the dates already hard-coded (`tests/test_services.py:44-58`).
 
-- Evidence: `stock_expert/daily_csv.py:225-229` implements a separate `_previous_weekday()` that skips weekends only. `stock_expert/daily_csv.py:232-244` uses it to derive the signal snapshot date from a dated target-trade folder.
-- Reproduction: for target folder date `20260601`, the folder helper returns `2026-05-29`, while the canonical holiday-aware `stock_expert/services.py:117-121` returns `2026-05-26`. May 27-29 are explicitly closed in `stock_expert/services.py:44-52`.
-- Impact: importing `data/20260601` labels the snapshot as a closed exchange date. Subsequent picks/reviews can fail to find the real May 26 signal snapshot or evaluate the wrong signal/review pair.
-- Suggested fix: remove the duplicate helper and use one shared trading-calendar function for both services and folder imports. Add a regression test for `20260601 -> 2026-05-26` and other exact holiday boundaries.
+**Business impact:** picks can claim a non-trading target date, the next real session can review the wrong signal date, and dated imports can be assigned to a closed date. The 15 July defect is operationally imminent.
 
-### P1: Rerunning an idempotent review can rewrite historical candidate evidence using future weights
+**Suggested fix:** source a versioned, authoritative annual BIST calendar (including full closures and explicit half-days), add 2026-04-23 and 2026-07-15 immediately, reject/clearly route routine dates that are not sessions, and add boundary tests in both directions for every closure.
 
-- Evidence: ranking uses the globally latest weights without an `as_of` bound at `stock_expert/services.py:252-263` and `stock_expert/database.py:455-471`. Every persisted review, including an existing review, recomputes candidates and unconditionally replaces outcomes at `stock_expert/services.py:906-907`, `stock_expert/services.py:965-990`, and `stock_expert/database.py:503-545`.
-- Impact: after later reviews change weights, rerunning an old review can change historical ranks, bucket membership, and cutoff diagnostics while leaving the original `review_runs` row unchanged. The resulting evidence is not point-in-time reproducible and can create look-ahead contamination in strategy decisions.
-- Suggested fix: persist the exact ranked candidate set and active weights/snapshot identity on first review, then never replace it for an existing review. Alternatively, query weights effective on or before the signal date and bind outcomes to the original signal snapshot. Add a test that inserts later weights, reruns an old review, and asserts byte-for-byte stable outcomes.
+## P1 — Idempotent review storage does not make rerun output immutable
 
-### P1: Score-ranked versus bucketed diagnostics compare different exposure sizes
+**Evidence:** persisted review rows and pick outcomes are stored atomically (`stock_expert/database.py:721-785`), but `review_output()` always recalculates `recent_rows` from the latest signal/target snapshots before checking whether the review already exists (`stock_expert/services.py:1012-1043`). `get_pick_results()` explicitly resolves both dates to their latest snapshot IDs (`stock_expert/database.py:618-643`). On conflict, only weights are restored from the existing run (`stock_expert/services.py:1127-1133`); performance, reviewed picks, misses, and attribution in the returned payload remain newly recomputed (`:1135-1167`). The reuse test checks only run ID/weights (`tests/test_services.py:475-491`).
 
-- Evidence: score-ranked picks apply breadth caps at `stock_expert/services.py:345-365`, reducing exposure to 2 or 3 names. Bucketed picks always default to `settings.default_pick_count` at `stock_expert/services.py:496-506`. Both the live comparison and persisted candidate outcomes compare these unequal baskets at `stock_expert/services.py:714-740` and `stock_expert/services.py:984-990`.
-- Impact: in weak markets, diagnostics attribute performance differences to selection strategy even though score-ranked may hold two names and bucketed five. This is not an apples-to-apples selection comparison and can produce misleading evidence for promoting bucketed selection.
-- Suggested fix: compute the effective breadth cap once for the signal snapshot and pass the same `pick_count` to both strategies. If unequal exposure is intentional, label it explicitly and report both equal-count and policy-count comparisons. Add a weak-breadth comparison test.
+**Business impact:** after another same-day import, rerunning the same review can display different returns/misses under the same immutable `review_run_id`; if a newer signal snapshot lacks picks, it can even report `no_prior_picks` despite an existing review. Operator output and persisted audit evidence can disagree.
 
-## P2 Findings
+**Suggested fix:** at the start of non-dry-run review, load an existing review bundle (run, `review_pick_results`, immutable candidate outcomes and stored snapshot metadata) and render from it. Persist target snapshot ID and missed-mover evidence, or explicitly label non-persisted diagnostics as live/recomputed. Add a test that imports newer signal and target snapshots after the first review and asserts byte-stable persisted performance.
 
-### P2: Miss attribution ignores the active breadth-adjusted cutoff
+## P2 — Adaptive top-3 exposure can activate from incomplete or one-session evidence
 
-- Evidence: `_attribution_for_pick()` labels ranks `<= settings.default_pick_count` as `inside_top_pick_cutoff` at `stock_expert/services.py:790-805`, while actual selection may be capped at two or three names by `stock_expert/services.py:368-393`.
-- Impact: on weak-breadth sessions, ranks 3-5 can be described as inside the cutoff even though exposure policy deliberately excluded them. Operators receive the wrong reason for a miss.
-- Suggested fix: pass the effective signal-date pick cap into attribution and distinguish `excluded_by_breadth_cap` from `below_score_cutoff` and `penalized_by_setup_context`. Test rank 3 under a two-pick cap.
+**Evidence:** cutoff eligibility requires only `candidate count >= number of sessions` (`stock_expert/services.py:496-517`). Thus one session with ranks 1-3 makes `top_3` eligible, and missing outcomes can leave cutoffs based on unequal session/rank coverage. `adaptive_pick_exposure()` then changes persisted exposure whenever top 3 wins the pooled average and top-5 average is negative (`:406-436`). No minimum session count, completeness check, uncertainty threshold, or effect-size threshold exists. Tests demonstrate three sessions but do not enforce that minimum (`tests/test_services.py:603-642, 861-905`).
 
-### P2: Half-holiday context is treated as political-shock policy
+**Business impact:** a sparse/cold database or missing next-session ticker prices can cause a strategy-level exposure change from noisy, non-comparable samples.
 
-- Evidence: all `MARKET_CONTEXT_NOTES` dates trigger `shock_mode_penalty` and political-shock interpretation at `stock_expert/services.py:54-79`; all tagged dates also receive shock penalties at `stock_expert/services.py:86-103`. Therefore isolated `2026-05-26` reports `half_holiday_low_liquidity` but selects `shock_mode_penalty` and political-shock wording.
-- Impact: a liquidity/session-duration condition is conflated with an exogenous shock. Ranking changes and operator explanations do not match the tag's business meaning.
-- Suggested fix: model context tags with explicit policy metadata, applying shock penalties only to shock dates and a separate half-day/liquidity policy to May 26. Add an isolated half-holiday context test.
+**Suggested fix:** require a documented minimum number of complete sessions (for example 10), compute each cutoff's equal-weight return per session and compare only common sessions, require rank coverage through 5, and add stability/effect-size criteria plus explicit `insufficient_evidence` output.
 
-## Residual Risks And Test Gaps
+## P2 — Miss attribution overwrites the actual exclusion reason
 
-- Holiday coverage is a hard-coded 2026 subset; future closures require explicit maintenance and boundary tests.
-- Candidate cutoff recommendations use pooled per-stock returns and only require total row count to match session count; no confidence or per-session completeness guard exists.
-- No integration test proves repeated same-day imports preserve the intended final action snapshot through next-session review.
-- Full suite passed: 56 tests in 3.498 seconds.
+**Evidence:** `_attribution_for_pick()` first assigns `excluded_by_breadth_cap` for ranks between the active and default cutoffs (`stock_expert/services.py:910-914`), then unconditionally overwrites it with `penalized_by_setup_context` whenever setup penalty is nonzero (`:915-916`). Setup penalty may be small and may not be why the candidate missed selection.
 
-## Summary
+**Business impact:** missed-mover diagnostics can falsely claim setup context caused exclusion, obscuring whether breadth/adaptive exposure or rank cutoff was decisive.
 
-No P0 findings. Three P1 issues can corrupt date alignment or strategy evidence; two P2 issues misstate selection rationale/context.
+**Suggested fix:** emit separate fields such as `selection_status`, `cutoff_reason`, and `context_flags`; derive the decisive reason from rank versus the effective cutoff, and keep setup penalty as supporting attribution only.
 
-Paths changed: `reviews/business-logic-reviewer.md`.
+## P2 — Companion-file coverage loss is silent
+
+**Evidence:** rows absent from any of `performans`, `teknik`, or `temel` are silently skipped (`stock_expert/daily_csv.py:146-150`), but the import payload reports only successful `rows_read` plus unmapped/malformed counters (`:214-228`).
+
+**Business impact:** a stale or mismatched companion export can shrink breadth, alter exposure, and remove candidates without an operator-visible warning.
+
+**Suggested fix:** count missing joins by source, report input/unmatched counts and universe-retention ratio, and fail or prominently warn when retention falls below a configured threshold.
+
+## Logic confirmed sound
+
+- Signal-date weights are date-bounded (`stock_expert/database.py:596-615`), and adaptive evidence excludes future review dates (`:647-676`).
+- Daily snapshot publication and review bundles are transactionally atomic (`stock_expert/database.py:333-356, 721-785`).
+- CSV returns are honestly labeled as previous-close-to-latest rather than true open-to-close (`stock_expert/daily_csv.py:158-160, 223`; `stock_expert/services.py:1149-1151`).
+- The 4% win threshold is consistently shared through `MIN_DAILY_WIN_RETURN`.
