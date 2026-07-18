@@ -1,0 +1,168 @@
+from __future__ import annotations
+
+import os
+import subprocess
+import tempfile
+import unittest
+from datetime import date, datetime
+from pathlib import Path
+
+from stock_expert.config import Settings
+from stock_expert.database import connect, init_db
+from stock_expert.web_api import REQUIRED_CSV_FILES, RoutineRequestError, build_routine_preview, execute_routine
+
+
+class RoutineWebApiTests(unittest.TestCase):
+    def setUp(self) -> None:
+        workspace_tmp = Path(".test_tmp")
+        workspace_tmp.mkdir(exist_ok=True)
+        self.temp_dir = tempfile.TemporaryDirectory(dir=workspace_tmp)
+        self.base_dir = Path(self.temp_dir.name)
+        self.data_dir = self.base_dir / "data"
+        self.data_dir.mkdir()
+        self.settings = Settings(
+            base_dir=self.base_dir,
+            data_dir=self.data_dir,
+            db_path=self.data_dir / "test.db",
+        )
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def write_inputs(self, modified: date = date(2026, 7, 14)) -> None:
+        timestamp = datetime(modified.year, modified.month, modified.day, 18, 0).timestamp()
+        for name in REQUIRED_CSV_FILES:
+            path = self.data_dir / name
+            path.write_text("header\nvalue\n", encoding="utf-8")
+            os.utime(path, (timestamp, timestamp))
+
+    def test_preview_resolves_recurring_holiday_to_previous_session(self) -> None:
+        self.write_inputs()
+
+        preview = build_routine_preview(
+            self.settings,
+            "2026-07-15",
+            today=date(2026, 7, 18),
+        )
+
+        self.assertEqual(preview["resolvedSignalDate"], "2026-07-14")
+        self.assertEqual(preview["targetTradeDate"], "2026-07-16")
+        self.assertFalse(preview["requestedWasTradingSession"])
+        self.assertTrue(preview["ready"])
+        self.assertIn("not an open trading session", preview["warnings"][0])
+
+    def test_preview_blocks_missing_and_stale_inputs(self) -> None:
+        self.write_inputs(modified=date(2026, 7, 13))
+        (self.data_dir / "temel.csv").unlink()
+
+        preview = build_routine_preview(
+            self.settings,
+            "2026-07-14",
+            today=date(2026, 7, 18),
+        )
+
+        self.assertFalse(preview["ready"])
+        self.assertEqual(
+            {item["status"] for item in preview["files"]},
+            {"stale", "missing"},
+        )
+        self.assertTrue(any("Missing required input" in issue for issue in preview["blockingIssues"]))
+
+    def test_preview_blocks_future_signal_date(self) -> None:
+        self.write_inputs(modified=date(2026, 7, 20))
+
+        preview = build_routine_preview(
+            self.settings,
+            "2026-07-20",
+            today=date(2026, 7, 18),
+        )
+
+        self.assertFalse(preview["ready"])
+        self.assertIn("Future signal dates cannot be run.", preview["blockingIssues"])
+
+    def test_execute_requires_current_confirmation_token(self) -> None:
+        self.write_inputs()
+        preview = build_routine_preview(
+            self.settings,
+            "2026-07-14",
+            today=date(2026, 7, 18),
+        )
+        (self.data_dir / "fiyat.csv").write_text("changed\ncontent\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(RoutineRequestError, "preview is stale"):
+            execute_routine(
+                self.settings,
+                "2026-07-14",
+                preview["confirmationToken"],
+                True,
+                today=date(2026, 7, 18),
+            )
+
+    def test_execute_reports_persisted_snapshot_and_pick_count(self) -> None:
+        self.write_inputs()
+        preview = build_routine_preview(
+            self.settings,
+            "2026-07-14",
+            today=date(2026, 7, 18),
+        )
+
+        def fake_runner(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            init_db(self.settings)
+            with connect(self.settings) as connection:
+                cursor = connection.execute(
+                    """
+                    INSERT INTO snapshot_runs (snapshot_date, source_label, source_dir)
+                    VALUES ('2026-07-14', 'daily_csv', 'data')
+                    """
+                )
+                snapshot_id = int(cursor.lastrowid)
+                connection.execute(
+                    """
+                    INSERT INTO picks (
+                        snapshot_id, date, ticker, score, kap, momentum, volume,
+                        risk, horizon, selection_bucket
+                    ) VALUES (?, '2026-07-14', 'TEST', 1.0, 0.0, 0.6, 0.4, 'low', 'intraday', 'score_ranked')
+                    """,
+                    (snapshot_id,),
+                )
+            return subprocess.CompletedProcess(args=[], returncode=0, stdout="routine ok", stderr="")
+
+        result = execute_routine(
+            self.settings,
+            "2026-07-14",
+            preview["confirmationToken"],
+            True,
+            today=date(2026, 7, 18),
+            runner=fake_runner,
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["snapshotId"], 1)
+        self.assertEqual(result["pickCount"], 1)
+        self.assertIsNone(result["reviewRunId"])
+        self.assertEqual(result["targetTradeDate"], "2026-07-16")
+
+    def test_execute_reports_process_start_failure(self) -> None:
+        self.write_inputs()
+        preview = build_routine_preview(
+            self.settings,
+            "2026-07-14",
+            today=date(2026, 7, 18),
+        )
+
+        def failing_runner(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            raise OSError("python unavailable")
+
+        with self.assertRaisesRegex(RoutineRequestError, "could not be started"):
+            execute_routine(
+                self.settings,
+                "2026-07-14",
+                preview["confirmationToken"],
+                True,
+                today=date(2026, 7, 18),
+                runner=failing_runner,
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

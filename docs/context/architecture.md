@@ -9,16 +9,19 @@
 - `stock_expert/database.py`: SQLite schema and persistence
 - `stock_expert/models.py`: domain models
 - `stock_expert/config.py`: paths and thresholds
+- `stock_expert/web_api.py`: loopback-only routine preview/execution adapter around the existing CLI
 - `stock_expert/yahoo.py`: Yahoo OHLCV downloader with CSV export and optional SQLite import
 - `.codex/hooks/validate_docs_update.py`: deterministic Codex Stop hook validator for development documentation updates
 - `frontend/`: React/Vite Evidence Console prototype with typed domain mocks
-- `frontend/src/data/dashboardRepository.ts`: frontend data-access seam; currently mock-only and isolated from Python/SQLite
+- `frontend/src/data/dashboardRepository.ts`: sample evidence-panel data adapter
+- `frontend/src/data/routineRepository.ts`: typed HTTP adapter for routine preview/execution
 
 ## Frontend Boundary
 
 - Presentation components consume `DashboardData` instead of importing Python or SQLite concerns.
-- `mockDashboardRepository` is the only active adapter; a future API adapter can replace it without changing strategy logic or persistence semantics.
-- The prototype is read-only decision support. It does not expose order execution, live quotes, portfolios, forecasts, or target prices.
+- Evidence panels still use `mockDashboardRepository` and are explicitly labeled as sample evidence.
+- Data & Runs is the only mutating web surface. Its local API invokes `python -m stock_expert routine` without changing strategy or SQLite semantics.
+- The dashboard does not expose order execution, live quotes, portfolios, forecasts, or target prices.
 
 ## Persistence
 

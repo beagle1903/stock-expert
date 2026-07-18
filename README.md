@@ -2,13 +2,15 @@
 
 ## Frontend Prototype
 
-The approved dark Evidence Console lives in `frontend/`. It uses typed mock data shaped around the current persisted picks/review workflow and does not connect to SQLite yet.
+The approved dark Evidence Console lives in `frontend/`. Its evidence panels use clearly labeled typed sample data, while Data & Runs can execute the real persisted routine through a loopback-only Python API.
 
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
+
+Open `http://127.0.0.1:4173/`, choose **Data & Runs**, review the resolved signal/trade dates and four CSV checks, then confirm the persisted routine. The button remains disabled when an input is missing, empty, or stale.
 
 Python CLI for BIST intraday idea generation and review.
 

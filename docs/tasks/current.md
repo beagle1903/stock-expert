@@ -30,4 +30,6 @@
 
 - Dark Evidence Console implemented under `frontend/` with typed mock data and an explicit future repository boundary.
 - Responsive browser and design QA are recorded in `frontend/design-qa.md`.
-- Live API integration remains deferred; Python strategy and SQLite behavior are unchanged.
+- Live evidence-panel API integration remains deferred; Python strategy and SQLite behavior are unchanged.
+- Data & Runs now has a loopback-only persisted routine launcher with holiday/missed-day routing, CSV readiness checks, confirmation, progress, and result IDs.
+- Evidence panels remain typed sample data and are labeled accordingly; loading live dashboard entities is still deferred.

@@ -12,6 +12,8 @@ The main runtime split is:
 - `stock_expert/config.py` — project paths, branch-aware database selection, and runtime thresholds
 - `stock_expert/trading_calendar.py` — shared holiday/weekend routing
 - `stock_expert/daily_csv.py` and `stock_expert/yahoo.py` — market-data import paths
+- `stock_expert/web_api.py` — loopback-only web adapter for guarded routine preview and execution
+- `frontend/` — dark Evidence Console; Data & Runs uses the web adapter while evidence panels remain labeled sample data
 
 ## Execution flow
 
@@ -35,6 +37,8 @@ The `routine` command is the most complete operator path. It:
 - prints downside-risk diagnostics
 
 `midday-routine` uses the same import and ranking path, but keeps the review step in dry-run mode.
+
+The web routine launcher does not reimplement this flow. After calendar/input confirmation it invokes the same `python -m stock_expert routine --date ...` command, then reads persisted snapshot, pick, and review identifiers for the completion state.
 
 ## Key modules and responsibilities
 

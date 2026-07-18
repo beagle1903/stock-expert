@@ -13,6 +13,7 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { mockDashboardRepository } from "./data/dashboardRepository";
+import { RoutineLauncher } from "./components/RoutineLauncher";
 import type {
   DashboardData,
   Pick,
@@ -82,10 +83,10 @@ function SessionHeader({ data }: { data: DashboardData }) {
         </div>
       </div>
       <div className="snapshot-summary">
-        <strong>Snapshot #{data.snapshot.id}</strong>
+        <strong>Sample snapshot #{data.snapshot.id}</strong>
         <span>Imported {data.snapshot.importedAt} from {data.snapshot.source}</span>
       </div>
-      <p className="disclaimer">Ideas, not execution</p>
+      <p className="disclaimer">Sample evidence · Ideas, not execution</p>
     </header>
   );
 }
@@ -205,10 +206,10 @@ function ReviewPanel({ review, expanded = false }: { review: ReviewSummary; expa
   );
 }
 
-function RunTimeline({ data }: { data: DashboardData }) {
+function RunTimeline({ data, sample = false }: { data: DashboardData; sample?: boolean }) {
   return (
     <section className="panel run-timeline" aria-labelledby="timeline-title">
-      <h2 id="timeline-title"><Clock size={18} aria-hidden="true" /> Run timeline</h2>
+      <h2 id="timeline-title"><Clock size={18} aria-hidden="true" /> {sample ? "Sample run timeline" : "Run timeline"}</h2>
       <ol>
         {data.runSteps.map((step) => (
           <li key={step.id}>
@@ -300,9 +301,10 @@ function RunsView({ data, previewState, onPreviewState }: {
 }) {
   return (
     <div className="runs-view">
+      <RoutineLauncher />
       <section className="panel run-summary-panel">
-        <p className="eyebrow">Persisted data status</p>
-        <h2>Snapshot #{data.snapshot.id}</h2>
+        <p className="eyebrow">Displayed sample evidence</p>
+        <h2>Sample snapshot #{data.snapshot.id}</h2>
         <dl className="compact-list">
           <div><dt>Imported</dt><dd>{data.snapshot.importedAt}</dd></div>
           <div><dt>Source</dt><dd>{data.snapshot.source}</dd></div>
@@ -327,7 +329,7 @@ function RunsView({ data, previewState, onPreviewState }: {
           ))}
         </div>
       </section>
-      <RunTimeline data={data} />
+      <RunTimeline data={data} sample />
     </div>
   );
 }

@@ -60,3 +60,5 @@ A few storage behaviors matter for future changes:
 - The repo expects structured output.
 - `routine` and `midday-routine` should continue to share ranking context when possible.
 - The default DB path differs by branch, which is useful but easy to forget when comparing state across checkouts.
+- The Data & Runs web action binds only to loopback, blocks missing/empty/stale CSV files, and requires a fresh preview token plus explicit confirmation.
+- Filesystem timestamps are only a readiness signal; operators must confirm that the four CSV files contain the selected signal-date data.

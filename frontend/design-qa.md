@@ -1,5 +1,19 @@
 # Design QA
 
+## Routine Launcher Extension
+
+- Source visual truth: `output/playwright/routine-launcher-before.png` at 1440 × 1024, using the existing Data & Runs screen as the component-language target.
+- Browser implementation: `output/playwright/routine-launcher-desktop-v1.png` at 1440 × 1024 in the missing-input state.
+- Combined comparison: `output/playwright/routine-feature-comparison.png`.
+- Success evidence: `output/playwright/routine-launcher-success-desktop.png` and `output/playwright/routine-launcher-success-mobile-result.png`.
+- The extension retains the original near-black surfaces, compact Roboto Condensed hierarchy, square-radius panels, Phosphor icons, indigo actions, and semantic teal/amber/rose states.
+- Full-view comparison shows the launcher establishes the intended primary hierarchy without changing sidebar, header, or supporting-card proportions.
+- Focused form/state review confirms date control, resolved route, four-file readiness, blocking warning, two-step confirmation, disabled/running/success states, and persisted IDs remain readable and aligned.
+- Mobile verification at 390 × 844 has no document-level horizontal overflow; the form, files, messages, result, and actions collapse to one column.
+- Primary interactions tested: weekend resolution, half-holiday policy, missing-input block, ready inputs, confirmation checkbox, real isolated routine execution, success result, retry, and responsive navigation.
+- Browser console: zero app errors and zero warnings.
+- No actionable P0, P1, or P2 findings. The first combined comparison passed without a visual fix iteration.
+
 ## Comparison Target
 
 - Source visual truth: `C:\Users\burha\.codex\generated_images\019f6f60-7ae1-7501-b3d0-faa2dfd143ff\exec-943dd388-774f-47eb-9418-402034840676.png`
