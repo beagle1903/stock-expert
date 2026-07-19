@@ -10,7 +10,7 @@ npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:4173/`, choose **Data & Runs**, review the resolved signal/trade dates and four CSV checks, then confirm the persisted routine. The button remains disabled when an input is missing, empty, or stale.
+Open `http://127.0.0.1:5173/`, choose **Data & Runs**, review the resolved signal/trade dates and four CSV checks, then confirm the persisted routine. The button remains disabled when an input is missing, empty, or stale. In Codex, `/stock-expert:run` starts or reuses the app and opens this URL in the built-in browser.
 
 Python CLI for BIST intraday idea generation and review.
 

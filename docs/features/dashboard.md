@@ -24,3 +24,8 @@ npm run build
 ```
 
 `npm run dev` starts both Vite and the local routine API. Set `STOCK_EXPERT_PYTHON` when the desired Python executable is not on `PATH`; Windows development also recognizes `D:\miniconda3\python.exe`.
+
+The repo-local Codex command `/stock-expert:run` starts or reuses that same
+development pair, verifies the UI on `http://127.0.0.1:5173/` and API health on
+port `8765`, then opens the UI in Codex's built-in browser. Bare `/run` is the
+workspace shorthand.
