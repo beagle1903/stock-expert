@@ -33,4 +33,5 @@
 - Live evidence-panel API integration remains deferred; Python strategy and SQLite behavior are unchanged.
 - Data & Runs now has a loopback-only persisted routine launcher with holiday/missed-day routing, CSV readiness checks, confirmation, progress, and result IDs.
 - The repo-local `/stock-expert:run` command starts or reuses the web app and opens it in Codex's built-in browser.
-- Evidence panels remain typed sample data and are labeled accordingly; loading live dashboard entities is still deferred.
+- Reviews now load the latest persisted review and outcomes from SQLite and refresh after a successful routine; other evidence panels remain typed sample data.
+- Data & Runs no longer includes the UI-only Presentation states preview controls.

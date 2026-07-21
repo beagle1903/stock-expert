@@ -9,7 +9,13 @@ from pathlib import Path
 
 from stock_expert.config import Settings
 from stock_expert.database import connect, init_db
-from stock_expert.web_api import REQUIRED_CSV_FILES, RoutineRequestError, build_routine_preview, execute_routine
+from stock_expert.web_api import (
+    REQUIRED_CSV_FILES,
+    RoutineRequestError,
+    build_routine_preview,
+    execute_routine,
+    load_latest_review,
+)
 
 
 class RoutineWebApiTests(unittest.TestCase):
@@ -35,6 +41,48 @@ class RoutineWebApiTests(unittest.TestCase):
             path = self.data_dir / name
             path.write_text("header\nvalue\n", encoding="utf-8")
             os.utime(path, (timestamp, timestamp))
+
+    def test_latest_review_returns_none_for_empty_database(self) -> None:
+        self.assertIsNone(load_latest_review(self.settings))
+
+    def test_latest_review_returns_newest_persisted_run_and_outcomes(self) -> None:
+        init_db(self.settings)
+        with connect(self.settings) as connection:
+            older_id = connection.execute(
+                """
+                INSERT INTO review_runs (
+                    as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                    momentum_weight, volume_weight
+                ) VALUES ('2026-07-17', '2026-07-20', 0.01, 0.2, 5, 1, 0.6, 0.4)
+                """
+            ).lastrowid
+            latest_id = connection.execute(
+                """
+                INSERT INTO review_runs (
+                    as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                    momentum_weight, volume_weight
+                ) VALUES ('2026-07-14', '2026-07-16', -0.02, 0.0, 2, 0, 0.6, 0.4)
+                """
+            ).lastrowid
+            connection.executemany(
+                """
+                INSERT INTO review_pick_results (
+                    review_run_id, ticker, score, open_price, close_price, return_pct, won
+                ) VALUES (?, ?, ?, 10.0, 9.8, ?, 0)
+                """,
+                [(latest_id, "LOW", 0.5, -0.02), (latest_id, "HIGH", 0.9, -0.01)],
+            )
+
+        review = load_latest_review(self.settings)
+
+        self.assertIsNotNone(review)
+        assert review is not None
+        self.assertNotEqual(review["id"], older_id)
+        self.assertEqual(review["id"], latest_id)
+        self.assertEqual(review["signalDate"], "2026-07-14")
+        self.assertEqual(review["reviewDate"], "2026-07-16")
+        self.assertEqual(review["minimumWinReturn"], 0.04)
+        self.assertEqual([outcome["ticker"] for outcome in review["outcomes"]], ["HIGH", "LOW"])
 
     def test_preview_resolves_recurring_holiday_to_previous_session(self) -> None:
         self.write_inputs()

@@ -47,7 +47,7 @@
 - Pick selection updates evidence values.
 - Primary CTA opens diagnostics with the selected ticker preserved.
 - Overview, picks, reviews, diagnostics, and data/run navigation are keyboard-reachable buttons.
-- Loading and empty previews can return to loaded data; error state preserves the timestamped last snapshot and can be dismissed.
+- Dashboard loading failures retain a retry path; routine readiness, running, success, and failure states remain operational.
 - Visible focus rings, reduced-motion handling, semantic regions, listbox selection, and alert status are present.
 - No document-level horizontal overflow at 390 or 834 pixels.
 
@@ -57,12 +57,13 @@
 2. Added an exit action to loading state, hid the scrollbar while preserving scroll access, and reflowed the tablet header.
 3. Post-fix tablet/mobile captures show complete dates, reachable navigation, and no page overflow.
 4. Final pass refined heading/ticker weights; `design-comparison-v2.png` shows no actionable P0/P1/P2 drift.
+5. Removed the UI-only Presentation states panel after it proved unnecessary for normal operation.
 
 ## Implementation Checklist
 
 - [x] Selected source recreated at desktop viewport
 - [x] Core interactions operational
-- [x] Loading, empty, and error states operational
+- [x] Dashboard loading/retry and routine operation states remain available
 - [x] Tablet and mobile layouts verified
 - [x] Console errors checked
 - [x] Full and focused visual comparison completed

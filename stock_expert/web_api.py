@@ -15,6 +15,7 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlparse
 
 from stock_expert.config import Settings, get_settings
+from stock_expert.constants import MIN_DAILY_WIN_RETURN
 from stock_expert.database import connect, get_latest_snapshot_id, get_review_run, init_db
 from stock_expert.services import market_context_for_dates
 from stock_expert.trading_calendar import is_trading_session, next_trading_session, previous_trading_session
@@ -31,6 +32,48 @@ class RoutineRequestError(Exception):
     def __init__(self, message: str, status: HTTPStatus = HTTPStatus.BAD_REQUEST) -> None:
         super().__init__(message)
         self.status = status
+
+
+def load_latest_review(settings: Settings) -> dict[str, Any] | None:
+    init_db(settings)
+    with connect(settings) as connection:
+        review = connection.execute(
+            """
+            SELECT id, as_of_date, review_date, avg_return, win_rate, pick_count, wins
+            FROM review_runs
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        if review is None:
+            return None
+        outcomes = connection.execute(
+            """
+            SELECT ticker, return_pct, won
+            FROM review_pick_results
+            WHERE review_run_id = ?
+            ORDER BY score DESC, ticker
+            """,
+            (review["id"],),
+        ).fetchall()
+    return {
+        "id": int(review["id"]),
+        "signalDate": str(review["as_of_date"]),
+        "reviewDate": str(review["review_date"]),
+        "averageReturn": float(review["avg_return"]),
+        "winRate": float(review["win_rate"]),
+        "wins": int(review["wins"]),
+        "pickCount": int(review["pick_count"]),
+        "minimumWinReturn": MIN_DAILY_WIN_RETURN,
+        "outcomes": [
+            {
+                "ticker": str(outcome["ticker"]),
+                "returnPct": float(outcome["return_pct"]),
+                "won": bool(outcome["won"]),
+            }
+            for outcome in outcomes
+        ],
+    }
 
 
 def _resolve_data_dir(settings: Settings, data_dir: str | Path) -> Path:
@@ -258,6 +301,9 @@ class RoutineApiHandler(BaseHTTPRequestHandler):
         try:
             if parsed.path == "/api/health":
                 self._send_json(HTTPStatus.OK, {"ok": True})
+                return
+            if parsed.path == "/api/reviews/latest":
+                self._send_json(HTTPStatus.OK, {"review": load_latest_review(self.server.settings)})
                 return
             if parsed.path == "/api/routine/preview":
                 params = parse_qs(parsed.query)

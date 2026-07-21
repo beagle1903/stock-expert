@@ -512,28 +512,6 @@ button:focus-visible {
 
 .price-basis strong { color: #c8d1dd; font-weight: 500; }
 
-.error-banner {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  border: 1px solid #804254;
-  border-radius: 4px;
-  background: #27141c;
-  color: #ffdce3;
-}
-
-.error-banner button {
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  color: #ffdce3;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
 .status-view {
   min-height: 440px;
   display: grid;
@@ -772,27 +750,10 @@ button:focus-visible {
 .routine-actions button:disabled,
 .date-control input:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.run-summary-panel,
-.state-preview-panel { padding: 28px; }
-.run-summary-panel h2,
-.state-preview-panel h2 { margin-bottom: 18px; font-size: 28px; }
-.state-preview-panel > p:not(.eyebrow) { color: var(--muted); font-size: 17px; }
+.run-summary-panel { grid-column: 1 / -1; padding: 28px; }
+.run-summary-panel h2 { margin-bottom: 18px; font-size: 28px; }
 .runs-view .run-timeline { grid-column: 1 / -1; min-height: 170px; }
 .compact-list dd svg { vertical-align: -3px; color: var(--teal); }
-
-.state-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
-.state-buttons button {
-  min-width: 85px;
-  padding: 8px 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  text-transform: capitalize;
-  cursor: pointer;
-}
-.state-buttons button:hover,
-.state-buttons button.is-active { border-color: var(--indigo); color: var(--text); background: #102347; }
 
 .boot-shell .workspace { display: grid; place-items: center; }
 .boot-shell .status-view { width: min(780px, calc(100vw - 230px)); }
@@ -870,8 +831,6 @@ button:focus-visible {
   .outcome-list > div { grid-template-columns: 1fr 74px 42px; gap: 7px; }
   .metric-table { width: 100%; margin-inline: 0; }
   .metric-table > div { grid-template-columns: 1fr 82px; }
-  .error-banner { align-items: flex-start; flex-wrap: wrap; }
-  .error-banner button { margin-left: 32px; }
   .routine-launcher { padding: 20px 14px; }
   .routine-route { grid-template-columns: 1fr; }
   .routine-route > div { min-width: 0; }

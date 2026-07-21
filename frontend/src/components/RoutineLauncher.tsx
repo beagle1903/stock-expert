@@ -46,7 +46,7 @@ function inputStatusLabel(status: string) {
   return "Stale";
 }
 
-export function RoutineLauncher() {
+export function RoutineLauncher({ onComplete }: { onComplete?: () => void | Promise<void> }) {
   const [requestedDate, setRequestedDate] = useState(localIsoDate);
   const [refreshKey, setRefreshKey] = useState(0);
   const [preview, setPreview] = useState<RoutinePreview | null>(null);
@@ -99,6 +99,7 @@ export function RoutineLauncher() {
       setRunStatus("success");
       setConfirmationOpen(false);
       setConfirmed(false);
+      void Promise.resolve().then(() => onComplete?.()).catch(() => undefined);
     } catch (error) {
       setRunError(error instanceof Error ? error.message : "Routine failed.");
       setRunStatus("error");

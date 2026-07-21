@@ -10,14 +10,12 @@ import {
   Pulse,
   SpinnerGap,
   Star,
-  WarningCircle,
 } from "@phosphor-icons/react";
-import { mockDashboardRepository } from "./data/dashboardRepository";
+import { dashboardRepository } from "./data/dashboardRepository";
 import { RoutineLauncher } from "./components/RoutineLauncher";
 import type {
   DashboardData,
   Pick,
-  PreviewState,
   ReviewSummary,
   ViewKey,
 } from "./domain/dashboard";
@@ -30,8 +28,6 @@ const navigation = [
   { key: "diagnostics", label: "Diagnostics", icon: Pulse },
   { key: "runs", label: "Data & Runs", icon: Database },
 ] as const;
-
-const previewStates: PreviewState[] = ["loaded", "loading", "empty", "error"];
 
 function fixed(value: number) {
   return value.toFixed(4);
@@ -174,14 +170,28 @@ function ExposurePanel({ data }: { data: DashboardData }) {
   );
 }
 
-function ReviewPanel({ review, expanded = false }: { review: ReviewSummary; expanded?: boolean }) {
+function reviewDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.replace(" 2026", "");
+  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short" })
+    .format(new Date(`${value}T12:00:00`));
+}
+
+function ReviewPanel({ review, expanded = false }: { review: ReviewSummary | null; expanded?: boolean }) {
+  if (!review) {
+    return (
+      <section className={`panel review-panel ${expanded ? "is-expanded" : ""}`} aria-labelledby="review-title">
+        <h2 id="review-title">Last review</h2>
+        <p>No persisted review is available yet.</p>
+      </section>
+    );
+  }
   return (
     <section className={`panel review-panel ${expanded ? "is-expanded" : ""}`} aria-labelledby="review-title">
       <h2 id="review-title">Last review</h2>
       <div className="review-dates">
         <strong>Review #{review.id}</strong>
-        <span>Signal {review.signalDate.replace(" 2026", "")}</span>
-        <span>Review {review.reviewDate.replace(" 2026", "")}</span>
+        <span>Signal {reviewDate(review.signalDate)}</span>
+        <span>Review {reviewDate(review.reviewDate)}</span>
       </div>
       <dl className="review-metrics">
         <div><dt>Average return</dt><dd>{percent(review.averageReturn)}</dd></div>
@@ -249,16 +259,6 @@ function StatusView({ kind, onRetry }: { kind: "loading" | "empty"; onRetry: () 
   );
 }
 
-function ErrorBanner({ onDismiss }: { onDismiss: () => void }) {
-  return (
-    <div className="error-banner" role="alert">
-      <WarningCircle size={22} aria-hidden="true" />
-      <span><strong>Refresh failed.</strong> Showing the last persisted Snapshot #100 from 16 Jul at 18:34 TRT.</span>
-      <button type="button" onClick={onDismiss}>Dismiss</button>
-    </div>
-  );
-}
-
 function OverviewView({ data, onNavigate }: { data: DashboardData; onNavigate: (view: ViewKey) => void }) {
   return (
     <div className="overview-view">
@@ -275,10 +275,10 @@ function OverviewView({ data, onNavigate }: { data: DashboardData; onNavigate: (
   );
 }
 
-function ReviewsView({ review }: { review: ReviewSummary }) {
+function ReviewsView({ review }: { review: ReviewSummary | null }) {
   return (
     <div className="single-view">
-      <div className="view-intro"><p className="eyebrow">Persisted performance</p><h2>Review #{review.id}</h2><p>Observed outcomes only; the minimum win threshold is +4%.</p></div>
+      <div className="view-intro"><p className="eyebrow">Persisted performance</p><h2>{review ? `Review #${review.id}` : "No review yet"}</h2><p>Observed outcomes only; the minimum win threshold is +4%.</p></div>
       <ReviewPanel review={review} expanded />
     </div>
   );
@@ -294,14 +294,13 @@ function DiagnosticsView({ picks, selectedPick, onSelect }: { picks: Pick[]; sel
   );
 }
 
-function RunsView({ data, previewState, onPreviewState }: {
+function RunsView({ data, reload }: {
   data: DashboardData;
-  previewState: PreviewState;
-  onPreviewState: (state: PreviewState) => void;
+  reload: () => Promise<void>;
 }) {
   return (
     <div className="runs-view">
-      <RoutineLauncher />
+      <RoutineLauncher onComplete={reload} />
       <section className="panel run-summary-panel">
         <p className="eyebrow">Displayed sample evidence</p>
         <h2>Sample snapshot #{data.snapshot.id}</h2>
@@ -312,33 +311,15 @@ function RunsView({ data, previewState, onPreviewState }: {
           <div><dt>Price basis</dt><dd>previous close → latest</dd></div>
         </dl>
       </section>
-      <section className="panel state-preview-panel">
-        <p className="eyebrow">Presentation states</p>
-        <h2>Mock state preview</h2>
-        <p>These controls exercise UI-only states; they never mutate SQLite or strategy behavior.</p>
-        <div className="state-buttons" role="group" aria-label="Preview dashboard state">
-          {previewStates.map((state) => (
-            <button
-              key={state}
-              type="button"
-              className={previewState === state ? "is-active" : ""}
-              onClick={() => onPreviewState(state)}
-            >
-              {state}
-            </button>
-          ))}
-        </div>
-      </section>
       <RunTimeline data={data} sample />
     </div>
   );
 }
 
 export function App() {
-  const { data, status, reload } = useDashboard(mockDashboardRepository);
+  const { data, status, reload } = useDashboard(dashboardRepository);
   const [activeView, setActiveView] = useState<ViewKey>("picks");
   const [selectedTicker, setSelectedTicker] = useState("AKSEN");
-  const [previewState, setPreviewState] = useState<PreviewState>("loaded");
 
   const selectedPick = useMemo(
     () => data?.picks.find((pick) => pick.ticker === selectedTicker) ?? data?.picks[0],
@@ -362,14 +343,12 @@ export function App() {
   }
 
   const renderView = () => {
-    if (previewState === "loading") return <StatusView kind="loading" onRetry={() => setPreviewState("loaded")} />;
-    if (previewState === "empty") return <StatusView kind="empty" onRetry={() => setPreviewState("loaded")} />;
     if (!selectedPick) return null;
 
     if (activeView === "overview") return <OverviewView data={data} onNavigate={setActiveView} />;
     if (activeView === "reviews") return <ReviewsView review={data.review} />;
     if (activeView === "diagnostics") return <DiagnosticsView picks={data.picks} selectedPick={selectedPick} onSelect={selectPick} />;
-    if (activeView === "runs") return <RunsView data={data} previewState={previewState} onPreviewState={setPreviewState} />;
+    if (activeView === "runs") return <RunsView data={data} reload={reload} />;
 
     return (
       <div className="dashboard-view">
@@ -388,7 +367,6 @@ export function App() {
       <Sidebar activeView={activeView} onNavigate={setActiveView} />
       <main className="workspace">
         <SessionHeader data={data} />
-        {previewState === "error" && <ErrorBanner onDismiss={() => setPreviewState("loaded")} />}
         {renderView()}
       </main>
     </div>

@@ -1,13 +1,22 @@
-import type { DashboardData } from "../domain/dashboard";
+import type { DashboardData, ReviewSummary } from "../domain/dashboard";
 import { mockDashboard } from "./mockDashboard";
 
 export interface DashboardRepository {
   load(): Promise<DashboardData>;
 }
 
-export const mockDashboardRepository: DashboardRepository = {
+interface LatestReviewResponse {
+  review: ReviewSummary | null;
+  error?: string;
+}
+
+export const dashboardRepository: DashboardRepository = {
   async load() {
-    await new Promise((resolve) => window.setTimeout(resolve, 240));
-    return structuredClone(mockDashboard);
+    const response = await fetch("/api/reviews/latest");
+    const payload = await response.json().catch(() => ({})) as LatestReviewResponse;
+    if (!response.ok) {
+      throw new Error(payload.error ?? `Request failed with status ${response.status}.`);
+    }
+    return { ...structuredClone(mockDashboard), review: payload.review };
   },
 };

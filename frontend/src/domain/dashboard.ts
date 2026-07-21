@@ -1,5 +1,4 @@
 export type ViewKey = "overview" | "picks" | "reviews" | "diagnostics" | "runs";
-export type PreviewState = "loaded" | "loading" | "empty" | "error";
 export type RiskLevel = "high" | "medium" | "low";
 
 export interface PickSignals {
@@ -66,6 +65,6 @@ export interface DashboardData {
     policy: "normal";
   };
   picks: Pick[];
-  review: ReviewSummary;
+  review: ReviewSummary | null;
   runSteps: RunStep[];
 }

@@ -12,14 +12,15 @@
 - `stock_expert/web_api.py`: loopback-only routine preview/execution adapter around the existing CLI
 - `stock_expert/yahoo.py`: Yahoo OHLCV downloader with CSV export and optional SQLite import
 - `.codex/hooks/validate_docs_update.py`: deterministic Codex Stop hook validator for development documentation updates
-- `frontend/`: React/Vite Evidence Console prototype with typed domain mocks
-- `frontend/src/data/dashboardRepository.ts`: sample evidence-panel data adapter
+- `frontend/`: React/Vite Evidence Console with a live persisted-review read and typed sample data for deferred panels
+- `frontend/src/data/dashboardRepository.ts`: dashboard adapter that overlays the latest persisted review onto sample evidence data
 - `frontend/src/data/routineRepository.ts`: typed HTTP adapter for routine preview/execution
 
 ## Frontend Boundary
 
 - Presentation components consume `DashboardData` instead of importing Python or SQLite concerns.
-- Evidence panels still use `mockDashboardRepository` and are explicitly labeled as sample evidence.
+- The latest review and its pick outcomes are read from SQLite through `GET /api/reviews/latest`; picks, diagnostics, exposure, snapshot, and timeline panels remain sample evidence.
+- A successful web routine reloads the dashboard adapter so the Reviews screen reflects the newly persisted review without a page refresh.
 - Data & Runs is the only mutating web surface. Its local API invokes `python -m stock_expert routine` without changing strategy or SQLite semantics.
 - The dashboard does not expose order execution, live quotes, portfolios, forecasts, or target prices.
 
