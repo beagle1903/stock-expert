@@ -60,9 +60,9 @@ export interface DashboardData {
   };
   exposure: {
     universeCount: number;
-    advancerRatio: number;
+    advancerRatio: number | null;
     pickCountCap: number;
-    policy: "normal";
+    policy: string;
   };
   picks: Pick[];
   review: ReviewSummary | null;

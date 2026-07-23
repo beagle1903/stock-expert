@@ -14,6 +14,7 @@ from stock_expert.web_api import (
     RoutineRequestError,
     build_routine_preview,
     execute_routine,
+    load_latest_picks,
     load_latest_review,
 )
 
@@ -44,6 +45,55 @@ class RoutineWebApiTests(unittest.TestCase):
 
     def test_latest_review_returns_none_for_empty_database(self) -> None:
         self.assertIsNone(load_latest_review(self.settings))
+
+    def test_latest_picks_returns_none_for_empty_database(self) -> None:
+        self.assertIsNone(load_latest_picks(self.settings))
+
+    def test_latest_picks_uses_newest_snapshot_and_persisted_portfolio(self) -> None:
+        init_db(self.settings)
+        with connect(self.settings) as connection:
+            older_id = connection.execute(
+                """
+                INSERT INTO snapshot_runs (snapshot_date, imported_at, source_label, source_dir)
+                VALUES ('2026-07-17', '2026-07-17 16:00:00', 'daily_csv', 'data')
+                """
+            ).lastrowid
+            latest_id = connection.execute(
+                """
+                INSERT INTO snapshot_runs (snapshot_date, imported_at, source_label, source_dir)
+                VALUES ('2026-07-22', '2026-07-22 16:10:04', 'daily_csv', 'data')
+                """
+            ).lastrowid
+            connection.execute(
+                """
+                INSERT INTO picks (
+                    snapshot_id, date, ticker, score, kap, momentum, volume,
+                    risk, horizon, selection_bucket
+                ) VALUES (?, '2026-07-17', 'OLD', 1.1, 0, 1, 1, 'high', 'intraday', 'score_ranked')
+                """,
+                (older_id,),
+            )
+            connection.executemany(
+                """
+                INSERT INTO picks (
+                    snapshot_id, date, ticker, score, kap, momentum, volume,
+                    risk, horizon, selection_bucket
+                ) VALUES (?, '2026-07-22', ?, ?, 0, ?, ?, 'high', 'intraday', 'score_ranked')
+                """,
+                [
+                    (latest_id, "NEW2", 0.9, 0.8, 0.7),
+                    (latest_id, "NEW1", 1.0, 0.9, 0.8),
+                ],
+            )
+
+        dashboard = load_latest_picks(self.settings)
+
+        self.assertIsNotNone(dashboard)
+        assert dashboard is not None
+        self.assertEqual(dashboard["snapshot"]["id"], latest_id)
+        self.assertEqual(dashboard["signalDate"], "2026-07-22")
+        self.assertEqual(dashboard["tradeDate"], "2026-07-23")
+        self.assertEqual([pick["ticker"] for pick in dashboard["picks"]], ["NEW1", "NEW2"])
 
     def test_latest_review_returns_newest_persisted_run_and_outcomes(self) -> None:
         init_db(self.settings)

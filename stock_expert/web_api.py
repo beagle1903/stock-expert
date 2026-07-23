@@ -16,8 +16,14 @@ from urllib.parse import parse_qs, urlparse
 
 from stock_expert.config import Settings, get_settings
 from stock_expert.constants import MIN_DAILY_WIN_RETURN
-from stock_expert.database import connect, get_latest_snapshot_id, get_review_run, init_db
-from stock_expert.services import market_context_for_dates
+from stock_expert.database import (
+    connect,
+    get_latest_snapshot_id,
+    get_prices_for_date,
+    get_review_run,
+    init_db,
+)
+from stock_expert.services import adaptive_pick_exposure, market_context_for_dates, rank_candidates
 from stock_expert.trading_calendar import is_trading_session, next_trading_session, previous_trading_session
 
 
@@ -72,6 +78,91 @@ def load_latest_review(settings: Settings) -> dict[str, Any] | None:
                 "won": bool(outcome["won"]),
             }
             for outcome in outcomes
+        ],
+    }
+
+
+def load_latest_picks(settings: Settings) -> dict[str, Any] | None:
+    init_db(settings)
+    with connect(settings) as connection:
+        snapshot = connection.execute(
+            """
+            SELECT id, snapshot_date, imported_at, source_label
+            FROM snapshot_runs
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        if snapshot is None:
+            return None
+        persisted_picks = connection.execute(
+            """
+            SELECT ticker, score, momentum, volume, risk, horizon, selection_bucket
+            FROM picks
+            WHERE snapshot_id = ?
+            ORDER BY score DESC, ticker
+            """,
+            (snapshot["id"],),
+        ).fetchall()
+
+    signal_date = date.fromisoformat(str(snapshot["snapshot_date"]))
+    ranked = {pick.ticker: pick for pick in rank_candidates(settings, signal_date)}
+    exposure = adaptive_pick_exposure(
+        settings,
+        get_prices_for_date(settings, signal_date),
+        before_review_date=signal_date,
+    )
+    picks = []
+    for rank, persisted in enumerate(persisted_picks, start=1):
+        detail = ranked.get(str(persisted["ticker"]))
+        technical = detail.technical if detail else 0.0
+        fundamental = detail.fundamental if detail else 0.0
+        quality = detail.quality if detail else 0.0
+        setup_penalty = detail.setup_penalty if detail else 0.0
+        picks.append(
+            {
+                "rank": rank,
+                "ticker": str(persisted["ticker"]),
+                "score": float(persisted["score"]),
+                "risk": str(persisted["risk"]),
+                "horizon": str(persisted["horizon"]),
+                "selectionBucket": str(persisted["selection_bucket"]),
+                "signals": {
+                    "momentum": float(persisted["momentum"]),
+                    "volume": float(persisted["volume"]),
+                    "technical": technical,
+                    "fundamental": fundamental,
+                    "quality": quality,
+                    "setupPenalty": setup_penalty,
+                    "maTrend": detail.ma_trend if detail else 0.0,
+                    "liquidity": detail.liquidity if detail else 0.0,
+                    "totalBoost": round(technical + fundamental + quality, 4),
+                    "netAdjustment": round(technical + fundamental + quality - setup_penalty, 4),
+                },
+            }
+        )
+
+    return {
+        "signalDate": signal_date.isoformat(),
+        "tradeDate": next_trading_session(signal_date).isoformat(),
+        "snapshot": {
+            "id": int(snapshot["id"]),
+            "importedAt": str(snapshot["imported_at"]),
+            "source": str(snapshot["source_label"]),
+            "status": "persisted",
+            "priceBasis": "previous_close_to_latest",
+        },
+        "exposure": {
+            "universeCount": int(exposure["universe_count"]),
+            "advancerRatio": exposure["advancer_ratio"],
+            "pickCountCap": int(exposure["pick_count_cap"]),
+            "policy": str(exposure["policy"]),
+        },
+        "picks": picks,
+        "runSteps": [
+            {"id": 1, "label": "CSV imported", "detail": str(snapshot["imported_at"])},
+            {"id": 2, "label": f"Snapshot #{snapshot['id']} persisted", "detail": signal_date.isoformat()},
+            {"id": 3, "label": "Picks persisted", "detail": f"{len(picks)} ideas"},
         ],
     }
 
@@ -304,6 +395,9 @@ class RoutineApiHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/reviews/latest":
                 self._send_json(HTTPStatus.OK, {"review": load_latest_review(self.server.settings)})
+                return
+            if parsed.path == "/api/picks/latest":
+                self._send_json(HTTPStatus.OK, {"dashboard": load_latest_picks(self.server.settings)})
                 return
             if parsed.path == "/api/routine/preview":
                 params = parse_qs(parsed.query)

@@ -41,6 +41,12 @@ function percent(value: number, digits = 2) {
   return `${value > 0 ? "+" : ""}${(value * 100).toFixed(digits)}%`;
 }
 
+function displayDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    .format(new Date(`${value}T12:00:00`));
+}
+
 function Sidebar({ activeView, onNavigate }: { activeView: ViewKey; onNavigate: (view: ViewKey) => void }) {
   return (
     <aside className="sidebar" aria-label="Primary navigation">
@@ -70,19 +76,19 @@ function SessionHeader({ data }: { data: DashboardData }) {
       <div className="date-route" aria-label={`Signal ${data.signalDate}, target trade ${data.tradeDate}`}>
         <div className="date-step">
           <span className="step-number">1</span>
-          <span><b>Signal</b> {data.signalDate}</span>
+          <span><b>Signal</b> {displayDate(data.signalDate)}</span>
         </div>
         <ArrowRight size={18} aria-hidden="true" />
         <div className="date-step">
           <span className="step-number">2</span>
-          <span><b>Trade</b> {data.tradeDate}</span>
+          <span><b>Trade</b> {displayDate(data.tradeDate)}</span>
         </div>
       </div>
       <div className="snapshot-summary">
-        <strong>Sample snapshot #{data.snapshot.id}</strong>
+        <strong>Persisted snapshot #{data.snapshot.id}</strong>
         <span>Imported {data.snapshot.importedAt} from {data.snapshot.source}</span>
       </div>
-      <p className="disclaimer">Sample evidence · Ideas, not execution</p>
+      <p className="disclaimer">Persisted evidence · Ideas, not execution</p>
     </header>
   );
 }
@@ -162,7 +168,7 @@ function ExposurePanel({ data }: { data: DashboardData }) {
       <h2 id="exposure-title">Exposure policy</h2>
       <dl className="compact-list">
         <div><dt>Universe</dt><dd>{data.exposure.universeCount}</dd></div>
-        <div><dt>Advancer ratio</dt><dd>{(data.exposure.advancerRatio * 100).toFixed(2)}%</dd></div>
+        <div><dt>Advancer ratio</dt><dd>{data.exposure.advancerRatio === null ? "—" : `${(data.exposure.advancerRatio * 100).toFixed(2)}%`}</dd></div>
         <div><dt>Pick count cap</dt><dd>{data.exposure.pickCountCap}</dd></div>
         <div><dt>Policy</dt><dd>{data.exposure.policy}</dd></div>
       </dl>
@@ -216,10 +222,10 @@ function ReviewPanel({ review, expanded = false }: { review: ReviewSummary | nul
   );
 }
 
-function RunTimeline({ data, sample = false }: { data: DashboardData; sample?: boolean }) {
+function RunTimeline({ data }: { data: DashboardData }) {
   return (
     <section className="panel run-timeline" aria-labelledby="timeline-title">
-      <h2 id="timeline-title"><Clock size={18} aria-hidden="true" /> {sample ? "Sample run timeline" : "Run timeline"}</h2>
+      <h2 id="timeline-title"><Clock size={18} aria-hidden="true" /> Run timeline</h2>
       <ol>
         {data.runSteps.map((step) => (
           <li key={step.id}>
@@ -231,7 +237,7 @@ function RunTimeline({ data, sample = false }: { data: DashboardData; sample?: b
       </ol>
       <div className="price-basis">
         <CalendarBlank size={25} aria-hidden="true" />
-        <span><strong>Previous close → latest</strong><br />16 Jul 2026 → 16 Jul 2026</span>
+        <span><strong>Previous close → latest</strong><br />{displayDate(data.signalDate)}</span>
       </div>
     </section>
   );
@@ -243,9 +249,9 @@ function StatusView({ kind, onRetry }: { kind: "loading" | "empty"; onRetry: () 
       <section className="panel status-view" aria-live="polite">
         <SpinnerGap size={32} className="spin" aria-hidden="true" />
         <h2>Loading persisted evidence</h2>
-        <p>Reading the typed dashboard snapshot.</p>
+        <p>Reading the latest persisted SQLite snapshot.</p>
         <div className="skeleton-lines" aria-hidden="true"><span /><span /><span /></div>
-        <button type="button" className="secondary-action" onClick={onRetry}>Return to loaded mock</button>
+        <button type="button" className="secondary-action" onClick={onRetry}>Retry</button>
       </section>
     );
   }
@@ -254,7 +260,7 @@ function StatusView({ kind, onRetry }: { kind: "loading" | "empty"; onRetry: () 
       <Database size={32} aria-hidden="true" />
       <h2>No persisted ideas for this signal date</h2>
       <p>Import the four daily CSV inputs and run the persisted routine before reviewing picks.</p>
-      <button type="button" className="secondary-action" onClick={onRetry}>Return to loaded mock</button>
+      <button type="button" className="secondary-action" onClick={onRetry}>Retry</button>
     </section>
   );
 }
@@ -265,7 +271,7 @@ function OverviewView({ data, onNavigate }: { data: DashboardData; onNavigate: (
       <section className="panel overview-hero">
         <p className="eyebrow">Target trade · {data.tradeDate}</p>
         <h2>{data.picks.length} persisted intraday ideas</h2>
-        <p>Score-ranked from the {data.signalDate} snapshot. Market exposure policy remains normal.</p>
+        <p>Score-ranked from the {displayDate(data.signalDate)} snapshot. Exposure policy: {data.exposure.policy}.</p>
         <button type="button" className="primary-action" onClick={() => onNavigate("picks")}>Inspect today's picks</button>
       </section>
       <ExposurePanel data={data} />
@@ -302,8 +308,8 @@ function RunsView({ data, reload }: {
     <div className="runs-view">
       <RoutineLauncher onComplete={reload} />
       <section className="panel run-summary-panel">
-        <p className="eyebrow">Displayed sample evidence</p>
-        <h2>Sample snapshot #{data.snapshot.id}</h2>
+        <p className="eyebrow">Displayed persisted evidence</p>
+        <h2>Snapshot #{data.snapshot.id}</h2>
         <dl className="compact-list">
           <div><dt>Imported</dt><dd>{data.snapshot.importedAt}</dd></div>
           <div><dt>Source</dt><dd>{data.snapshot.source}</dd></div>
@@ -311,7 +317,7 @@ function RunsView({ data, reload }: {
           <div><dt>Price basis</dt><dd>previous close → latest</dd></div>
         </dl>
       </section>
-      <RunTimeline data={data} sample />
+      <RunTimeline data={data} />
     </div>
   );
 }
