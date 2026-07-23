@@ -7,6 +7,7 @@
 - Only use data available at decision time
 - Daily CSV snapshots are the main operating input
 - Live root CSV files are the default input; SQLite snapshot runs preserve import history
+- Investing.com CSV refresh uses rendered browser tables rather than the protected download endpoint; it stops for access challenges and publishes only a validated four-file bundle
 
 ## Current Notes
 

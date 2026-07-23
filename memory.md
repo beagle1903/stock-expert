@@ -75,6 +75,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-07-17 | The approved frontend direction is a dark Evidence Console implemented under `frontend/` with typed mock data behind a repository interface. | Keeps the first web slice faithful to persisted CLI entities while isolating presentation from future API access and avoiding invented trading capabilities. |
 | 2026-07-18 | Data & Runs executes the existing persisted routine through a loopback-only standard-library API with shared-calendar preview, CSV readiness checks, a current confirmation token, and a single-run lock. | Adds a guarded web operator path without duplicating or changing CLI strategy and SQLite semantics; evidence panels remain explicitly labeled sample data until their API adapter is implemented. |
 | 2026-07-18 | Added `/stock-expert:run` to start or reuse the loopback web app and open it in Codex's built-in browser. | Keeps web startup on the existing `frontend/scripts/dev.mjs` path, avoids duplicate servers, and makes the UI directly accessible from the project-local plugin. |
+| 2026-07-23 | Added rendered-table Investing.com CSV refresh through a dedicated Edge/Chrome profile. | Avoids the unreliable protected download endpoint; all four tables must pass schema, row-count, and company-coverage checks before rollback-safe publication. |
 
 ## Workflows
 
@@ -89,6 +90,7 @@ Document repeatable ways of doing things in this repo.
 - `D:\miniconda3\python.exe -m stock_expert routine`
 - `D:\miniconda3\python.exe -m stock_expert midday-routine`
 - `D:\miniconda3\python.exe -m stock_expert import-daily-csv --date 2026-04-05`
+- `D:\miniconda3\python.exe -m stock_expert refresh-investing-csvs`
 - `D:\miniconda3\python.exe -m stock_expert import-daily-folder --folder data\YYYYMMDD`
 - `D:\miniconda3\python.exe -m stock_expert daily --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m stock_expert picks --date YYYY-MM-DD`
@@ -118,6 +120,13 @@ Live files:
 4. `routine` persists normal picks and the normal review, then prints non-mutating score-ranked vs bucketed comparison and downside-risk diagnostics; `midday-routine` keeps review non-mutating via `--dry-run`.
 5. Use `midday-routine` when the user wants the midday dry-run review behavior from yesterday.
 6. Run CLI commands from the repo root unless the package is installed in the active environment.
+
+### Investing.com CSV Refresh
+
+- Run `refresh-investing-csvs` before the routine when the four live files need updating.
+- Visible browser mode is the default; complete any site access challenge manually. The automation does not bypass it.
+- The command selects Türkiye all shares, clicks `Daha Fazla` until absent, extracts all four tabs, and replaces no file unless the full bundle validates.
+- The browser profile persists under ignored `data/.investing-browser-profile/`.
 
 ### Strategy Comparison
 

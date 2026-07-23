@@ -3,11 +3,12 @@ from __future__ import annotations
 import io
 import json
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import ANY, patch
 
 from stock_expert import cli
 from stock_expert.config import Settings
+from stock_expert.investing_csv import InvestingCsvError
 
 
 class CliRoutineTests(unittest.TestCase):
@@ -144,6 +145,54 @@ class CliRoutineTests(unittest.TestCase):
             snapshot_date="2026-04-21",
             data_dir="data/live",
         )
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.refresh_investing_csvs_command", return_value="refreshed") as refresh,
+            patch(
+                "sys.argv",
+                [
+                    "stocks",
+                    "refresh-investing-csvs",
+                    "--data-dir",
+                    "data/live",
+                    "--min-rows",
+                    "600",
+                    "--max-more-clicks",
+                    "9",
+                    "--timeout-seconds",
+                    "240",
+                    "--browser",
+                    "C:/browser.exe",
+                    "--headless",
+                ],
+            ),
+            redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(cli.main(), 0)
+
+        refresh.assert_called_once_with(
+            settings=self.settings,
+            data_dir="data/live",
+            min_rows=600,
+            max_more_clicks=9,
+            timeout_seconds=240,
+            browser_path="C:/browser.exe",
+            headless=True,
+        )
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch(
+                "stock_expert.cli.refresh_investing_csvs_command",
+                side_effect=InvestingCsvError("access challenge"),
+            ),
+            patch("sys.argv", ["stocks", "refresh-investing-csvs"]),
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            self.assertEqual(cli.main(), 1)
+
+        self.assertIn("access challenge", stderr.getvalue())
 
         with (
             patch("stock_expert.cli.get_settings", return_value=self.settings),
