@@ -6,7 +6,9 @@
 D:\miniconda3\python.exe -m stock_expert refresh-investing-csvs
 ```
 
-The command opens a dedicated visible Edge or Chrome profile, confirms the Türkiye stock page, selects `Türkiye tüm hisse senetleri`, and expands `Daha Fazla` until the control disappears. It then extracts the rendered Fiyat, Performans, Teknik, and Temel tables.
+Prefer Codex's embedded browser for operator-visible refreshes. On the page, select `Türkiye tüm hisse senetleri`, then expand `Daha Fazla` on the first table until the control disappears. Switching to Performans, Teknik, and Temel preserves the expanded row set, so do not repeat the clicks unless the control reappears.
+
+The current CLI command opens a separate dedicated visible Edge or Chrome profile, confirms the Türkiye stock page, and performs the same state-driven extraction of the rendered Fiyat, Performans, Teknik, and Temel tables.
 
 Visible mode is the default because it lets the user complete a site access challenge when one appears. `--headless` is available for environments where the page does not challenge automated sessions. The command does not bypass CAPTCHAs or Cloudflare controls.
 
@@ -25,4 +27,6 @@ The persistent browser profile is local and ignored at `data/.investing-browser-
 
 ## Verification
 
-On 2026-07-23, live extraction produced 646 rows in each file. Fiyat required six `Daha Fazla` clicks; the other tabs retained the expanded coverage. The generated bundle imported with zero malformed rows into an isolated test database.
+On 2026-07-23, live extraction produced 646 rows in each file. Fiyat required six `Daha Fazla` clicks; the other tabs retained the expanded coverage. On 2026-07-25, the embedded-browser page reached 646 rows and no longer displayed the control after the same first-tab expansion. The generated bundle imported with zero malformed rows into an isolated test database.
+
+The CLI launcher cannot attach directly to an already-open embedded-browser tab. Until an adapter exists, an embedded-browser capture is a handoff that must still pass through the publication gates; never publish a partial table or silently fold refresh into `routine`.
