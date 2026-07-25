@@ -7,6 +7,7 @@ from datetime import date
 
 from stock_expert.config import get_settings
 from stock_expert.daily_csv import import_daily_csv_command, import_daily_csv_folder_command
+from stock_expert.investing_csv import InvestingCsvError, refresh_investing_csvs_command
 from stock_expert.services import (
     RankingContext,
     bucketed_strategy_comparison_output,
@@ -84,6 +85,30 @@ def build_parser() -> argparse.ArgumentParser:
     csv_parser = subparsers.add_parser("import-daily-csv", help="Import daily snapshot CSV files from the data folder")
     csv_parser.add_argument("--date", dest="as_of", required=True, help="Snapshot date in YYYY-MM-DD format")
     csv_parser.add_argument("--data-dir", default="data", help="Directory containing fiyat/performans/teknik/temel csv files")
+    refresh_parser = subparsers.add_parser(
+        "refresh-investing-csvs",
+        help="Refresh the four live CSV files from the rendered Investing.com Türkiye stock tables",
+    )
+    refresh_parser.add_argument("--data-dir", default="data", help="Destination directory for the four CSV files")
+    refresh_parser.add_argument("--min-rows", type=int, default=500, help="Minimum rows required in every table")
+    refresh_parser.add_argument(
+        "--max-more-clicks",
+        type=int,
+        default=12,
+        help="Safety limit for Daha Fazla clicks on each tab",
+    )
+    refresh_parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=180,
+        help="Maximum browser wait, including time for a user-completed access challenge",
+    )
+    refresh_parser.add_argument("--browser", help="Optional Edge or Chrome executable path")
+    refresh_parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run without a visible browser; visible mode is more reliable for access challenges",
+    )
     folder_parser = subparsers.add_parser("import-daily-folder", help="Import a dated folder containing the four daily CSV files")
     folder_parser.add_argument("--folder", required=True, help="Folder path relative to the project root, e.g. data/20260408")
     routine_parser = subparsers.add_parser(
@@ -171,6 +196,23 @@ def main() -> int:
         return 0
     if args.command == "import-daily-csv":
         print(import_daily_csv_command(settings=settings, snapshot_date=args.as_of, data_dir=args.data_dir))
+        return 0
+    if args.command == "refresh-investing-csvs":
+        try:
+            print(
+                refresh_investing_csvs_command(
+                    settings=settings,
+                    data_dir=args.data_dir,
+                    min_rows=args.min_rows,
+                    max_more_clicks=args.max_more_clicks,
+                    timeout_seconds=args.timeout_seconds,
+                    browser_path=args.browser,
+                    headless=args.headless,
+                )
+            )
+        except (InvestingCsvError, ValueError) as exc:
+            print(f"refresh-investing-csvs: {exc}", file=sys.stderr)
+            return 1
         return 0
     if args.command == "import-daily-folder":
         print(import_daily_csv_folder_command(settings=settings, folder=args.folder))

@@ -24,5 +24,6 @@ data/fiyat.csv
 data/performans.csv
 data/teknik.csv
 data/temel.csv
+data/.investing-browser-profile/
 data/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/
 data/ticker_map_unmatched.csv

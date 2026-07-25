@@ -2,6 +2,7 @@
 
 - Maintain a minimal working BIST CLI with:
   - `import-daily-csv`
+  - `refresh-investing-csvs`
   - `routine`
   - `midday-routine`
   - `daily`
@@ -21,6 +22,7 @@
 - Review explains missed movers clearly
 - Daily CSV import flow is available
 - Live root CSV routine supports repeated same-day imports
+- Rendered Investing.com tables can refresh all four live CSVs with cross-table coverage validation and rollback-safe publication
 - Routine and midday dry-run behavior are covered by tests
 - Snapshot and review persistence are atomic and idempotent
 - Historical review evidence is point-in-time and immutable

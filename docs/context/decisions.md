@@ -7,6 +7,7 @@
 - Only use data available at decision time
 - Daily CSV snapshots are the main operating input
 - Live root CSV files are the default input; SQLite snapshot runs preserve import history
+- Investing.com CSV refresh uses rendered browser tables rather than the protected download endpoint; it stops for access challenges and publishes only a validated four-file bundle
 
 ## Current Notes
 
@@ -45,3 +46,4 @@
 - Score-ranked and bucketed diagnostics compare the same breadth-adjusted exposure count
 - A routine-scoped `RankingContext` reuses each signal-date ranking across operator outputs
 - Detached HEAD and failed git detection use isolated databases instead of `data/stock_expert.db`
+- The Investing.com CSV refresh remains separate from `routine`; prefer the embedded browser, select all Turkish shares, expand `Daha Fazla` fully on the first tab, and rely on the existing four-file publication guard. The current CLI launcher still uses a separate Edge/Chrome process and cannot attach directly to an embedded tab.

@@ -3,6 +3,8 @@
 - `stock_expert/cli.py`: command routing
 - `stock_expert/services.py`: `daily`, `picks`, `review` orchestration
 - `stock_expert/daily_csv.py`: imports the daily CSV snapshot files
+- `stock_expert/investing_csv.py`: validates and rollback-safe publishes the four rendered Investing.com table extracts
+- `scripts/investing_csv_extract.mjs`: drives a dedicated Edge/Chrome session through the browser debugging protocol without a third-party browser dependency
 - `stock_expert/trading_calendar.py`: shared BIST session and exact-closure routing
 - `data/ticker_map.csv`: persistent company-name to ticker overrides used during import
 - `stock_expert/signals.py`: momentum, volume spike, risk classification
