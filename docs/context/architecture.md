@@ -17,6 +17,7 @@
 - `frontend/`: React/Vite Evidence Console with a live persisted-review read and typed sample data for deferred panels
 - `frontend/src/data/dashboardRepository.ts`: dashboard adapter that overlays the latest persisted review onto sample evidence data
 - `frontend/src/data/routineRepository.ts`: typed HTTP adapter for routine preview/execution
+- `plugins/stock-expert/skills/refresh-data/SKILL.md`: validated BIST CSV refresh and direct Data & Runs handoff
 
 ## Frontend Boundary
 

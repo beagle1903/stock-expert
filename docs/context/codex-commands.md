@@ -10,18 +10,28 @@ Plugin:
 
 Commands:
 
+- `/stock-expert:refresh-data`
 - `/stock-expert:routine`
 - `/stock-expert:run`
 
 Fallback text shortcuts:
 
+- `/refresh-data`
 - `/routine`
 - `/run`
 
-Autocomplete uses plugin-qualified command names. Type `/stock-expert:routine`
-or `/stock-expert:run` when selecting from the Codex command menu. Bare
-`/routine` and `/run` are repo conventions for agents in this workspace, not
-separately registered autocomplete commands.
+Autocomplete uses plugin-qualified command names. Use
+`/stock-expert:refresh-data` to publish the validated live CSV bundle,
+`/stock-expert:run` to open the web app, and `/stock-expert:routine` for a
+direct persisted CLI run. Bare shortcuts are repo conventions, not separately
+registered autocomplete commands.
+
+## Data Refresh
+
+`/stock-expert:refresh-data` runs the separate
+`refresh-investing-csvs` preparation command, verifies all four published
+files, then opens `http://127.0.0.1:5173/?view=runs` unless CLI-only output was
+requested. It never confirms or runs the persisted routine.
 
 ## Web App Launcher
 

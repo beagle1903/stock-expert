@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refresh BIST Data"
+  short_description: "Refresh and validate live BIST CSV inputs"
+  default_prompt: "Use $refresh-data to refresh and validate BIST data, then open Data & Runs."

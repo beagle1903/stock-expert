@@ -37,3 +37,4 @@
 - The repo-local `/stock-expert:run` command starts or reuses the web app and opens it in Codex's built-in browser.
 - Reviews now load the latest persisted review and outcomes from SQLite and refresh after a successful routine; other evidence panels remain typed sample data.
 - Data & Runs no longer includes the UI-only Presentation states preview controls.
+- The repo-local plugin exposes `refresh-data` for validated BIST CSV publication and hands successful refreshes to the direct `?view=runs` web entry point.

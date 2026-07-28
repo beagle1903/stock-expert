@@ -29,6 +29,11 @@ const navigation = [
   { key: "runs", label: "Data & Runs", icon: Database },
 ] as const;
 
+function initialView(): ViewKey {
+  const requested = new URLSearchParams(window.location.search).get("view");
+  return navigation.some(({ key }) => key === requested) ? requested as ViewKey : "picks";
+}
+
 function fixed(value: number) {
   return value.toFixed(4);
 }
@@ -324,7 +329,7 @@ function RunsView({ data, reload }: {
 
 export function App() {
   const { data, status, reload } = useDashboard(dashboardRepository);
-  const [activeView, setActiveView] = useState<ViewKey>("picks");
+  const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const [selectedTicker, setSelectedTicker] = useState("AKSEN");
 
   const selectedPick = useMemo(
@@ -339,10 +344,21 @@ export function App() {
     }
   };
 
+  const navigate = (view: ViewKey) => {
+    setActiveView(view);
+    const url = new URL(window.location.href);
+    if (view === "picks") {
+      url.searchParams.delete("view");
+    } else {
+      url.searchParams.set("view", view);
+    }
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
   if (!data) {
     return (
       <div className="app-shell boot-shell">
-        <Sidebar activeView={activeView} onNavigate={setActiveView} />
+        <Sidebar activeView={activeView} onNavigate={navigate} />
         <main className="workspace"><StatusView kind={status === "error" ? "empty" : "loading"} onRetry={() => void reload()} /></main>
       </div>
     );
@@ -351,7 +367,7 @@ export function App() {
   const renderView = () => {
     if (!selectedPick) return null;
 
-    if (activeView === "overview") return <OverviewView data={data} onNavigate={setActiveView} />;
+    if (activeView === "overview") return <OverviewView data={data} onNavigate={navigate} />;
     if (activeView === "reviews") return <ReviewsView review={data.review} />;
     if (activeView === "diagnostics") return <DiagnosticsView picks={data.picks} selectedPick={selectedPick} onSelect={selectPick} />;
     if (activeView === "runs") return <RunsView data={data} reload={reload} />;
@@ -360,7 +376,7 @@ export function App() {
       <div className="dashboard-view">
         <div className="evidence-grid">
           <PickList picks={data.picks} selectedTicker={selectedPick.ticker} onSelect={selectPick} />
-          <EvidencePanel pick={selectedPick} onOpenDiagnostics={() => setActiveView("diagnostics")} />
+          <EvidencePanel pick={selectedPick} onOpenDiagnostics={() => navigate("diagnostics")} />
           <div className="right-stack"><ExposurePanel data={data} /><ReviewPanel review={data.review} /></div>
         </div>
         <RunTimeline data={data} />
@@ -370,7 +386,7 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar activeView={activeView} onNavigate={setActiveView} />
+      <Sidebar activeView={activeView} onNavigate={navigate} />
       <main className="workspace">
         <SessionHeader data={data} />
         {renderView()}

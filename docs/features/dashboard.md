@@ -13,6 +13,7 @@
 - Successful runs report the persisted snapshot id, pick count, and review id when a prior basket is eligible for review.
 - After a successful run, the dashboard repository reloads so both Today’s Picks and Reviews immediately display the newest persisted results.
 - Navigation covers overview, today's picks, reviews, diagnostics, and data/runs without adding execution, portfolio, live-quote, or forecast capabilities.
+- `?view=runs` opens Data & Runs directly so a completed data-refresh command can hand off to routine confirmation without a second navigation step.
 - Dashboard loading and retry states remain available; Data & Runs shows only real routine readiness, confirmation, running, success, and failure states rather than UI-only presentation previews.
 - Desktop, tablet, and mobile layouts preserve keyboard focus and explicit date/freshness labels.
 - The desktop right column sizes Exposure policy to its content and gives the remaining height to the scrollable review, preventing the two panels from overlapping above the run timeline.

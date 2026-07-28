@@ -10,7 +10,7 @@ npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173/`, choose **Data & Runs**, review the resolved signal/trade dates and four CSV checks, then confirm the persisted routine. The button remains disabled when an input is missing, empty, or stale. In Codex, `/stock-expert:run` starts or reuses the app and opens this URL in the built-in browser.
+Open `http://127.0.0.1:5173/?view=runs`, review the resolved signal/trade dates and four CSV checks, then confirm the persisted routine. The button remains disabled when an input is missing, empty, or stale. In Codex, `/stock-expert:refresh-data` refreshes and validates the live CSV bundle before opening Data & Runs; `/stock-expert:run` only starts or reuses the app.
 
 Python CLI for BIST intraday idea generation and review.
 
@@ -31,6 +31,7 @@ Run these from the repo root.
 
 ```powershell
 & 'D:\miniconda3\python.exe' -m stock_expert import-daily-folder --folder data\20260414
+& 'D:\miniconda3\python.exe' -m stock_expert refresh-investing-csvs
 & 'D:\miniconda3\python.exe' -m stock_expert midday-routine --date 2026-04-21
 & 'D:\miniconda3\python.exe' -m stock_expert routine --date 2026-04-21
 & 'D:\miniconda3\python.exe' -m stock_expert daily --date 2026-04-14

@@ -25,6 +25,13 @@ Use the automation only with the permissions required by the data provider's ter
 
 The persistent browser profile is local and ignored at `data/.investing-browser-profile/`. The refresh command only updates CSV files; importing or running the persisted routine remains a separate operator action.
 
+## Codex Plugin
+
+`/stock-expert:refresh-data` runs the same validated refresh command, verifies
+the published bundle, and opens `http://127.0.0.1:5173/?view=runs` unless the
+user requests CLI-only output. The skill never confirms or starts the persisted
+routine; Data & Runs remains the explicit execution boundary.
+
 ## Verification
 
 On 2026-07-23, live extraction produced 646 rows in each file. Fiyat required six `Daha Fazla` clicks; the other tabs retained the expanded coverage. On 2026-07-25, the embedded-browser page reached 646 rows and no longer displayed the control after the same first-tab expansion. The generated bundle imported with zero malformed rows into an isolated test database.

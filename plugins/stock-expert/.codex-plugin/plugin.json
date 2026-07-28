@@ -1,15 +1,15 @@
 {
   "name": "stock-expert",
-  "version": "1.0.0+codex.20260718114014",
-  "description": "Project-local routine and web app shortcuts for the stock expert repository.",
+  "version": "1.0.0+codex.20260728161415",
+  "description": "Project-local BIST data refresh, persisted routine, and web app workflows for the stock expert repository.",
   "author": {
     "name": "Local"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Stock Expert",
-    "shortDescription": "BIST routine and web app shortcuts",
-    "longDescription": "Project-local Codex commands for the stock expert repository, including the persisted daily routine and built-in-browser web app launcher.",
+    "shortDescription": "BIST data, routine, and web app workflows",
+    "longDescription": "Project-local Codex workflows for refreshing validated BIST CSV inputs, running the persisted daily routine, and launching the guarded Data & Runs web UI.",
     "developerName": "Local",
     "category": "Developer Tools",
     "capabilities": [
@@ -18,6 +18,7 @@
       "Write"
     ],
     "defaultPrompt": [
+      "Refresh BIST data and open Data & Runs",
       "Run the stock expert routine",
       "Open the Stock Expert web app"
     ]
