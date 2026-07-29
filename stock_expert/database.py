@@ -733,6 +733,18 @@ def get_pick_results(settings: Settings, signal_date: date, target_date: date) -
         )
 
 
+def get_persisted_pick_count(settings: Settings, signal_date: date) -> int:
+    signal_snapshot_id = get_latest_snapshot_id(settings, signal_date)
+    if signal_snapshot_id is None:
+        return 0
+    with connect(settings) as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS pick_count FROM picks WHERE snapshot_id = ?",
+            (signal_snapshot_id,),
+        ).fetchone()
+    return int(row["pick_count"])
+
+
 def get_candidate_outcomes(
     settings: Settings,
     limit_sessions: int = 20,

@@ -5,8 +5,9 @@
 - Missed top movers
 - Actionable vs non-actionable misses
 - Weight adjustments use a rolling review window with a minimum sample size instead of reacting to one session
-- Rolling weight adjustments are frozen at the pilot-start momentum/volume values while `bucketed-default-v1` is active, then resume after a terminal decision
+- Rolling weight adjustments are frozen at the pilot-start momentum/volume values only for eligible review dates while `bucketed-default-v1` is active; pre-start historical reviews retain point-in-time rolling behavior
 - Reports `no_prior_picks` when there are no persisted signal-date picks to review, so zero performance is not mistaken for strategy evidence
+- Reports `missing_price_outcomes` when persisted picks exist without target prices, including an explicit incomplete flag and persisted-pick count
 - Includes reviewed-pick and missed-mover attribution from recomputed signal-date ranks, signal components, boosts, and setup penalty context
 - Reviewed persisted picks can include `selection_bucket`, allowing later bucket-level performance checks
 - Counts a pick as a win only when return is at least 4%; smaller gains are treated as losses

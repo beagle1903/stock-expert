@@ -358,6 +358,10 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_prices_for_date", return_value=[]),
             patch("stock_expert.services.get_top_movers", return_value=[]),
             patch("stock_expert.services.get_latest_snapshot_id", return_value=7),
+            patch(
+                "stock_expert.services.get_persisted_pick_count",
+                return_value=1,
+            ),
         ):
             payload = json.loads(
                 review_output(
@@ -375,7 +379,13 @@ class ReviewOutputTests(unittest.TestCase):
                 ORDER BY strategy
                 """
             ).fetchall()
-        self.assertEqual(payload["performance"]["evaluation_status"], "no_prior_picks")
+        self.assertEqual(
+            payload["performance"]["evaluation_status"],
+            "missing_price_outcomes",
+        )
+        self.assertTrue(payload["performance"]["incomplete"])
+        self.assertEqual(payload["performance"]["persisted_pick_count"], 1)
+        self.assertIn("target prices", payload["performance"]["note"])
         self.assertEqual(
             [
                 (row["strategy"], row["evaluated_count"], row["is_complete"])
@@ -385,6 +395,65 @@ class ReviewOutputTests(unittest.TestCase):
                 ("bucketed", 0, 0),
                 ("score_ranked", 0, 0),
             ],
+        )
+
+    def test_pre_start_review_uses_historical_weights_and_strategy(self) -> None:
+        ensure_strategy_pilot(
+            self.settings,
+            signal_date=date(2026, 4, 22),
+            weights=Weights(
+                date=date(2026, 4, 22),
+                momentum_weight=0.4,
+                volume_weight=0.6,
+            ),
+        )
+        recent_rows = [
+            {
+                "ticker": "AAA",
+                "score": 1.0,
+                "selection_bucket": "score_ranked",
+                "open_price": 100.0,
+                "close_price": 90.0,
+            }
+        ]
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=[]),
+            patch("stock_expert.services.rank_candidates", return_value=[]),
+            patch("stock_expert.services.get_pick_results", return_value=recent_rows),
+            patch("stock_expert.services.get_prices_for_date", return_value=[]),
+            patch("stock_expert.services.get_top_movers", return_value=[]),
+            patch(
+                "stock_expert.services.get_weights_as_of",
+                return_value=Weights(
+                    date=date(2026, 4, 20),
+                    momentum_weight=0.8,
+                    volume_weight=0.2,
+                ),
+            ),
+            patch(
+                "stock_expert.services.get_recent_review_runs",
+                return_value=[
+                    {"avg_return": -0.10, "win_rate": 0.0}
+                    for _ in range(19)
+                ],
+            ),
+            patch(
+                "stock_expert.services.persist_review_bundle",
+                return_value=(7, True),
+            ) as persist_review_bundle,
+        ):
+            payload = json.loads(
+                review_output(self.settings, date(2026, 4, 21), dry_run=False)
+            )
+
+        persisted_weights = persist_review_bundle.call_args.kwargs["weights"]
+        self.assertEqual(persisted_weights.momentum_weight, 0.78)
+        self.assertEqual(persisted_weights.volume_weight, 0.22)
+        self.assertFalse(payload["strategy_pilot"]["signal_date_eligible"])
+        self.assertEqual(
+            payload["strategy_pilot"]["selected_strategy"],
+            "score_ranked",
         )
 
     def test_dry_run_missed_mover_uses_wide_candidate_attribution(self) -> None:

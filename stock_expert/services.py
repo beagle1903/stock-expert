@@ -13,6 +13,7 @@ from stock_expert.database import (
     get_latest_snapshot_id,
     get_market_snapshots_for_date,
     get_pick_results,
+    get_persisted_pick_count,
     get_prices_for_date,
     get_recent_price_history,
     get_recent_review_runs,
@@ -1269,7 +1270,16 @@ def review_output(
 
     current = get_weights_as_of(settings, signal_date) or default_weights(signal_date)
     pilot_state = get_strategy_pilot_state(settings)
-    if pilot_state is not None and pilot_state["status"] == "active":
+    pilot_state_dict = dict(pilot_state) if pilot_state is not None else None
+    pilot_review_eligible = _pilot_applies_to_signal_date(
+        pilot_state_dict,
+        review_date,
+    )
+    if (
+        pilot_state is not None
+        and pilot_state["status"] == "active"
+        and pilot_review_eligible
+    ):
         next_weights = Weights(
             date=as_of,
             momentum_weight=float(pilot_state["momentum_weight"]),
@@ -1345,6 +1355,23 @@ def review_output(
                 target_prices=target_prices,
             )
 
+    persisted_pick_count = get_persisted_pick_count(settings, signal_date)
+    if recent_rows:
+        evaluation_status = "evaluated"
+        evaluation_note = None
+    elif persisted_pick_count:
+        evaluation_status = "missing_price_outcomes"
+        evaluation_note = (
+            "Persisted picks were available, but target prices were missing; "
+            "the review is incomplete and does not advance strategy evidence."
+        )
+    else:
+        evaluation_status = "no_prior_picks"
+        evaluation_note = (
+            "No persisted picks were available for the signal date, so "
+            "avg_return and win_rate are not strategy evidence."
+        )
+
     payload = {
         "dry_run": dry_run,
         "chase_penalty": True,
@@ -1352,10 +1379,15 @@ def review_output(
         "signal_date": signal_date.isoformat(),
         "review_date": review_date.isoformat(),
         "market_context": market_context_for_dates(signal_date, review_date),
-        "strategy_pilot": strategy_pilot_payload(settings),
+        "strategy_pilot": strategy_pilot_payload(
+            settings,
+            signal_date=signal_date,
+        ),
         "performance": {
-            "evaluation_status": "evaluated" if recent_rows else "no_prior_picks",
-            "note": None if recent_rows else "No persisted picks were available for the signal date, so avg_return and win_rate are not strategy evidence.",
+            "evaluation_status": evaluation_status,
+            "incomplete": evaluation_status == "missing_price_outcomes",
+            "note": evaluation_note,
+            "persisted_pick_count": persisted_pick_count,
             "pick_count": len(recent_rows),
             "wins": wins,
             "avg_return": avg_return,

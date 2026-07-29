@@ -44,7 +44,8 @@
 - Historical ranking uses weights effective on or before the signal date; rolling reviews exclude later review dates
 - Persisted review bundles are immutable on rerun and include signal snapshot, weight date, and strategy version metadata
 - Operational picks and complete pilot control/variant baskets publish atomically; reviewed basket membership cannot be replaced
-- Pilot eligibility begins at the recorded start date, sessions are evaluated by signal date, and missing-price reviews persist as incomplete non-counting evidence
+- Pilot eligibility begins at the recorded start date, sessions are evaluated by signal date, and pre-start reviews keep historical weights and score-ranked reporting
+- Missing-price reviews persist as incomplete non-counting evidence and report `missing_price_outcomes` instead of `no_prior_picks`
 - Score-ranked and bucketed diagnostics compare the same breadth-adjusted exposure count
 - The pilot freezes momentum/volume weights while active, rolls back at a bucketed compounded edge of -3 percentage points, and promotes after 10 complete paired sessions only with at least 6 wins and a +3-point edge
 - A full routine evaluates the prior pilot session before persisting current picks so a terminal decision affects the next basket immediately
