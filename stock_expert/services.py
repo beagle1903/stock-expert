@@ -23,8 +23,9 @@ from stock_expert.database import (
     init_db,
     insert_weights,
     persist_review_bundle,
+    persist_strategy_pilot_review,
+    replace_picks_and_strategy_pilot_baskets,
     replace_picks_for_date,
-    replace_strategy_pilot_baskets,
     upsert_signals,
 )
 from stock_expert.models import PickRow, SignalRow, Weights
@@ -149,13 +150,17 @@ def ensure_bucketed_default_pilot(
     return dict(ensure_strategy_pilot(settings, signal_date, weights))
 
 
-def strategy_pilot_payload(settings: Settings) -> dict[str, object]:
+def strategy_pilot_payload(
+    settings: Settings,
+    signal_date: date | None = None,
+) -> dict[str, object]:
     state = get_strategy_pilot_state(settings)
     if state is None:
         return {
             "name": PILOT_NAME,
             "status": "not_started",
             "selected_strategy": operational_strategy(None),
+            "signal_date_eligible": True,
             "completed_sessions": 0,
             "bucketed_session_wins": 0,
             "compounded_edge": 0.0,
@@ -167,10 +172,21 @@ def strategy_pilot_payload(settings: Settings) -> dict[str, object]:
                 "rollback_edge": PILOT_ROLLBACK_EDGE,
             },
         }
+    state_dict = dict(state)
+    signal_date_eligible = (
+        True
+        if signal_date is None
+        else _pilot_applies_to_signal_date(state_dict, signal_date)
+    )
     return {
         "name": state["pilot_name"],
         "status": state["status"],
-        "selected_strategy": operational_strategy(str(state["status"])),
+        "selected_strategy": (
+            operational_strategy(str(state["status"]))
+            if signal_date_eligible
+            else "score_ranked"
+        ),
+        "signal_date_eligible": signal_date_eligible,
         "started_signal_date": state["started_signal_date"],
         "completed_sessions": state["completed_sessions"],
         "bucketed_session_wins": state["bucketed_session_wins"],
@@ -187,6 +203,17 @@ def strategy_pilot_payload(settings: Settings) -> dict[str, object]:
             "rollback_edge": PILOT_ROLLBACK_EDGE,
         },
     }
+
+
+def _pilot_applies_to_signal_date(
+    pilot_state: dict[str, object] | None,
+    signal_date: date,
+) -> bool:
+    if pilot_state is None:
+        return True
+    return signal_date >= date.fromisoformat(
+        str(pilot_state["started_signal_date"])
+    )
 
 
 def previous_weekday(day: date) -> date:
@@ -466,16 +493,26 @@ def generate_picks(
         state_row = get_strategy_pilot_state(settings)
         pilot_state = dict(state_row) if state_row is not None else None
     ranked, signals, snapshot_id = _ranked_candidate_rows(settings, as_of, ranking_context)
+    pilot_applies = _pilot_applies_to_signal_date(pilot_state, as_of)
     if not signals:
         if not dry_run and snapshot_id is not None:
-            replace_picks_for_date(settings, [], as_of, snapshot_id=snapshot_id)
-            replace_strategy_pilot_baskets(
-                settings,
-                snapshot_id=snapshot_id,
-                signal_date=as_of,
-                target_trade_date=next_weekday(as_of),
-                basket_rows=[],
-            )
+            if pilot_applies:
+                replace_picks_and_strategy_pilot_baskets(
+                    settings,
+                    rows=[],
+                    target_date=as_of,
+                    snapshot_id=snapshot_id,
+                    signal_date=as_of,
+                    target_trade_date=next_weekday(as_of),
+                    basket_rows=[],
+                )
+            else:
+                replace_picks_for_date(
+                    settings,
+                    [],
+                    as_of,
+                    snapshot_id=snapshot_id,
+                )
         return []
     if snapshot_id is None:
         return []
@@ -492,34 +529,47 @@ def generate_picks(
         for item in get_market_snapshots_for_date(settings, as_of)
     }
     baskets = _strategy_baskets(ranked, snapshots, final_pick_count)
-    strategy = selection_strategy or operational_strategy(
-        str(pilot_state["status"]) if pilot_state is not None else None
+    strategy = selection_strategy or (
+        operational_strategy(
+            str(pilot_state["status"]) if pilot_state is not None else None
+        )
+        if pilot_applies
+        else "score_ranked"
     )
     limited = baskets[strategy]
     if not dry_run:
-        replace_picks_for_date(settings, limited, as_of, snapshot_id=snapshot_id)
         candidate_ranks = {
             pick.ticker: rank
             for rank, pick in enumerate(ranked, start=1)
         }
-        replace_strategy_pilot_baskets(
-            settings,
-            snapshot_id=snapshot_id,
-            signal_date=as_of,
-            target_trade_date=next_weekday(as_of),
-            basket_rows=[
-                {
-                    "strategy": basket_strategy,
-                    "ticker": pick.ticker,
-                    "selection_rank": selection_rank,
-                    "candidate_rank": candidate_ranks[pick.ticker],
-                    "score": pick.score,
-                    "selection_bucket": pick.selection_bucket,
-                }
-                for basket_strategy, picks in baskets.items()
-                for selection_rank, pick in enumerate(picks, start=1)
-            ],
-        )
+        if pilot_applies:
+            replace_picks_and_strategy_pilot_baskets(
+                settings,
+                rows=limited,
+                target_date=as_of,
+                snapshot_id=snapshot_id,
+                signal_date=as_of,
+                target_trade_date=next_weekday(as_of),
+                basket_rows=[
+                    {
+                        "strategy": basket_strategy,
+                        "ticker": pick.ticker,
+                        "selection_rank": selection_rank,
+                        "candidate_rank": candidate_ranks[pick.ticker],
+                        "score": pick.score,
+                        "selection_bucket": pick.selection_bucket,
+                    }
+                    for basket_strategy, picks in baskets.items()
+                    for selection_rank, pick in enumerate(picks, start=1)
+                ],
+            )
+        else:
+            replace_picks_for_date(
+                settings,
+                limited,
+                as_of,
+                snapshot_id=snapshot_id,
+            )
     return limited
 
 
@@ -800,7 +850,10 @@ def picks_output(
         "signal_date": as_of.isoformat(),
         "target_trade_date": next_weekday(as_of).isoformat(),
         "market_context": market_context_for_dates(as_of, next_weekday(as_of)),
-        "strategy_pilot": strategy_pilot_payload(settings),
+        "strategy_pilot": strategy_pilot_payload(
+            settings,
+            signal_date=as_of,
+        ),
         "exposure": exposure,
         "picks": [
             {
@@ -1014,6 +1067,14 @@ def _pick_result_rows(picks: list[PickRow], prices_by_ticker: dict[str, object],
             }
         )
     return rows
+
+
+def _review_strategy_version(rows: list[dict[str, object]]) -> str:
+    for row in rows:
+        selection_bucket = row.get("selection_bucket")
+        if selection_bucket and selection_bucket != "score_ranked":
+            return f"{PILOT_NAME}:bucketed"
+    return "score-v1"
 
 
 def _candidate_rankings(
@@ -1237,41 +1298,51 @@ def review_output(
             volume_weight=current.volume_weight,
         )
     review_run_id = None
-    if not dry_run and recent_rows:
+    if not dry_run:
+        signal_snapshot_id = get_latest_snapshot_id(settings, signal_date)
         target_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, review_date)}
-        score_picks = [
-            _with_selection_bucket(pick, "score_ranked")
-            for pick in ranked_candidates[:effective_pick_count]
-        ]
-        bucketed_picks = generate_bucketed_picks(
-            settings,
-            signal_date,
-            pick_count=effective_pick_count,
-            ranking_context=ranking_context,
-        )
-        review_run_id, created = persist_review_bundle(
-            settings=settings,
-            as_of=signal_date,
-            review_date=review_date,
-            avg_return=avg_return,
-            win_rate=win_rate,
-            picks=recent_rows,
-            weights=next_weights,
-            candidate_outcomes=_candidate_outcome_rows(
-                ranked_candidates,
-                {pick.ticker for pick in score_picks},
-                bucketed_picks,
-                target_prices,
-            ),
-            signal_snapshot_id=get_latest_snapshot_id(settings, signal_date),
-            pilot_target_prices=target_prices,
-        )
-        if not created:
-            existing_review = get_review_run(settings, signal_date, review_date)
-            next_weights = Weights(
-                date=as_of,
-                momentum_weight=existing_review["momentum_weight"],
-                volume_weight=existing_review["volume_weight"],
+        if recent_rows:
+            score_picks = [
+                _with_selection_bucket(pick, "score_ranked")
+                for pick in ranked_candidates[:effective_pick_count]
+            ]
+            bucketed_picks = generate_bucketed_picks(
+                settings,
+                signal_date,
+                pick_count=effective_pick_count,
+                ranking_context=ranking_context,
+            )
+            review_run_id, created = persist_review_bundle(
+                settings=settings,
+                as_of=signal_date,
+                review_date=review_date,
+                avg_return=avg_return,
+                win_rate=win_rate,
+                picks=recent_rows,
+                weights=next_weights,
+                candidate_outcomes=_candidate_outcome_rows(
+                    ranked_candidates,
+                    {pick.ticker for pick in score_picks},
+                    bucketed_picks,
+                    target_prices,
+                ),
+                signal_snapshot_id=signal_snapshot_id,
+                strategy_version=_review_strategy_version(recent_rows),
+                pilot_target_prices=target_prices,
+            )
+            if not created:
+                existing_review = get_review_run(settings, signal_date, review_date)
+                next_weights = Weights(
+                    date=as_of,
+                    momentum_weight=existing_review["momentum_weight"],
+                    volume_weight=existing_review["volume_weight"],
+                )
+        elif signal_snapshot_id is not None:
+            persist_strategy_pilot_review(
+                settings,
+                signal_snapshot_id=signal_snapshot_id,
+                review_date=review_date,
+                target_prices=target_prices,
             )
 
     payload = {

@@ -78,6 +78,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-07-28 | Added `/stock-expert:refresh-data` as a separate validated data-preparation workflow with a direct Data & Runs handoff. | Keeps external data publication separate from persisted routine execution while supporting the same refresh through Codex or `refresh-investing-csvs` on the CLI. |
 | 2026-07-23 | Added rendered-table Investing.com CSV refresh through a dedicated Edge/Chrome profile. | Avoids the unreliable protected download endpoint; all four tables must pass schema, row-count, and company-coverage checks before rollback-safe publication. |
 | 2026-07-29 | Started the controlled `bucketed-default-v1` pilot with complete score-ranked control evidence, fixed weights, and automatic terminal rules. | Bucketed is operational while active/promoted; score-ranked resumes at a -3 point compounded edge or after a failed ten-session decision, and promotion requires 6 session wins plus a +3 point edge. |
+| 2026-07-29 | Hardened pilot evidence publication and evaluation boundaries. | Operational picks and both arms publish atomically; pre-start dates stay score-ranked, reviewed baskets are immutable, sessions evaluate chronologically, and missing-price reviews persist as incomplete evidence. |
 
 ## Workflows
 
@@ -119,7 +120,7 @@ Live files:
 1. Replace the four live CSV files with current exports.
 2. Run `D:\miniconda3\python.exe -m stock_expert routine` for the full flow or `D:\miniconda3\python.exe -m stock_expert midday-routine` for the midday dry-run review flow.
 3. The routine imports a new `snapshot_runs` row for today's date and uses the latest snapshot for output.
-4. `routine` persists the prior review before current picks so pilot rollback is immediate, stores both breadth-matched pilot baskets, and prints comparison/downside diagnostics; `midday-routine` neither initializes nor mutates the pilot and keeps review non-mutating via `--dry-run`.
+4. `routine` persists the prior review before current picks so pilot rollback is immediate, atomically stores operational picks plus both breadth-matched pilot baskets, and prints comparison/downside diagnostics; `midday-routine` neither initializes nor mutates the pilot and keeps review non-mutating via `--dry-run`.
 5. Use `midday-routine` when the user wants the midday dry-run review behavior from yesterday.
 6. Run CLI commands from the repo root unless the package is installed in the active environment.
 
@@ -140,7 +141,7 @@ Live files:
 
 - Run `D:\miniconda3\python.exe -m unittest discover -s tests -v` from the repo root.
 - Current tests cover `routine` vs `midday-routine` CLI wiring, weekday date helpers, review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, bounded technical/fundamental/setup-penalty scoring behavior, score-ranked default picks, and bucketed comparison reporting.
-- Ranking diagnostics depend on persisted `candidate_outcomes`; complete pilot evidence lives separately in `strategy_pilot_state`, `strategy_pilot_picks`, and `strategy_pilot_sessions`.
+- Ranking diagnostics depend on persisted `candidate_outcomes`; complete pilot evidence lives separately in `strategy_pilot_state`, `strategy_pilot_picks`, and `strategy_pilot_sessions`, where reviewed membership is immutable and incomplete price evidence remains visible.
 
 ### Git Workflow
 

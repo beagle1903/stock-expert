@@ -16,6 +16,7 @@ from stock_expert.database import (
     get_strategy_pilot_baskets,
     init_db,
     insert_review_run,
+    replace_strategy_pilot_baskets,
 )
 from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, Weights
 from stock_expert.services import (
@@ -37,6 +38,7 @@ from stock_expert.services import (
     review_output,
     rolling_candidate_diagnostics,
     rolling_review_weights,
+    strategy_pilot_payload,
 )
 from stock_expert.signals import (
     compute_fundamental_adjustment,
@@ -313,6 +315,77 @@ class ReviewOutputTests(unittest.TestCase):
         self.assertIn("No persisted picks", payload["performance"]["note"])
         self.assertEqual(payload["performance"]["pick_count"], 0)
         self.assertEqual(payload["reviewed_picks"], [])
+
+    def test_review_persists_incomplete_pilot_session_when_prices_are_missing(self) -> None:
+        ensure_strategy_pilot(
+            self.settings,
+            signal_date=date(2026, 4, 20),
+            weights=Weights(
+                date=date(2026, 4, 20),
+                momentum_weight=0.4,
+                volume_weight=0.6,
+            ),
+        )
+        replace_strategy_pilot_baskets(
+            self.settings,
+            snapshot_id=7,
+            signal_date=date(2026, 4, 20),
+            target_trade_date=date(2026, 4, 21),
+            basket_rows=[
+                {
+                    "strategy": "score_ranked",
+                    "ticker": "AAA",
+                    "selection_rank": 1,
+                    "candidate_rank": 1,
+                    "score": 1.0,
+                    "selection_bucket": "score_ranked",
+                },
+                {
+                    "strategy": "bucketed",
+                    "ticker": "BBB",
+                    "selection_rank": 1,
+                    "candidate_rank": 2,
+                    "score": 0.9,
+                    "selection_bucket": "core_momentum",
+                },
+            ],
+        )
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=[]),
+            patch("stock_expert.services.rank_candidates", return_value=[]),
+            patch("stock_expert.services.get_pick_results", return_value=[]),
+            patch("stock_expert.services.get_prices_for_date", return_value=[]),
+            patch("stock_expert.services.get_top_movers", return_value=[]),
+            patch("stock_expert.services.get_latest_snapshot_id", return_value=7),
+        ):
+            payload = json.loads(
+                review_output(
+                    self.settings,
+                    date(2026, 4, 21),
+                    dry_run=False,
+                )
+            )
+
+        with connect(self.settings) as conn:
+            sessions = conn.execute(
+                """
+                SELECT strategy, evaluated_count, is_complete
+                FROM strategy_pilot_sessions
+                ORDER BY strategy
+                """
+            ).fetchall()
+        self.assertEqual(payload["performance"]["evaluation_status"], "no_prior_picks")
+        self.assertEqual(
+            [
+                (row["strategy"], row["evaluated_count"], row["is_complete"])
+                for row in sessions
+            ],
+            [
+                ("bucketed", 0, 0),
+                ("score_ranked", 0, 0),
+            ],
+        )
 
     def test_dry_run_missed_mover_uses_wide_candidate_attribution(self) -> None:
         top_picks = [
@@ -802,6 +875,7 @@ class ReviewOutputTests(unittest.TestCase):
             {
                 "ticker": "AAA",
                 "score": 1.0,
+                "selection_bucket": "core_momentum",
                 "open_price": 100.0,
                 "close_price": 90.0,
             }
@@ -850,9 +924,16 @@ class ReviewOutputTests(unittest.TestCase):
         persisted_target_prices = persist_review_bundle.call_args.kwargs[
             "pilot_target_prices"
         ]
+        persisted_strategy_version = persist_review_bundle.call_args.kwargs[
+            "strategy_version"
+        ]
         self.assertEqual(persisted_weights.momentum_weight, 0.4)
         self.assertEqual(persisted_weights.volume_weight, 0.6)
         self.assertEqual(persisted_target_prices["AAA"], target_prices[0])
+        self.assertEqual(
+            persisted_strategy_version,
+            "bucketed-default-v1:bucketed",
+        )
         self.assertEqual(payload["adjustments"]["momentum_weight"], 0.4)
         self.assertEqual(payload["strategy_pilot"]["status"], "active")
 
@@ -1131,6 +1212,77 @@ class OutputAndOrderingTests(unittest.TestCase):
         self.assertEqual(
             len(get_strategy_pilot_baskets(self.settings, snapshot_id=1)),
             2,
+        )
+
+    def test_pre_start_historical_picks_stay_score_ranked_and_outside_pilot(self) -> None:
+        ensure_strategy_pilot(
+            self.settings,
+            signal_date=date(2026, 4, 21),
+            weights=Weights(
+                date=date(2026, 4, 21),
+                momentum_weight=0.4,
+                volume_weight=0.6,
+            ),
+        )
+        ranked = [
+            PickRow(
+                date=date(2026, 4, 20),
+                ticker="SCORE",
+                score=1.0,
+                momentum=0.7,
+                volume=0.95,
+                risk="high",
+            ),
+            PickRow(
+                date=date(2026, 4, 20),
+                ticker="BUCKET",
+                score=0.9,
+                momentum=0.9,
+                volume=0.9,
+                risk="high",
+            ),
+        ]
+        signals = [
+            SignalRow(
+                ticker=pick.ticker,
+                date=pick.date,
+                momentum=pick.momentum,
+                volume_spike=pick.volume,
+            )
+            for pick in ranked
+        ]
+        with (
+            patch(
+                "stock_expert.services._ranked_candidate_rows",
+                return_value=(ranked, signals, 1),
+            ),
+            patch("stock_expert.services.get_prices_for_date", return_value=[]),
+            patch(
+                "stock_expert.services.get_market_snapshots_for_date",
+                return_value=[],
+            ),
+        ):
+            actual = generate_picks(
+                self.settings,
+                date(2026, 4, 20),
+                pick_count=1,
+                dry_run=False,
+            )
+
+        self.assertEqual([pick.ticker for pick in actual], ["SCORE"])
+        self.assertEqual(actual[0].selection_bucket, "score_ranked")
+        self.assertEqual(
+            get_strategy_pilot_baskets(self.settings, snapshot_id=1),
+            [],
+        )
+        pilot_payload = strategy_pilot_payload(
+            self.settings,
+            signal_date=date(2026, 4, 20),
+        )
+        self.assertFalse(pilot_payload["signal_date_eligible"])
+        self.assertEqual(
+            pilot_payload["selected_strategy"],
+            "score_ranked",
         )
 
     def test_active_pilot_dry_run_does_not_write_picks_or_baskets(self) -> None:

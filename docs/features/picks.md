@@ -13,7 +13,9 @@
 - Weak market breadth reduces the default exposure cap to 3 picks below a 30% advancer ratio and 2 picks below a 20% advancer ratio
 - Rolling candidate evidence available before the signal date can reduce default exposure to 3 picks when `top_3` is the best observed cutoff and top-5 average return is negative
 - Bucketed selection composes 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`, with score-ordered fill when a bucket lacks enough eligible names
-- Both breadth-matched baskets are persisted in `strategy_pilot_picks` for every normal pick run
+- Both breadth-matched baskets and the operational picks are published in one transaction for every pilot-eligible normal pick run
+- Signal dates before the pilot start remain score-ranked and do not enter pilot evidence
+- Once a pilot session is reviewed, its signal-time basket membership is immutable
 - Operational selection returns to score-ranked after a pilot rollback/failure and remains bucketed after promotion
 - Score-ranked and bucketed comparisons use the same effective breadth-adjusted pick count
 - Wide diagnostic rankings use score order for review attribution and missed-mover analysis

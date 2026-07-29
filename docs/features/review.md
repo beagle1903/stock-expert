@@ -13,13 +13,15 @@
 - Persists each review run, resulting weights, pick-level returns, and candidate outcomes in one transaction
 - Persists top-ranked candidate outcomes, including rank, score components, setup penalty, score-ranked selection, bucketed selection, and realized next-session return
 - Persists complete score-ranked and bucketed pilot baskets at signal time, then records every available pick outcome and paired session summary at review time
+- Persists an incomplete paired session when target prices are unavailable so missing evidence remains visible instead of disappearing
+- Pilot sessions are immutable after first review, evaluated in signal-date order, and bounded to dates on or after the recorded pilot start
 - Only sessions with complete outcomes for both arms advance the ten-session pilot counter
 - Automatically rolls back when bucketed compounded return trails score-ranked by 3 percentage points; after session 10, promotion requires at least 6 session wins and a 3-point compounded edge
 - Reports rolling rank-band, setup-penalty, breakout-technical, score-ranked, and bucketed outcome diagnostics
 - Reports cumulative cutoff analysis for top 3/5/10/20/50 candidate ranks and identifies the best observed cutoff from the rolling candidate-outcome window
 - Reuses an existing persisted review for the same signal/review date without replacing its candidate evidence
 - Historical ranking uses signal-date weights, and rolling weight calculations exclude future review sessions
-- Review runs retain signal snapshot, weight date, and strategy version metadata
+- Review runs retain signal snapshot, weight date, and the actual operational strategy version metadata
 - Breadth-capped misses are attributed as `excluded_by_breadth_cap`
 - Recomputes prior signal-date candidate rankings in dry-run mode so review cannot rewrite historical persisted picks
 - CSV-imported review returns use previous-close-to-latest price basis until a real open column/source is available

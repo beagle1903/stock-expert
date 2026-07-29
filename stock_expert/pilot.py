@@ -29,10 +29,13 @@ def operational_strategy(status: str | None) -> str:
 
 def evaluate_pilot_sessions(rows: list[object]) -> PilotEvaluation:
     sessions: dict[int, dict[str, dict[str, object]]] = {}
+    signal_dates: dict[int, str] = {}
     for raw_row in rows:
         row = dict(raw_row)
         snapshot_id = int(row["signal_snapshot_id"])
         sessions.setdefault(snapshot_id, {})[str(row["strategy"])] = row
+        if row.get("signal_date"):
+            signal_dates[snapshot_id] = str(row["signal_date"])
 
     score_growth = 1.0
     bucketed_growth = 1.0
@@ -41,7 +44,14 @@ def evaluate_pilot_sessions(rows: list[object]) -> PilotEvaluation:
     status = "active"
     reason = "pilot_active"
 
-    for snapshot_id in sorted(sessions):
+    ordered_snapshot_ids = sorted(
+        sessions,
+        key=lambda snapshot_id: (
+            signal_dates.get(snapshot_id, ""),
+            snapshot_id,
+        ),
+    )
+    for snapshot_id in ordered_snapshot_ids:
         pair = sessions[snapshot_id]
         score_row = pair.get("score_ranked")
         bucketed_row = pair.get("bucketed")

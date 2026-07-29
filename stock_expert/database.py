@@ -519,28 +519,63 @@ def upsert_signals(settings: Settings, rows: Iterable[SignalRow], snapshot_id: i
 def replace_picks_for_date(settings: Settings, rows: Iterable[PickRow], target_date: date, snapshot_id: int | None = None) -> None:
     snapshot_id = snapshot_id or get_latest_snapshot_id(settings, target_date) or create_snapshot_run(settings, target_date, "legacy", "unknown")
     with connect(settings) as conn:
-        conn.execute("DELETE FROM picks WHERE snapshot_id = ?", (snapshot_id,))
-        conn.executemany(
-            """
-            INSERT INTO picks (snapshot_id, date, ticker, score, kap, momentum, volume, risk, horizon, selection_bucket)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (
-                    snapshot_id,
-                    row.date.isoformat(),
-                    row.ticker,
-                    row.score,
-                    0.0,
-                    row.momentum,
-                    row.volume,
-                    row.risk,
-                    row.horizon,
-                    row.selection_bucket,
-                )
-                for row in rows
-            ],
+        _replace_picks_for_snapshot_conn(conn, rows, snapshot_id)
+
+
+def _replace_picks_for_snapshot_conn(
+    conn: sqlite3.Connection,
+    rows: Iterable[PickRow],
+    snapshot_id: int,
+) -> None:
+    pick_rows = list(rows)
+    conn.execute("DELETE FROM picks WHERE snapshot_id = ?", (snapshot_id,))
+    conn.executemany(
+        """
+        INSERT INTO picks (
+            snapshot_id, date, ticker, score, kap, momentum, volume, risk,
+            horizon, selection_bucket
         )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                snapshot_id,
+                row.date.isoformat(),
+                row.ticker,
+                row.score,
+                0.0,
+                row.momentum,
+                row.volume,
+                row.risk,
+                row.horizon,
+                row.selection_bucket,
+            )
+            for row in pick_rows
+        ],
+    )
+
+
+def replace_picks_and_strategy_pilot_baskets(
+    settings: Settings,
+    rows: Iterable[PickRow],
+    target_date: date,
+    snapshot_id: int,
+    signal_date: date,
+    target_trade_date: date,
+    basket_rows: Iterable[dict[str, object]],
+) -> None:
+    pick_rows = list(rows)
+    pilot_rows = list(basket_rows)
+    init_db(settings)
+    with connect(settings) as conn:
+        _replace_strategy_pilot_baskets_conn(
+            conn,
+            snapshot_id=snapshot_id,
+            signal_date=signal_date,
+            target_trade_date=target_trade_date,
+            basket_rows=pilot_rows,
+        )
+        _replace_picks_for_snapshot_conn(conn, pick_rows, snapshot_id)
 
 
 def insert_weights(settings: Settings, row: Weights) -> None:
@@ -792,38 +827,68 @@ def replace_strategy_pilot_baskets(
     rows = list(basket_rows)
     init_db(settings)
     with connect(settings) as conn:
-        conn.execute(
-            """
-            DELETE FROM strategy_pilot_picks
-            WHERE pilot_name = ? AND signal_snapshot_id = ?
-            """,
-            (PILOT_NAME, snapshot_id),
+        _replace_strategy_pilot_baskets_conn(
+            conn,
+            snapshot_id=snapshot_id,
+            signal_date=signal_date,
+            target_trade_date=target_trade_date,
+            basket_rows=rows,
         )
-        conn.executemany(
-            """
-            INSERT INTO strategy_pilot_picks (
-                pilot_name, signal_snapshot_id, signal_date, target_trade_date,
-                strategy, ticker, selection_rank, candidate_rank, score,
-                selection_bucket
+
+
+def _replace_strategy_pilot_baskets_conn(
+    conn: sqlite3.Connection,
+    snapshot_id: int,
+    signal_date: date,
+    target_trade_date: date,
+    basket_rows: Iterable[dict[str, object]],
+) -> None:
+    reviewed = conn.execute(
+        """
+        SELECT 1
+        FROM strategy_pilot_sessions
+        WHERE pilot_name = ? AND signal_snapshot_id = ?
+        LIMIT 1
+        """,
+        (PILOT_NAME, snapshot_id),
+    ).fetchone()
+    if reviewed is not None:
+        raise ValueError(
+            f"reviewed pilot basket is immutable for snapshot {snapshot_id}"
+        )
+    rows = list(basket_rows)
+    conn.execute(
+        """
+        DELETE FROM strategy_pilot_picks
+        WHERE pilot_name = ? AND signal_snapshot_id = ?
+        """,
+        (PILOT_NAME, snapshot_id),
+    )
+    conn.executemany(
+        """
+        INSERT INTO strategy_pilot_picks (
+            pilot_name, signal_snapshot_id, signal_date, target_trade_date,
+            strategy, ticker, selection_rank, candidate_rank, score,
+            selection_bucket
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                PILOT_NAME,
+                snapshot_id,
+                signal_date.isoformat(),
+                target_trade_date.isoformat(),
+                row["strategy"],
+                row["ticker"],
+                row["selection_rank"],
+                row["candidate_rank"],
+                row["score"],
+                row["selection_bucket"],
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (
-                    PILOT_NAME,
-                    snapshot_id,
-                    signal_date.isoformat(),
-                    target_trade_date.isoformat(),
-                    row["strategy"],
-                    row["ticker"],
-                    row["selection_rank"],
-                    row["candidate_rank"],
-                    row["score"],
-                    row["selection_bucket"],
-                )
-                for row in rows
-            ],
-        )
+            for row in rows
+        ],
+    )
 
 
 def get_strategy_pilot_baskets(
@@ -1023,12 +1088,39 @@ def _pilot_price_value(price: object, field: str) -> float:
     return float(getattr(price, field))
 
 
+def persist_strategy_pilot_review(
+    settings: Settings,
+    signal_snapshot_id: int,
+    review_date: date,
+    target_prices: dict[str, object],
+) -> bool:
+    init_db(settings)
+    with connect(settings) as conn:
+        return _insert_strategy_pilot_results_conn(
+            conn,
+            signal_snapshot_id=signal_snapshot_id,
+            review_date=review_date,
+            target_prices=target_prices,
+        )
+
+
 def _insert_strategy_pilot_results_conn(
     conn: sqlite3.Connection,
     signal_snapshot_id: int,
     review_date: date,
     target_prices: dict[str, object],
-) -> None:
+) -> bool:
+    existing_session = conn.execute(
+        """
+        SELECT 1
+        FROM strategy_pilot_sessions
+        WHERE pilot_name = ? AND signal_snapshot_id = ?
+        LIMIT 1
+        """,
+        (PILOT_NAME, signal_snapshot_id),
+    ).fetchone()
+    if existing_session is not None:
+        return False
     basket_rows = list(
         conn.execute(
             """
@@ -1041,7 +1133,7 @@ def _insert_strategy_pilot_results_conn(
         )
     )
     if not basket_rows:
-        return
+        return False
 
     for row in basket_rows:
         price = target_prices.get(str(row["ticker"]))
@@ -1122,20 +1214,26 @@ def _insert_strategy_pilot_results_conn(
         )
 
     state = conn.execute(
-        "SELECT status FROM strategy_pilot_state WHERE pilot_name = ?",
+        """
+        SELECT status, started_signal_date
+        FROM strategy_pilot_state
+        WHERE pilot_name = ?
+        """,
         (PILOT_NAME,),
     ).fetchone()
     if state is None or state["status"] != "active":
-        return
+        return True
     session_rows = list(
         conn.execute(
             """
-            SELECT signal_snapshot_id, strategy, avg_return, is_complete
+            SELECT
+                signal_snapshot_id, signal_date, strategy, avg_return,
+                is_complete
             FROM strategy_pilot_sessions
-            WHERE pilot_name = ?
-            ORDER BY signal_snapshot_id, strategy
+            WHERE pilot_name = ? AND signal_date >= ?
+            ORDER BY signal_date, signal_snapshot_id, strategy
             """,
-            (PILOT_NAME,),
+            (PILOT_NAME, state["started_signal_date"]),
         )
     )
     evaluation = evaluate_pilot_sessions(session_rows)
@@ -1159,6 +1257,7 @@ def _insert_strategy_pilot_results_conn(
             PILOT_NAME,
         ),
     )
+    return True
 
 
 def insert_review_run(

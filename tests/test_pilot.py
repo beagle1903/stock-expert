@@ -78,6 +78,44 @@ class PilotPolicyTests(unittest.TestCase):
         self.assertEqual(result.bucketed_session_wins, 0)
         self.assertEqual(result.compounded_edge, 0.0)
 
+    def test_sessions_are_evaluated_by_signal_date_not_snapshot_id(self) -> None:
+        rows = [
+            {
+                "signal_snapshot_id": 1,
+                "signal_date": "2026-04-22",
+                "strategy": "score_ranked",
+                "avg_return": 0.0,
+                "is_complete": 1,
+            },
+            {
+                "signal_snapshot_id": 1,
+                "signal_date": "2026-04-22",
+                "strategy": "bucketed",
+                "avg_return": 0.10,
+                "is_complete": 1,
+            },
+            {
+                "signal_snapshot_id": 10,
+                "signal_date": "2026-04-21",
+                "strategy": "score_ranked",
+                "avg_return": 0.0,
+                "is_complete": 1,
+            },
+            {
+                "signal_snapshot_id": 10,
+                "signal_date": "2026-04-21",
+                "strategy": "bucketed",
+                "avg_return": -0.03,
+                "is_complete": 1,
+            },
+        ]
+
+        result = evaluate_pilot_sessions(rows)
+
+        self.assertEqual(result.status, "rolled_back")
+        self.assertEqual(result.completed_sessions, 1)
+        self.assertEqual(result.bucketed_compounded_return, -0.03)
+
     def test_operational_strategy_uses_score_only_for_terminal_failures(self) -> None:
         self.assertEqual(operational_strategy(None), "bucketed")
         self.assertEqual(operational_strategy("active"), "bucketed")

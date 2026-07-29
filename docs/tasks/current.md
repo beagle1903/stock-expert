@@ -37,6 +37,9 @@
 - [x] Roll back at a -3 percentage-point compounded edge
 - [x] Decide promotion after 10 sessions using at least 6 wins and a +3-point edge
 - [x] Apply terminal review decisions before persisting the next basket
+- [x] Publish operational and paired pilot baskets atomically
+- [x] Keep pre-start dates outside pilot evidence and evaluate sessions chronologically
+- [x] Make reviewed baskets immutable and persist missing-price sessions as incomplete
 
 ## Frontend Prototype
 
