@@ -16,8 +16,8 @@
 - `midday-routine` imports the same live CSVs, then runs `daily`, `picks`, and a dry-run `review`
 - Candidate scores still center on momentum and volume, with bounded technical/basic-analysis soft boosts from `teknik.csv` and `temel.csv`
 - Candidate scores subtract a capped setup penalty for weak or stretched snapshot context before ranking.
-- Default persisted picks remain score-ranked, but point-in-time rolling candidate evidence can tighten default exposure to top 3 when `top_3` is the best observed cutoff and top-5 average return is negative.
-- Bucket-composed picks remain available for dry-run/reporting comparison: 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`.
+- Bucketed selection is the persisted default during the controlled `bucketed-default-v1` pilot; score-ranked remains the breadth-matched control and the automatic fallback after rollback/failure.
+- The bucketed basket composes 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`, with score fill when needed.
 - Persisted and comparison picks include `selection_bucket` so later reviews can evaluate selection behavior.
 - Review win rate now requires at least 4% return; smaller positive returns count as losses.
 - Variable-date market holidays remain exact confirmed closed dates; stable annual closures may use recurring month/day rules.
@@ -33,7 +33,7 @@
 - `main` uses `data/stock_expert.db`; non-`main` branches default to branch-specific SQLite files unless `STOCK_EXPERT_DB_PATH` is set
 - `review --date YYYY-MM-DD` evaluates the previous trading-day signal picks against the requested review date and reports missed movers for that review date
 - Missed movers are grouped into `missed_top_movers`, `missed_actionable`, and `missed_non_actionable`
-- Persisted candidate outcomes provide rolling evidence for near-cutoff misses and score-ranked versus bucketed selection; bucketed picks remain reporting-only
+- Persisted candidate outcomes continue to support rolling ranking diagnostics; separate pilot tables guarantee complete score-ranked and bucketed basket evidence
 - Default pick exposure is reduced when the signal-date advancer ratio is below 30% or when rolling candidate evidence favors a tighter top-3 cutoff, while ranking logic remains unchanged
 - Review weights move only from a rolling multi-session performance window instead of daily review drift
 - Project-local Codex Stop validation blocks development changes without relevant Markdown updates unless a deliberate `DOCS_NOT_NEEDED` reason is present
@@ -44,6 +44,8 @@
 - Historical ranking uses weights effective on or before the signal date; rolling reviews exclude later review dates
 - Persisted review bundles are immutable on rerun and include signal snapshot, weight date, and strategy version metadata
 - Score-ranked and bucketed diagnostics compare the same breadth-adjusted exposure count
+- The pilot freezes momentum/volume weights while active, rolls back at a bucketed compounded edge of -3 percentage points, and promotes after 10 complete paired sessions only with at least 6 wins and a +3-point edge
+- A full routine evaluates the prior pilot session before persisting current picks so a terminal decision affects the next basket immediately
 - A routine-scoped `RankingContext` reuses each signal-date ranking across operator outputs
 - Detached HEAD and failed git detection use isolated databases instead of `data/stock_expert.db`
 - The Investing.com CSV refresh remains separate from `routine`; prefer the embedded browser, select all Turkish shares, expand `Daha Fazla` fully on the first tab, and rely on the existing four-file publication guard. The current CLI launcher still uses a separate Edge/Chrome process and cannot attach directly to an embedded tab.

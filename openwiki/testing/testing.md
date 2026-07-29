@@ -22,7 +22,7 @@ The repository uses the standard-library `unittest` runner. Most meaningful beha
 
 ### Persistence and database behavior
 
-`tests/test_database_prices.py` and `tests/test_review_persistence.py` cover snapshot run creation, latest snapshot selection, price history reads, review bundle persistence, and candidate outcome storage.
+`tests/test_database_prices.py` and `tests/test_review_persistence.py` cover snapshot run creation, latest snapshot selection, price history reads, review bundle persistence, candidate outcomes, dual pilot baskets, paired outcomes, and atomic rollback. `tests/test_pilot.py` covers the pure pilot decision policy.
 
 ### Configuration and imports
 
@@ -36,4 +36,11 @@ The repository uses the standard-library `unittest` runner. Most meaningful beha
 
 ```powershell
 & 'D:\miniconda3\python.exe' -m unittest discover -s tests -v
+```
+
+For trace coverage:
+
+```powershell
+New-Item -ItemType Directory -Force -Path .test_tmp\trace | Out-Null
+& 'D:\miniconda3\python.exe' -m trace --count --summary --missing --coverdir .test_tmp\trace --module unittest discover -s tests
 ```
