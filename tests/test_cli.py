@@ -207,6 +207,10 @@ class CliRoutineTests(unittest.TestCase):
     def test_midday_routine_uses_dry_run_review(self) -> None:
         with (
             patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch(
+                "stock_expert.cli.ensure_bucketed_default_pilot",
+                create=True,
+            ) as ensure_bucketed_default_pilot,
             patch("stock_expert.cli.import_daily_csv_command", return_value=json.dumps({"ok": True})),
             patch("stock_expert.cli.daily_summary", return_value="daily"),
             patch("stock_expert.cli.market_context_output", return_value="market"),
@@ -229,6 +233,57 @@ class CliRoutineTests(unittest.TestCase):
         self.assertIn("Market Context:", output)
         self.assertIn("Pick List:", output)
         self.assertIn("Dry-Run Review:", output)
+        ensure_bucketed_default_pilot.assert_not_called()
+
+    def test_routine_reviews_before_persisting_current_picks(self) -> None:
+        calls: list[str] = []
+
+        def record(name: str, result: str):
+            def side_effect(*args, **kwargs):
+                calls.append(name)
+                return result
+
+            return side_effect
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch(
+                "stock_expert.cli.ensure_bucketed_default_pilot",
+                side_effect=record("initialize", {"status": "active"}),
+                create=True,
+            ),
+            patch(
+                "stock_expert.cli.import_daily_csv_command",
+                return_value=json.dumps({"ok": True}),
+            ),
+            patch(
+                "stock_expert.cli.daily_summary",
+                side_effect=record("daily", "daily"),
+            ),
+            patch("stock_expert.cli.market_context_output", return_value="market"),
+            patch(
+                "stock_expert.cli.review_output",
+                side_effect=record("review", "review"),
+            ),
+            patch(
+                "stock_expert.cli.picks_output",
+                side_effect=record("picks", "picks"),
+            ),
+            patch(
+                "stock_expert.cli.bucketed_strategy_comparison_output",
+                return_value="comparison",
+            ),
+            patch("stock_expert.cli.downside_risk_output", return_value="downside"),
+            patch("sys.argv", ["stocks", "routine", "--date", "2026-04-21"]),
+            redirect_stdout(io.StringIO()) as stdout,
+        ):
+            exit_code = cli.main()
+
+        output = stdout.getvalue()
+        self.assertEqual(exit_code, 0)
+        self.assertLess(calls.index("initialize"), calls.index("review"))
+        self.assertLess(calls.index("review"), calls.index("picks"))
+        self.assertLess(output.index("Pick List:"), output.index("Review:"))
 
     def test_routine_uses_persisted_review(self) -> None:
         with (
