@@ -288,6 +288,10 @@ class CliRoutineTests(unittest.TestCase):
     def test_routine_uses_persisted_review(self) -> None:
         with (
             patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch(
+                "stock_expert.cli.ensure_bucketed_default_pilot",
+                return_value={"status": "active"},
+            ) as ensure_bucketed_default_pilot,
             patch("stock_expert.cli.import_daily_csv_command", return_value=json.dumps({"ok": True})),
             patch("stock_expert.cli.daily_summary", return_value="daily"),
             patch("stock_expert.cli.market_context_output", return_value="market") as market_context_output,
@@ -301,6 +305,10 @@ class CliRoutineTests(unittest.TestCase):
             exit_code = cli.main()
 
         self.assertEqual(exit_code, 0)
+        ensure_bucketed_default_pilot.assert_called_once_with(
+            self.settings,
+            cli.date(2026, 4, 21),
+        )
         market_context_output.assert_called_once_with(cli.date(2026, 4, 21))
         bucketed_strategy_comparison_output.assert_called_once_with(
             self.settings,
