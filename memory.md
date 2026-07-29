@@ -78,7 +78,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-07-28 | Added `/stock-expert:refresh-data` as a separate validated data-preparation workflow with a direct Data & Runs handoff. | Keeps external data publication separate from persisted routine execution while supporting the same refresh through Codex or `refresh-investing-csvs` on the CLI. |
 | 2026-07-23 | Added rendered-table Investing.com CSV refresh through a dedicated Edge/Chrome profile. | Avoids the unreliable protected download endpoint; all four tables must pass schema, row-count, and company-coverage checks before rollback-safe publication. |
 | 2026-07-29 | Started the controlled `bucketed-default-v1` pilot with complete score-ranked control evidence, fixed weights, and automatic terminal rules. | Bucketed is operational while active/promoted; score-ranked resumes at a -3 point compounded edge or after a failed ten-session decision, and promotion requires 6 session wins plus a +3 point edge. |
-| 2026-07-29 | Hardened pilot evidence publication, reporting, and evaluation boundaries. | Operational picks and both arms publish atomically; pre-start dates keep historical weights and score-ranked reporting, reviewed baskets are immutable, sessions evaluate chronologically, and missing-price reviews persist and report as incomplete evidence. |
+| 2026-07-29 | Hardened pilot evidence publication, reporting, and evaluation boundaries. | Operational picks and both arms publish atomically; pre-start dates keep historical weights and score-ranked reporting, reviewed baskets are immutable, sessions evaluate chronologically, and fully or partially missing-price reviews persist and report as incomplete evidence. |
 
 ## Workflows
 

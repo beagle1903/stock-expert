@@ -397,6 +397,45 @@ class ReviewOutputTests(unittest.TestCase):
             ],
         )
 
+    def test_partial_price_outcomes_report_incomplete_review(self) -> None:
+        recent_rows = [
+            {
+                "ticker": "AAA",
+                "score": 1.0,
+                "selection_bucket": "core_momentum",
+                "open_price": 100.0,
+                "close_price": 105.0,
+            }
+        ]
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=[]),
+            patch("stock_expert.services.rank_candidates", return_value=[]),
+            patch("stock_expert.services.get_pick_results", return_value=recent_rows),
+            patch("stock_expert.services.get_prices_for_date", return_value=[]),
+            patch("stock_expert.services.get_top_movers", return_value=[]),
+            patch(
+                "stock_expert.services.get_persisted_pick_count",
+                return_value=2,
+            ),
+            patch(
+                "stock_expert.services.persist_review_bundle",
+                return_value=(7, True),
+            ),
+        ):
+            payload = json.loads(
+                review_output(self.settings, date(2026, 4, 21), dry_run=False)
+            )
+
+        self.assertEqual(
+            payload["performance"]["evaluation_status"],
+            "missing_price_outcomes",
+        )
+        self.assertTrue(payload["performance"]["incomplete"])
+        self.assertEqual(payload["performance"]["persisted_pick_count"], 2)
+        self.assertEqual(payload["performance"]["pick_count"], 1)
+        self.assertEqual(payload["performance"]["missing_price_count"], 1)
+
     def test_pre_start_review_uses_historical_weights_and_strategy(self) -> None:
         ensure_strategy_pilot(
             self.settings,

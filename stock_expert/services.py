@@ -1356,15 +1356,16 @@ def review_output(
             )
 
     persisted_pick_count = get_persisted_pick_count(settings, signal_date)
-    if recent_rows:
-        evaluation_status = "evaluated"
-        evaluation_note = None
-    elif persisted_pick_count:
+    missing_price_count = max(persisted_pick_count - len(recent_rows), 0)
+    if missing_price_count:
         evaluation_status = "missing_price_outcomes"
         evaluation_note = (
-            "Persisted picks were available, but target prices were missing; "
-            "the review is incomplete and does not advance strategy evidence."
+            f"Only {len(recent_rows)} of {persisted_pick_count} persisted picks "
+            "had target prices; the review is incomplete."
         )
+    elif recent_rows:
+        evaluation_status = "evaluated"
+        evaluation_note = None
     else:
         evaluation_status = "no_prior_picks"
         evaluation_note = (
@@ -1389,6 +1390,7 @@ def review_output(
             "note": evaluation_note,
             "persisted_pick_count": persisted_pick_count,
             "pick_count": len(recent_rows),
+            "missing_price_count": missing_price_count,
             "wins": wins,
             "avg_return": avg_return,
             "win_rate": win_rate,
