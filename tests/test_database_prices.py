@@ -12,6 +12,7 @@ from stock_expert.database import (
     connect,
     create_snapshot_run,
     get_latest_weights,
+    get_persisted_pick_count,
     get_pick_results,
     get_prices_between,
     get_prices_for_date,
@@ -135,6 +136,11 @@ class PricePersistenceTests(unittest.TestCase):
         )
 
         self.assertEqual(results[0]["ticker"], "AAA")
+        self.assertEqual(get_persisted_pick_count(self.settings, signal_date), 1)
+        self.assertEqual(
+            get_persisted_pick_count(self.settings, date(2026, 4, 19)),
+            0,
+        )
         self.assertEqual(get_latest_weights(self.settings), weights)
         self.assertEqual(get_review_run(self.settings, signal_date, review_date)["id"], review_id)
         self.assertEqual(get_pick_results(self.settings, date(2026, 4, 19), review_date), [])

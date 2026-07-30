@@ -29,10 +29,13 @@
 
 ## Persistence
 
-- SQLite tables: `snapshot_runs`, `stocks`, `signals`, `picks`, `weights`, `market_snapshots`, `review_runs`, `review_pick_results`, `candidate_outcomes`
+- SQLite tables: `snapshot_runs`, `stocks`, `signals`, `picks`, `weights`, `market_snapshots`, `review_runs`, `review_pick_results`, `candidate_outcomes`, `strategy_pilot_state`, `strategy_pilot_picks`, `strategy_pilot_sessions`
 - `snapshot_runs` stores each live CSV import; market rows, signals, and picks reference a snapshot id
 - Date-based reads use the latest snapshot for each date
 - Daily snapshot publication is one transaction covering the run, market rows, and price rows
 - Review runs, resulting weights, pick results, and candidate outcomes are persisted as one idempotent transaction
-- Review identity is database-enforced by unique signal/review dates; candidate evidence belongs to the immutable review run
+- Operational picks and both pilot baskets share one signal-publication transaction
+- Pilot pick outcomes, paired session summaries, and active-state evaluation join the same review transaction when operational picks are reviewable; missing-price reviews persist an idempotent incomplete pilot session
+- `strategy_pilot_state` owns the fixed pilot weights and terminal decision; `strategy_pilot_picks` owns complete signal-time arm membership and realized outcomes; `strategy_pilot_sessions` owns equal-weight arm summaries
+- Review identity is database-enforced by unique signal/review dates; candidate evidence and reviewed pilot basket membership are immutable
 - SQLite foreign-key enforcement is enabled for declared ownership relationships

@@ -5,21 +5,28 @@
 - Missed top movers
 - Actionable vs non-actionable misses
 - Weight adjustments use a rolling review window with a minimum sample size instead of reacting to one session
+- Rolling weight adjustments are frozen at the pilot-start momentum/volume values only for eligible review dates while `bucketed-default-v1` is active; pre-start historical reviews retain point-in-time rolling behavior
 - Reports `no_prior_picks` when there are no persisted signal-date picks to review, so zero performance is not mistaken for strategy evidence
+- Reports `missing_price_outcomes` when any persisted pick lacks a target price, including explicit incomplete, persisted-pick, evaluated-pick, and missing-price counts
 - Includes reviewed-pick and missed-mover attribution from recomputed signal-date ranks, signal components, boosts, and setup penalty context
 - Reviewed persisted picks can include `selection_bucket`, allowing later bucket-level performance checks
 - Counts a pick as a win only when return is at least 4%; smaller gains are treated as losses
 - Persists each review run, resulting weights, pick-level returns, and candidate outcomes in one transaction
 - Persists top-ranked candidate outcomes, including rank, score components, setup penalty, score-ranked selection, bucketed selection, and realized next-session return
+- Persists complete score-ranked and bucketed pilot baskets at signal time, then records every available pick outcome and paired session summary at review time
+- Persists an incomplete paired session when target prices are unavailable so missing evidence remains visible instead of disappearing
+- Pilot sessions are immutable after first review, evaluated in signal-date order, and bounded to dates on or after the recorded pilot start
+- Only sessions with complete outcomes for both arms advance the ten-session pilot counter
+- Automatically rolls back when bucketed compounded return trails score-ranked by 3 percentage points; after session 10, promotion requires at least 6 session wins and a 3-point compounded edge
 - Reports rolling rank-band, setup-penalty, breakout-technical, score-ranked, and bucketed outcome diagnostics
 - Reports cumulative cutoff analysis for top 3/5/10/20/50 candidate ranks and identifies the best observed cutoff from the rolling candidate-outcome window
 - Reuses an existing persisted review for the same signal/review date without replacing its candidate evidence
 - Historical ranking uses signal-date weights, and rolling weight calculations exclude future review sessions
-- Review runs retain signal snapshot, weight date, and strategy version metadata
+- Review runs retain signal snapshot, weight date, and the actual operational strategy version metadata
 - Breadth-capped misses are attributed as `excluded_by_breadth_cap`
 - Recomputes prior signal-date candidate rankings in dry-run mode so review cannot rewrite historical persisted picks
 - CSV-imported review returns use previous-close-to-latest price basis until a real open column/source is available
 - Supports `--dry-run` for non-mutating strategy comparisons
-- `routine` reports the normal persisted review after picks, then score-ranked vs bucketed comparison diagnostics
+- `routine` mutates the prior-session review before current picks but retains the operator-facing picks-then-review display order
 - `midday-routine` reports the dry-run review after picks without writing review rows
 - No KAP inputs

@@ -44,6 +44,10 @@ Use this file when changing ranking, review, or market-context policy.
 - price history and mover reads
 - review bundle persistence and review-run identity
 - weights and candidate outcome storage
+- dual pilot baskets, paired outcomes, terminal-state updates, and atomic rollback
+
+`tests/test_pilot.py` covers the pure ten-session decision policy, including
+compounding, incomplete pairs, rollback, promotion, and failure.
 
 Use these tests when changing schema, migration, or write semantics.
 
@@ -71,6 +75,16 @@ For most changes, start with:
 ```
 
 If you are only changing one area, run the matching focused tests first, then the full suite if the change affects shared workflow behavior.
+
+For standard-library trace coverage:
+
+```powershell
+New-Item -ItemType Directory -Force -Path .test_tmp\trace | Out-Null
+& 'D:\miniconda3\python.exe' -m trace --count --summary --missing --coverdir .test_tmp\trace --module unittest discover -s tests
+```
+
+Use the `stock_expert.*` summary rows, or count executed and `>>>>>>` lines in
+the generated `stock_expert.*.cover` files for exact weighted coverage.
 
 ## Change-oriented guidance
 

@@ -13,6 +13,7 @@ from stock_expert.services import (
     bucketed_strategy_comparison_output,
     daily_summary,
     downside_risk_output,
+    ensure_bucketed_default_pilot,
     market_context_output,
     picks_output,
     review_output,
@@ -233,17 +234,49 @@ def main() -> int:
         print("Market Context:")
         print(market_context_output(as_of))
         print()
-        print(daily_summary(settings, as_of, ranking_context=ranking_context))
+        if args.command == "routine":
+            ensure_bucketed_default_pilot(settings, as_of)
+        daily_output = daily_summary(
+            settings,
+            as_of,
+            ranking_context=ranking_context,
+        )
+        if args.command == "midday-routine":
+            pick_list_output = picks_output(
+                settings,
+                as_of,
+                ranking_context=ranking_context,
+            )
+            persisted_review_output = None
+            dry_run_review_output = review_output(
+                settings,
+                as_of,
+                dry_run=True,
+                ranking_context=ranking_context,
+            )
+        else:
+            persisted_review_output = review_output(
+                settings,
+                as_of,
+                ranking_context=ranking_context,
+            )
+            pick_list_output = picks_output(
+                settings,
+                as_of,
+                ranking_context=ranking_context,
+            )
+            dry_run_review_output = None
+        print(daily_output)
         print()
         print("Pick List:")
-        print(picks_output(settings, as_of, ranking_context=ranking_context))
+        print(pick_list_output)
         print()
         if args.command == "midday-routine":
             print("Dry-Run Review:")
-            print(review_output(settings, as_of, dry_run=True, ranking_context=ranking_context))
+            print(dry_run_review_output)
         else:
             print("Review:")
-            print(review_output(settings, as_of, ranking_context=ranking_context))
+            print(persisted_review_output)
             print()
             print("Score-Ranked vs Bucketed Review Comparison:")
             print(

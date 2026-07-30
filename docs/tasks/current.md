@@ -28,6 +28,19 @@
 - Historical review evidence is point-in-time and immutable
 - Standard-library trace coverage remains at or above 90% across production modules
 
+## Bucketed-Default Pilot
+
+- [x] Persist complete breadth-matched score-ranked and bucketed baskets
+- [x] Use bucketed as the active default without changing candidate scoring
+- [x] Freeze momentum/volume weights while the pilot is active
+- [x] Count only complete paired review sessions
+- [x] Roll back at a -3 percentage-point compounded edge
+- [x] Decide promotion after 10 sessions using at least 6 wins and a +3-point edge
+- [x] Apply terminal review decisions before persisting the next basket
+- [x] Publish operational and paired pilot baskets atomically
+- [x] Keep pre-start dates outside pilot evidence and evaluate sessions chronologically
+- [x] Make reviewed baskets immutable and persist missing-price sessions as incomplete
+
 ## Frontend Prototype
 
 - Dark Evidence Console implemented under `frontend/` with typed mock data and an explicit future repository boundary.

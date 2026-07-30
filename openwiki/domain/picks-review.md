@@ -28,20 +28,20 @@ The ranking path is designed to keep the base signal dominant while still lettin
 
 ## Pick selection policy
 
-The default persisted pick list is score-ranked. Recent git history and current docs show a deliberate move toward preserving score-ranked default picks while exposing bucketed alternatives for analysis.
+The controlled `bucketed-default-v1` pilot makes bucketed selection the persisted default while active and preserves a complete score-ranked control basket.
 
 Important selection behavior:
 
 - default exposure is capped and may shrink based on breadth and rolling evidence
-- strong-breadth or strong-momentum candidates can be promoted through the score-ranked path
-- bucketed selection remains available for comparison, with buckets such as `core_momentum`, `breakout_technical`, and `coverage_recovery`
+- score-ranked and bucketed arms always use the same effective exposure cap
+- bucketed selection uses `core_momentum`, `breakout_technical`, and `coverage_recovery`, with score fill when needed
 - selection rows carry `selection_bucket` so later review can trace why a candidate was selected
-- `routine` reports both the persisted score-ranked output and a score-ranked vs bucketed comparison
+- `routine` evaluates the prior pilot session before persisting current picks, then reports the operational basket and paired comparison
 
 This means there are two related stories in the repo:
 
-1. what the strategy actually persists as the live default
-2. what alternative bucket composition says about possible exposure control
+1. the bucketed operational basket while the pilot is active/promoted
+2. the score-ranked control and automatic fallback after rollback/failure
 
 ## Review logic
 
@@ -52,8 +52,9 @@ Highlights:
 - reviews use the previous trading session, not a naive calendar day
 - persisted review bundles are written as one transaction
 - review runs are idempotent for the same signal/review date
-- weights are updated from rolling performance, not from a single session shock
+- weights are updated from rolling performance outside the pilot and remain fixed at pilot-start values while it is active
 - candidate outcomes are persisted so later review can analyze rank cutoffs and near-miss behavior
+- complete pilot baskets and outcomes are persisted separately from the bounded candidate diagnostic rows
 - the repo treats returns under 4% as losses for win-rate purposes
 
 The review output also includes attribution for reviewed picks and missed movers so operators can distinguish good misses from actual opportunities that were not selected.
@@ -71,7 +72,8 @@ Those dates influence the selection policy and downside penalties. The implement
 
 - Do not introduce future-data leakage.
 - Keep outputs structured.
-- Preserve the distinction between score-ranked default picks and bucketed diagnostics.
+- Preserve equal breadth for the operational bucketed arm and score-ranked control.
+- Preserve the -3 point rollback and ten-session 6-win/+3-point promotion thresholds.
 - Keep market holiday handling exact and user-confirmed.
 - Review should stay idempotent and immutable once persisted.
 - Historical rankings should use weights effective on or before the signal date.

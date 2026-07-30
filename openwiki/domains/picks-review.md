@@ -17,7 +17,7 @@ A few practical rules matter:
 
 ## Selection and exposure
 
-The persisted default remains score-ranked. Bucketed selection still exists for comparison and diagnostics, with buckets such as `core_momentum`, `breakout_technical`, and `coverage_recovery`.
+The controlled `bucketed-default-v1` pilot persists bucketed selection while active and keeps a complete score-ranked control basket. Bucketed uses `core_momentum`, `breakout_technical`, and `coverage_recovery`; score-ranked automatically resumes after rollback/failure.
 
 The system can tighten exposure based on market breadth or rolling candidate evidence. That behavior is visible in the pick output and in the review comparison reports.
 
@@ -28,6 +28,7 @@ Review evaluates previous signal-date picks against the requested realized marke
 - the review run summary
 - per-pick realized returns
 - candidate outcomes for cutoff analysis and attribution
+- complete pilot baskets, pick outcomes, and paired arm summaries
 - resulting weights
 
 Important rules:
@@ -35,6 +36,7 @@ Important rules:
 - a pick counts as a win only at 4% return or better
 - rerunning the same signal/review date should reuse the persisted review instead of replacing candidate evidence
 - dry-run review is used for `midday-routine`
+- active pilot weights stay fixed, and only complete paired sessions advance the ten-session decision
 
 ## Market context policy
 
