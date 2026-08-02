@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   CalendarBlank,
+  CaretLeft,
+  CaretRight,
   CheckCircle,
   ClipboardText,
   Clock,
@@ -16,6 +18,7 @@ import { RoutineLauncher } from "./components/RoutineLauncher";
 import type {
   DashboardData,
   Pick,
+  ReviewHistoryItem,
   ReviewSummary,
   ViewKey,
 } from "./domain/dashboard";
@@ -44,6 +47,12 @@ function signedFixed(value: number) {
 
 function percent(value: number, digits = 2) {
   return `${value > 0 ? "+" : ""}${(value * 100).toFixed(digits)}%`;
+}
+
+function valueTone(value: number) {
+  if (value > 0) return "positive";
+  if (value < 0) return "negative";
+  return "neutral";
 }
 
 function displayDate(value: string) {
@@ -187,41 +196,170 @@ function reviewDate(value: string) {
     .format(new Date(`${value}T12:00:00`));
 }
 
-function ReviewPanel({ review, expanded = false }: { review: ReviewSummary | null; expanded?: boolean }) {
+function ReviewPanel({ review, expanded = false, title = "Last review", loading = false }: {
+  review: ReviewSummary | null;
+  expanded?: boolean;
+  title?: string;
+  loading?: boolean;
+}) {
+  if (loading) {
+    return (
+      <section className={`panel review-panel ${expanded ? "is-expanded" : ""}`} aria-labelledby="review-title" aria-live="polite">
+        <h2 id="review-title">{title}</h2>
+        <p className="review-loading">Loading persisted review details…</p>
+      </section>
+    );
+  }
   if (!review) {
     return (
       <section className={`panel review-panel ${expanded ? "is-expanded" : ""}`} aria-labelledby="review-title">
-        <h2 id="review-title">Last review</h2>
+        <h2 id="review-title">{title}</h2>
         <p>No persisted review is available yet.</p>
       </section>
     );
   }
   return (
     <section className={`panel review-panel ${expanded ? "is-expanded" : ""}`} aria-labelledby="review-title">
-      <h2 id="review-title">Last review</h2>
+      <h2 id="review-title">{title}</h2>
       <div className="review-dates">
         <strong>Review #{review.id}</strong>
         <span>Signal {reviewDate(review.signalDate)}</span>
         <span>Review {reviewDate(review.reviewDate)}</span>
       </div>
       <dl className="review-metrics">
-        <div><dt>Average return</dt><dd>{percent(review.averageReturn)}</dd></div>
-        <div><dt>Win rate</dt><dd>{(review.winRate * 100).toFixed(0)}%</dd></div>
-        <div><dt>Wins</dt><dd>{review.wins} of {review.pickCount}</dd></div>
+        <div><dt>Average return</dt><dd className={valueTone(review.averageReturn)}>{percent(review.averageReturn)}</dd></div>
+        <div><dt>Win rate</dt><dd className="neutral">{(review.winRate * 100).toFixed(0)}%</dd></div>
+        <div><dt>Wins</dt><dd className="neutral">{review.wins} of {review.pickCount}</dd></div>
       </dl>
       <div className="threshold">
         <span>Minimum win threshold</span>
         <strong>+{(review.minimumWinReturn * 100).toFixed(0)}%</strong>
       </div>
       <h3>Reviewed outcomes</h3>
-      <div className="outcome-list">
-        {review.outcomes.map((outcome) => (
-          <div key={outcome.ticker}>
-            <strong>{outcome.ticker}</strong>
-            <span className={outcome.returnPct < 0 ? "negative" : "positive"}>{percent(outcome.returnPct)}</span>
-            <span className={outcome.won ? "positive" : "negative"}>{outcome.won ? "win" : "loss"}</span>
-          </div>
-        ))}
+      {review.outcomes.length === 0 ? (
+        <p className="review-empty-outcomes">No pick outcomes were recorded for this review.</p>
+      ) : (
+        <table className="outcome-table" aria-label="Reviewed pick outcomes">
+          <thead>
+            <tr><th scope="col">Pick</th><th scope="col">Return</th><th scope="col">Result</th></tr>
+          </thead>
+          <tbody>
+            {review.outcomes.map((outcome) => (
+              <tr key={outcome.ticker}>
+                <td><strong>{outcome.ticker}</strong></td>
+                <td className={valueTone(outcome.returnPct)}>{percent(outcome.returnPct)}</td>
+                <td className={outcome.won ? "positive" : "negative"}>{outcome.won ? "Win" : "Loss"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+function ReviewHistoryList({ reviews, selectedId, onSelect }: {
+  reviews: ReviewHistoryItem[];
+  selectedId: number | null;
+  onSelect: (reviewId: number) => void;
+}) {
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const selectedRowRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const list = listRef.current;
+    const row = selectedRowRef.current;
+    if (!list || !row) return;
+    const listRect = list.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    if (rowRect.top < listRect.top || rowRect.bottom > listRect.bottom) {
+      list.scrollTop += rowRect.top - listRect.top - (listRect.height - rowRect.height) / 2;
+    }
+  }, [selectedId]);
+
+  return (
+    <section className="panel review-history-panel" aria-labelledby="review-history-title">
+      <h2 id="review-history-title">Review history <span>• {reviews.length}</span></h2>
+      <div className="review-history-columns" aria-hidden="true"><span>Signal date</span><span>Avg</span><span>Wins</span></div>
+      {reviews.length === 0 ? (
+        <p className="review-history-empty">No persisted review history is available yet.</p>
+      ) : (
+        <div className="review-history-list" ref={listRef} aria-label="Previous pick reviews">
+          {reviews.map((review) => (
+            <button
+              type="button"
+              className={`review-history-row ${selectedId === review.id ? "is-selected" : ""}`}
+              key={review.id}
+              ref={selectedId === review.id ? selectedRowRef : undefined}
+              onClick={() => onSelect(review.id)}
+              aria-current={selectedId === review.id ? "date" : undefined}
+              aria-label={`Review ${review.id}, signal ${review.signalDate}, average return ${percent(review.averageReturn)}, ${review.wins} wins out of ${review.pickCount}`}
+            >
+              <span className="history-row-date">
+                <strong>{reviewDate(review.signalDate)}</strong>
+                <small>Reviewed {reviewDate(review.reviewDate)}</small>
+              </span>
+              <span className={`${valueTone(review.averageReturn)} history-return`}>{percent(review.averageReturn)}</span>
+              <span className="history-wins">{review.wins}/{review.pickCount}<small>wins</small></span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ReviewNavigator({ reviews, selectedId, loading, onSelect }: {
+  reviews: ReviewHistoryItem[];
+  selectedId: number | null;
+  loading: boolean;
+  onSelect: (reviewId: number) => void;
+}) {
+  const selectedIndex = reviews.findIndex((review) => review.id === selectedId);
+  const newerReview = selectedIndex > 0 ? reviews[selectedIndex - 1] : null;
+  const olderReview = selectedIndex >= 0 && selectedIndex < reviews.length - 1 ? reviews[selectedIndex + 1] : null;
+  const position = selectedIndex >= 0 ? selectedIndex + 1 : 0;
+
+  return (
+    <section className="panel review-navigator" aria-labelledby="review-navigator-title">
+      <div className="review-navigator-copy">
+        <p className="eyebrow">Browse history</p>
+        <h2 id="review-navigator-title">Choose a signal date</h2>
+        <p>{reviews.length === 0 ? "No persisted reviews" : `${position} of ${reviews.length} · newest first`}</p>
+      </div>
+      <div className="review-navigator-controls">
+        <button
+          type="button"
+          className="review-step-button"
+          disabled={loading || !newerReview}
+          onClick={() => newerReview && onSelect(newerReview.id)}
+          aria-label={newerReview ? `Newer review, signal ${newerReview.signalDate}` : "No newer review"}
+        >
+          <CaretLeft size={18} aria-hidden="true" /> Newer
+        </button>
+        <label className="review-date-control">
+          <span>Signal date</span>
+          <select
+            value={selectedId ?? ""}
+            disabled={loading || reviews.length === 0}
+            onChange={(event) => onSelect(Number(event.target.value))}
+          >
+            {reviews.map((review) => (
+              <option value={review.id} key={review.id}>
+                {displayDate(review.signalDate)} · {percent(review.averageReturn)} avg · {review.wins}/{review.pickCount} wins
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="review-step-button"
+          disabled={loading || !olderReview}
+          onClick={() => olderReview && onSelect(olderReview.id)}
+          aria-label={olderReview ? `Older review, signal ${olderReview.signalDate}` : "No older review"}
+        >
+          Older <CaretRight size={18} aria-hidden="true" />
+        </button>
       </div>
     </section>
   );
@@ -286,11 +424,37 @@ function OverviewView({ data, onNavigate }: { data: DashboardData; onNavigate: (
   );
 }
 
-function ReviewsView({ review }: { review: ReviewSummary | null }) {
+function ReviewsView({
+  reviews,
+  selectedReview,
+  selectedReviewId,
+  loading,
+  error,
+  onSelect,
+}: {
+  reviews: ReviewHistoryItem[];
+  selectedReview: ReviewSummary | null;
+  selectedReviewId: number | null;
+  loading: boolean;
+  error: string | null;
+  onSelect: (reviewId: number) => void;
+}) {
   return (
-    <div className="single-view">
-      <div className="view-intro"><p className="eyebrow">Persisted performance</p><h2>{review ? `Review #${review.id}` : "No review yet"}</h2><p>Observed outcomes only; the minimum win threshold is +4%.</p></div>
-      <ReviewPanel review={review} expanded />
+    <div className="reviews-view">
+      <div className="view-intro"><p className="eyebrow">Persisted performance</p><h2>Review past picks</h2><p>Move through signal dates, then inspect the recorded return and result for every pick.</p></div>
+      <ReviewNavigator reviews={reviews} selectedId={selectedReviewId} loading={loading} onSelect={onSelect} />
+      <div className="review-history-layout">
+        <ReviewHistoryList reviews={reviews} selectedId={selectedReviewId} onSelect={onSelect} />
+        <div className="review-detail" id="review-detail" aria-live="polite" aria-busy={loading}>
+          {error && <p className="review-error" role="alert">{error}</p>}
+          <ReviewPanel
+            review={selectedReview}
+            title={selectedReview ? `Picks from ${displayDate(selectedReview.signalDate)}` : "Review details"}
+            expanded
+            loading={loading}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -331,6 +495,19 @@ export function App() {
   const { data, status, reload } = useDashboard(dashboardRepository);
   const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const [selectedTicker, setSelectedTicker] = useState("AKSEN");
+  const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
+  const [selectedReview, setSelectedReview] = useState<ReviewSummary | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const reviewRequestId = useRef(0);
+
+  useEffect(() => {
+    reviewRequestId.current += 1;
+    setReviewLoading(false);
+    setSelectedReviewId(data?.review?.id ?? null);
+    setSelectedReview(data?.review ?? null);
+    setReviewError(null);
+  }, [data]);
 
   const selectedPick = useMemo(
     () => data?.picks.find((pick) => pick.ticker === selectedTicker) ?? data?.picks[0],
@@ -341,6 +518,43 @@ export function App() {
     setSelectedTicker(ticker);
     if (window.matchMedia("(max-width: 760px)").matches) {
       window.setTimeout(() => document.getElementById("evidence-panel")?.scrollIntoView({ behavior: "smooth" }), 0);
+    }
+  };
+
+  const revealReviewDetail = () => {
+    if (!window.matchMedia("(max-width: 820px)").matches) return;
+    window.setTimeout(() => document.getElementById("review-detail")?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    }), 0);
+  };
+
+  const selectReview = async (reviewId: number) => {
+    if (selectedReview?.id === reviewId) {
+      revealReviewDetail();
+      return;
+    }
+    const requestId = ++reviewRequestId.current;
+    setSelectedReviewId(reviewId);
+    setReviewError(null);
+    if (data?.review?.id === reviewId) {
+      setSelectedReview(data.review);
+      setReviewLoading(false);
+      revealReviewDetail();
+      return;
+    }
+    setReviewLoading(true);
+    revealReviewDetail();
+    try {
+      const review = await dashboardRepository.loadReview(reviewId);
+      if (requestId === reviewRequestId.current) setSelectedReview(review);
+    } catch (error) {
+      if (requestId === reviewRequestId.current) {
+        setSelectedReview(null);
+        setReviewError(error instanceof Error ? error.message : "The selected review could not be loaded.");
+      }
+    } finally {
+      if (requestId === reviewRequestId.current) setReviewLoading(false);
     }
   };
 
@@ -368,7 +582,18 @@ export function App() {
     if (!selectedPick) return null;
 
     if (activeView === "overview") return <OverviewView data={data} onNavigate={navigate} />;
-    if (activeView === "reviews") return <ReviewsView review={data.review} />;
+    if (activeView === "reviews") {
+      return (
+        <ReviewsView
+          reviews={data.reviewHistory}
+          selectedReview={selectedReview}
+          selectedReviewId={selectedReviewId}
+          loading={reviewLoading}
+          error={reviewError}
+          onSelect={(reviewId) => void selectReview(reviewId)}
+        />
+      );
+    }
     if (activeView === "diagnostics") return <DiagnosticsView picks={data.picks} selectedPick={selectedPick} onSelect={selectPick} />;
     if (activeView === "runs") return <RunsView data={data} reload={reload} />;
 

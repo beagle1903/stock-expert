@@ -11,3 +11,4 @@ When implementing from a selected generated mock, treat that image as the source
 - Use the dark `Evidence Console` direction approved on 2026-07-17.
 - Preserve the select-and-inspect interaction model and explicit signal-date versus target-trade-date labeling.
 - Only display metrics backed by current Stock Expert entities or clearly labeled mock-state controls.
+- Keep the selected review immediately reachable on narrow screens: use compact date navigation, place detail before the history list, and bound long history lists instead of forcing a page-length scroll.

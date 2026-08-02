@@ -14,6 +14,8 @@ from stock_expert.web_api import (
     RoutineRequestError,
     build_routine_preview,
     execute_routine,
+    load_review_by_id,
+    load_review_history,
     load_latest_picks,
     load_latest_review,
 )
@@ -133,6 +135,19 @@ class RoutineWebApiTests(unittest.TestCase):
         self.assertEqual(review["reviewDate"], "2026-07-16")
         self.assertEqual(review["minimumWinReturn"], 0.04)
         self.assertEqual([outcome["ticker"] for outcome in review["outcomes"]], ["HIGH", "LOW"])
+
+        history = load_review_history(self.settings)
+        self.assertEqual([item["id"] for item in history], [latest_id, older_id])
+        self.assertEqual(history[0]["wins"], 0)
+        self.assertEqual(history[0]["pickCount"], 2)
+        self.assertNotIn("outcomes", history[0])
+
+        selected = load_review_by_id(self.settings, int(older_id))
+        self.assertIsNotNone(selected)
+        assert selected is not None
+        self.assertEqual(selected["signalDate"], "2026-07-17")
+        self.assertEqual(selected["outcomes"], [])
+        self.assertIsNone(load_review_by_id(self.settings, 999))
 
     def test_preview_resolves_recurring_holiday_to_previous_session(self) -> None:
         self.write_inputs()

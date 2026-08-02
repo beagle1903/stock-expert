@@ -135,6 +135,17 @@ export const mockDashboard: DashboardData = {
       { ticker: "ISGSY", returnPct: -0.0336, won: false },
     ],
   },
+  reviewHistory: [
+    {
+      id: 69,
+      signalDate: "14 Jul 2026",
+      reviewDate: "16 Jul 2026",
+      averageReturn: 0.0355,
+      winRate: 0.4,
+      wins: 2,
+      pickCount: 5,
+    },
+  ],
   runSteps: [
     { id: 1, label: "CSV imported", detail: "Imported 18:34 TRT" },
     { id: 2, label: "Snapshot #100 persisted", detail: "16 Jul 2026" },

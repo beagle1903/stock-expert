@@ -29,4 +29,5 @@
 - Supports `--dry-run` for non-mutating strategy comparisons
 - `routine` mutates the prior-session review before current picks but retains the operator-facing picks-then-review display order
 - `midday-routine` reports the dry-run review after picks without writing review rows
+- The dashboard exposes a persisted review history ordered by review id, and selecting a prior signal date loads that review's immutable pick outcomes by id; compact date navigation and a bounded list avoid pushing selected outcomes below a long history
 - No KAP inputs

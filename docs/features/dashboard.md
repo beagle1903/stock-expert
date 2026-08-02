@@ -3,9 +3,9 @@
 - `frontend/` contains the approved dark Evidence Console.
 - The default screen is a select-and-inspect view for persisted picks, pick evidence, exposure policy, latest review, and routine status.
 - Signal date and target trade date are always labeled separately.
-- The Reviews screen reads the newest `review_runs` row and its `review_pick_results` from SQLite through the loopback API.
+- The Reviews screen reads the newest `review_runs` row and its `review_pick_results` from SQLite through the loopback API, lists all persisted review summaries through `/api/reviews/history`, and loads selected historical outcomes through `/api/reviews/{id}`. A compact date navigator, older/newer controls, bounded history list, and detail-first narrow layout keep historical outcomes immediately reachable.
 - Today's Picks reads the newest `snapshot_runs` row by id and its exact persisted `picks` basket through `/api/picks/latest`; signal and target-trade dates, snapshot metadata, exposure, diagnostics, and run timeline come from that persisted snapshot rather than sample data.
-- The dashboard repository loads the latest picks and latest review endpoints together and reloads both after a successful routine.
+- The dashboard repository loads the latest picks, latest review, and review-history endpoints together and reloads them after a successful routine; historical detail selection remains read-only.
 - Data & Runs uses `stock_expert.web_api` to preview and execute the real persisted CLI routine through a loopback-only API.
 - The launcher resolves weekends/confirmed holidays through the shared trading calendar, shows signal date separately from target trade date, and surfaces market-context policy.
 - Missing, empty, or filesystem-stale CSV inputs block execution. Newer timestamps warn because file metadata cannot prove the market date inside the rows.
