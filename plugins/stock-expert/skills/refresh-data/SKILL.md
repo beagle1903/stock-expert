@@ -13,19 +13,19 @@ Refresh the live CSV bundle without importing it or running the routine.
 2. Read `memory.md`, `docs/tasks/current.md`, `docs/context/project.md`, and
    `docs/rules/output.md` in that order.
 3. Preserve unrelated worktree changes and record `git status --short`.
+4. Use Codex's embedded browser for every Investing.com interaction. Do not
+   launch or fall back to standalone Chrome or Edge; both have repeatedly
+   failed in this workflow.
 
 ## Refresh
 
-Run from the repository root:
-
-```powershell
-D:\miniconda3\python.exe -m stock_expert refresh-investing-csvs
-```
-
-The command uses a visible browser, selects all Türkiye shares, expands the
-rendered table by page state, validates all four tabs, and publishes the bundle
-atomically. Do not bypass CAPTCHA, Cloudflare, or another access challenge.
-When a challenge appears, ask the user to complete it in the visible browser.
+Use the embedded-browser skill to open the rendered Investing.com page, select
+all Türkiye shares, expand/scroll the rendered table by page state, and capture
+all four tabs. Validate the capture and publish the bundle atomically. The
+repository CLI launcher is not an embedded-browser adapter and must not be used
+for this workflow. Do not bypass CAPTCHA, Cloudflare, or another access
+challenge. When a challenge appears, ask the user to complete it in the
+embedded browser.
 
 Do not run `routine` automatically. Data refresh and persisted execution are
 separate operator actions.

@@ -1,6 +1,6 @@
 {
   "name": "stock-expert",
-  "version": "1.0.0+codex.20260728161415",
+  "version": "1.0.0+codex.20260804124500",
   "description": "Project-local BIST data refresh, persisted routine, and web app workflows for the stock expert repository.",
   "author": {
     "name": "Local"
