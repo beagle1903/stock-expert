@@ -42,6 +42,16 @@ export interface ReviewSummary {
   outcomes: ReviewOutcome[];
 }
 
+export interface ReviewHistoryItem {
+  id: number;
+  signalDate: string;
+  reviewDate: string;
+  averageReturn: number;
+  winRate: number;
+  wins: number;
+  pickCount: number;
+}
+
 export interface RunStep {
   id: number;
   label: string;
@@ -66,5 +76,6 @@ export interface DashboardData {
   };
   picks: Pick[];
   review: ReviewSummary | null;
+  reviewHistory: ReviewHistoryItem[];
   runSteps: RunStep[];
 }

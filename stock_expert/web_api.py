@@ -40,28 +40,7 @@ class RoutineRequestError(Exception):
         self.status = status
 
 
-def load_latest_review(settings: Settings) -> dict[str, Any] | None:
-    init_db(settings)
-    with connect(settings) as connection:
-        review = connection.execute(
-            """
-            SELECT id, as_of_date, review_date, avg_return, win_rate, pick_count, wins
-            FROM review_runs
-            ORDER BY id DESC
-            LIMIT 1
-            """
-        ).fetchone()
-        if review is None:
-            return None
-        outcomes = connection.execute(
-            """
-            SELECT ticker, return_pct, won
-            FROM review_pick_results
-            WHERE review_run_id = ?
-            ORDER BY score DESC, ticker
-            """,
-            (review["id"],),
-        ).fetchall()
+def _serialize_review(review: Any, outcomes: list[Any]) -> dict[str, Any]:
     return {
         "id": int(review["id"]),
         "signalDate": str(review["as_of_date"]),
@@ -80,6 +59,75 @@ def load_latest_review(settings: Settings) -> dict[str, Any] | None:
             for outcome in outcomes
         ],
     }
+
+
+def _load_review_by_id_connection(connection: Any, review_id: int) -> dict[str, Any] | None:
+    review = connection.execute(
+        """
+        SELECT id, as_of_date, review_date, avg_return, win_rate, pick_count, wins
+        FROM review_runs
+        WHERE id = ?
+        """,
+        (review_id,),
+    ).fetchone()
+    if review is None:
+        return None
+    outcomes = connection.execute(
+        """
+        SELECT ticker, return_pct, won
+        FROM review_pick_results
+        WHERE review_run_id = ?
+        ORDER BY score DESC, ticker
+        """,
+        (review_id,),
+    ).fetchall()
+    return _serialize_review(review, outcomes)
+
+
+def load_review_by_id(settings: Settings, review_id: int) -> dict[str, Any] | None:
+    init_db(settings)
+    with connect(settings) as connection:
+        return _load_review_by_id_connection(connection, review_id)
+
+
+def load_latest_review(settings: Settings) -> dict[str, Any] | None:
+    init_db(settings)
+    with connect(settings) as connection:
+        review = connection.execute(
+            """
+            SELECT id
+            FROM review_runs
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        if review is None:
+            return None
+        return _load_review_by_id_connection(connection, int(review["id"]))
+
+
+def load_review_history(settings: Settings) -> list[dict[str, Any]]:
+    init_db(settings)
+    with connect(settings) as connection:
+        reviews = connection.execute(
+            """
+            SELECT id, as_of_date, review_date, avg_return, win_rate, pick_count, wins
+            FROM review_runs
+            ORDER BY id DESC
+            """
+        ).fetchall()
+    return [
+        {
+            "id": int(review["id"]),
+            "signalDate": str(review["as_of_date"]),
+            "reviewDate": str(review["review_date"]),
+            "averageReturn": float(review["avg_return"]),
+            "winRate": float(review["win_rate"]),
+            "wins": int(review["wins"]),
+            "pickCount": int(review["pick_count"]),
+        }
+        for review in reviews
+    ]
 
 
 def load_latest_picks(settings: Settings) -> dict[str, Any] | None:
@@ -395,6 +443,22 @@ class RoutineApiHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/reviews/latest":
                 self._send_json(HTTPStatus.OK, {"review": load_latest_review(self.server.settings)})
+                return
+            if parsed.path == "/api/reviews/history":
+                self._send_json(HTTPStatus.OK, {"reviews": load_review_history(self.server.settings)})
+                return
+            if parsed.path.startswith("/api/reviews/"):
+                review_id_text = parsed.path.removeprefix("/api/reviews/")
+                try:
+                    review_id = int(review_id_text)
+                except ValueError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "Review not found."})
+                    return
+                review = load_review_by_id(self.server.settings, review_id)
+                if review is None:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "Review not found."})
+                    return
+                self._send_json(HTTPStatus.OK, {"review": review})
                 return
             if parsed.path == "/api/picks/latest":
                 self._send_json(HTTPStatus.OK, {"dashboard": load_latest_picks(self.server.settings)})
