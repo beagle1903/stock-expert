@@ -579,8 +579,6 @@ export function App() {
   }
 
   const renderView = () => {
-    if (!selectedPick) return null;
-
     if (activeView === "overview") return <OverviewView data={data} onNavigate={navigate} />;
     if (activeView === "reviews") {
       return (
@@ -594,8 +592,9 @@ export function App() {
         />
       );
     }
-    if (activeView === "diagnostics") return <DiagnosticsView picks={data.picks} selectedPick={selectedPick} onSelect={selectPick} />;
     if (activeView === "runs") return <RunsView data={data} reload={reload} />;
+    if (!selectedPick) return <StatusView kind="empty" onRetry={() => void reload()} />;
+    if (activeView === "diagnostics") return <DiagnosticsView picks={data.picks} selectedPick={selectedPick} onSelect={selectPick} />;
 
     return (
       <div className="dashboard-view">

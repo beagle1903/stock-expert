@@ -79,6 +79,8 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-07-23 | Added rendered-table Investing.com CSV refresh through a dedicated Edge/Chrome profile. | Avoids the unreliable protected download endpoint; all four tables must pass schema, row-count, and company-coverage checks before rollback-safe publication. |
 | 2026-07-29 | Started the controlled `bucketed-default-v1` pilot with complete score-ranked control evidence, fixed weights, and automatic terminal rules. | Bucketed is operational while active/promoted; score-ranked resumes at a -3 point compounded edge or after a failed ten-session decision, and promotion requires 6 session wins plus a +3 point edge. |
 | 2026-07-29 | Hardened pilot evidence publication, reporting, and evaluation boundaries. | Operational picks and both arms publish atomically; pre-start dates keep historical weights and score-ranked reporting, reviewed baskets are immutable, sessions evaluate chronologically, and fully or partially missing-price reviews persist and report as incomplete evidence. |
+| 2026-08-15 | The dashboard's latest-picks query selects the newest signal-date snapshot that owns persisted picks. | Prevents later price-only or historical repair snapshots from hiding the operational basket; pick-dependent views render an explicit empty state if no selection exists. |
+| 2026-08-16 | Web-app boot and reuse run through a launcher-owned post-ready watchdog lasting at least five minutes. | The launcher starts only missing components, records/discovers pids, captures ignored UI/API logs, checks direct/proxied endpoints and operational-basket semantics every 20 seconds, and writes early likely-cause/log-tail summaries; browser-console inspection remains complementary. |
 
 ## Workflows
 
@@ -187,6 +189,13 @@ Live files:
 - Variable-date religious/exchange holidays must be recorded as exact confirmed dates; stable annual closures such as July 15 may use recurring month/day rules.
 - Workspace-local temp directories are safer than OS temp directories for tests in this environment.
 - `.test_tmp/` is a local test artifact folder and should stay ignored.
+- `frontend/scripts/dev.mjs` owns both start/reuse and the post-ready watchdog;
+  production timing cannot be shortened below five minutes unless the explicit
+  test/smoke guard `STOCK_EXPERT_WATCHDOG_ALLOW_SHORT=1` is present.
+- Windows may reserve TCP ranges that cannot be bound even when no process owns
+  the port. The web API therefore uses configurable `STOCK_EXPERT_API_PORT` with
+  safe default `18765`; the development launcher, Vite proxy, docs, and run skill
+  must stay aligned.
 
 ## Data Sources And External Dependencies
 
@@ -206,3 +215,5 @@ Use this only for meaningful memory-management changes, not every repo change.
 | Date | Update |
 | --- | --- |
 | 2026-04-09 | Created initial durable-memory file and seeded it with repo-specific context. |
+| 2026-08-15 | Recorded the configurable safe web API port after Windows reserved the old `8765` default. |
+| 2026-08-16 | Implemented and documented the launcher-owned five-minute post-boot watchdog. |
