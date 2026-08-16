@@ -51,3 +51,4 @@
 - Reviews now load persisted history and selectable historical outcomes from SQLite and refresh after a successful routine; compact date navigation, older/newer controls, and a detail-first narrow layout keep the history usable. Other evidence panels remain typed sample data.
 - Data & Runs no longer includes the UI-only Presentation states preview controls.
 - The repo-local plugin exposes `refresh-data` for validated BIST CSV publication and hands successful refreshes to the direct `?view=runs` web entry point.
+- The repo-local `run` launcher starts only missing UI/API components, retains component pids and ignored logs, and requires a launcher-owned five-minute post-boot watchdog result for both new and reused processes.

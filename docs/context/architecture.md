@@ -17,6 +17,8 @@
 - `frontend/`: React/Vite Evidence Console with a live persisted-review read and typed sample data for deferred panels
 - `frontend/src/data/dashboardRepository.ts`: dashboard adapter for the latest persisted review, historical review summaries, and selected review detail
 - `frontend/src/data/routineRepository.ts`: typed HTTP adapter for routine preview/execution
+- `frontend/scripts/dev.mjs`: start/reuse owner for hidden UI/API processes, ignored logs, pid files, and the post-boot observation lifecycle
+- `frontend/scripts/watchdog.mjs`: injectable five-minute liveness, proxy, dashboard-semantic, and runtime-log monitor with operator summaries
 - `plugins/stock-expert/skills/refresh-data/SKILL.md`: validated BIST CSV refresh and direct Data & Runs handoff
 
 ## Frontend Boundary

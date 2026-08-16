@@ -29,7 +29,7 @@ from stock_expert.trading_calendar import is_trading_session, next_trading_sessi
 
 REQUIRED_CSV_FILES = ("fiyat.csv", "performans.csv", "teknik.csv", "temel.csv")
 DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8765
+DEFAULT_PORT = 18765
 MAX_REQUEST_BYTES = 64 * 1024
 _ROUTINE_LOCK = threading.Lock()
 
@@ -135,9 +135,14 @@ def load_latest_picks(settings: Settings) -> dict[str, Any] | None:
     with connect(settings) as connection:
         snapshot = connection.execute(
             """
-            SELECT id, snapshot_date, imported_at, source_label
-            FROM snapshot_runs
-            ORDER BY id DESC
+            SELECT sr.id, sr.snapshot_date, sr.imported_at, sr.source_label
+            FROM snapshot_runs AS sr
+            WHERE EXISTS (
+                SELECT 1
+                FROM picks AS p
+                WHERE p.snapshot_id = sr.id
+            )
+            ORDER BY sr.snapshot_date DESC, sr.id DESC
             LIMIT 1
             """
         ).fetchone()
@@ -439,7 +444,10 @@ class RoutineApiHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         try:
             if parsed.path == "/api/health":
-                self._send_json(HTTPStatus.OK, {"ok": True})
+                self._send_json(
+                    HTTPStatus.OK,
+                    {"ok": True, "apiPort": int(self.server.server_port)},
+                )
                 return
             if parsed.path == "/api/reviews/latest":
                 self._send_json(HTTPStatus.OK, {"review": load_latest_review(self.server.settings)})
@@ -520,10 +528,26 @@ class RoutineApiServer(ThreadingHTTPServer):
         self.data_dir = data_dir
 
 
+def _valid_port(value: str) -> int:
+    try:
+        port = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "port must be an integer between 1 and 65535"
+        ) from exc
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("port must be an integer between 1 and 65535")
+    return port
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Local Stock Expert routine API")
     parser.add_argument("--host", default=DEFAULT_HOST)
-    parser.add_argument("--port", default=DEFAULT_PORT, type=int)
+    parser.add_argument(
+        "--port",
+        default=os.environ.get("STOCK_EXPERT_API_PORT", str(DEFAULT_PORT)),
+        type=_valid_port,
+    )
     parser.add_argument("--data-dir", default=os.environ.get("STOCK_EXPERT_WEB_DATA_DIR", "data"))
     args = parser.parse_args()
     if args.host not in {"127.0.0.1", "localhost", "::1"}:

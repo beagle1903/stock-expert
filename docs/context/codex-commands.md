@@ -35,11 +35,21 @@ requested. It never confirms or runs the persisted routine.
 
 ## Web App Launcher
 
-`/stock-expert:run` reuses a healthy local app or starts the Vite UI and
-loopback routine API through `frontend/scripts/dev.mjs`. It verifies
-`http://127.0.0.1:5173/` and `http://127.0.0.1:8765/api/health`, then opens the UI
-in Codex's built-in browser. Runtime logs and the background process id live in
-the ignored `.test_tmp/` directory.
+`/stock-expert:run` launches `frontend/scripts/dev.mjs`, which reuses a healthy
+local app or starts only the missing Vite UI/loopback API component. It verifies
+`http://127.0.0.1:5173/` and, by default,
+`http://127.0.0.1:18765/api/health`, then opens the UI in Codex's built-in
+browser. `STOCK_EXPERT_API_PORT` overrides the API port for both the process and
+Vite proxy. Separate UI/API logs, component/launcher pids, launch-session state,
+watchdog polls, and the final operator summary live in ignored `.test_tmp/`.
+
+Every new or reused boot receives at least five minutes of launcher-owned
+observation at a 20-second default interval. The watchdog compares direct and
+proxied health/latest-picks responses, checks review endpoints and operational
+basket invariants, and scans newly appended logs. It fails early after repeated
+endpoint/semantic failures (or a logged runtime error) and records likely cause
+plus relevant log tails in `web-watchdog-summary.json`. Test-only short timing
+requires the explicit `STOCK_EXPERT_WATCHDOG_ALLOW_SHORT=1` guard.
 
 The launcher does not terminate existing processes. In a partial UI/API state,
 it starts only the missing component; an occupied unhealthy port is reported as

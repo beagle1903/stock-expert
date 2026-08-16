@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 import tempfile
+import threading
 import unittest
 from datetime import date, datetime
 from pathlib import Path
+from urllib.request import urlopen
 
 from stock_expert.config import Settings
 from stock_expert.database import connect, init_db
 from stock_expert.web_api import (
+    DEFAULT_PORT,
     REQUIRED_CSV_FILES,
+    RoutineApiServer,
     RoutineRequestError,
     build_routine_preview,
     execute_routine,
@@ -22,6 +27,10 @@ from stock_expert.web_api import (
 
 
 class RoutineWebApiTests(unittest.TestCase):
+    def test_default_api_port_avoids_the_windows_reserved_development_range(self) -> None:
+        self.assertEqual(DEFAULT_PORT, 18765)
+        self.assertFalse(8760 <= DEFAULT_PORT <= 8859)
+
     def setUp(self) -> None:
         workspace_tmp = Path(".test_tmp")
         workspace_tmp.mkdir(exist_ok=True)
@@ -96,6 +105,92 @@ class RoutineWebApiTests(unittest.TestCase):
         self.assertEqual(dashboard["signalDate"], "2026-07-22")
         self.assertEqual(dashboard["tradeDate"], "2026-07-23")
         self.assertEqual([pick["ticker"] for pick in dashboard["picks"]], ["NEW1", "NEW2"])
+
+    def test_latest_picks_ignores_newer_price_only_snapshot(self) -> None:
+        init_db(self.settings)
+        with connect(self.settings) as connection:
+            picks_snapshot_id = connection.execute(
+                """
+                INSERT INTO snapshot_runs (snapshot_date, imported_at, source_label, source_dir)
+                VALUES ('2026-07-22', '2026-07-22 16:10:04', 'daily_csv', 'data')
+                """
+            ).lastrowid
+            connection.execute(
+                """
+                INSERT INTO picks (
+                    snapshot_id, date, ticker, score, kap, momentum, volume,
+                    risk, horizon, selection_bucket
+                ) VALUES (?, '2026-07-22', 'PICK', 1.0, 0, 0.9, 0.8,
+                    'high', 'intraday', 'score_ranked')
+                """,
+                (picks_snapshot_id,),
+            )
+            repair_snapshot_id = connection.execute(
+                """
+                INSERT INTO snapshot_runs (snapshot_date, imported_at, source_label, source_dir)
+                VALUES ('2026-07-21', '2026-07-23 10:00:00', 'yahoo_history_browser', 'repair.json')
+                """
+            ).lastrowid
+            connection.execute(
+                """
+                INSERT INTO stocks (
+                    snapshot_id, ticker, date, open_price, close_price, volume
+                ) VALUES (?, 'PICK', '2026-07-21', 10, 11, 1000)
+                """,
+                (repair_snapshot_id,),
+            )
+
+        dashboard = load_latest_picks(self.settings)
+
+        self.assertIsNotNone(dashboard)
+        assert dashboard is not None
+        self.assertEqual(dashboard["snapshot"]["id"], picks_snapshot_id)
+        self.assertEqual([pick["ticker"] for pick in dashboard["picks"]], ["PICK"])
+
+    def test_http_health_and_latest_picks_use_real_sqlite_fixture(self) -> None:
+        init_db(self.settings)
+        with connect(self.settings) as connection:
+            picks_snapshot_id = connection.execute(
+                """
+                INSERT INTO snapshot_runs (snapshot_date, imported_at, source_label, source_dir)
+                VALUES ('2026-07-22', '2026-07-22 16:10:04', 'daily_csv', 'data')
+                """
+            ).lastrowid
+            connection.execute(
+                """
+                INSERT INTO picks (
+                    snapshot_id, date, ticker, score, kap, momentum, volume,
+                    risk, horizon, selection_bucket
+                ) VALUES (?, '2026-07-22', 'PICK', 1.0, 0, 0.9, 0.8,
+                    'high', 'intraday', 'score_ranked')
+                """,
+                (picks_snapshot_id,),
+            )
+            connection.execute(
+                """
+                INSERT INTO snapshot_runs (snapshot_date, imported_at, source_label, source_dir)
+                VALUES ('2026-07-21', '2026-07-23 10:00:00',
+                    'yahoo_history_browser', 'repair.json')
+                """
+            )
+
+        server = RoutineApiServer(("127.0.0.1", 0), self.settings, self.data_dir)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = int(server.server_port)
+            with urlopen(f"http://127.0.0.1:{port}/api/health", timeout=5) as response:
+                health = json.load(response)
+            with urlopen(f"http://127.0.0.1:{port}/api/picks/latest", timeout=5) as response:
+                picks = json.load(response)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+        self.assertEqual(health, {"ok": True, "apiPort": port})
+        self.assertEqual(picks["dashboard"]["snapshot"]["id"], picks_snapshot_id)
+        self.assertEqual([item["ticker"] for item in picks["dashboard"]["picks"]], ["PICK"])
 
     def test_latest_review_returns_newest_persisted_run_and_outcomes(self) -> None:
         init_db(self.settings)
