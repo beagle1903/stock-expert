@@ -19,9 +19,10 @@ Refresh the live CSV bundle without importing it or running the routine.
 
 ## Refresh
 
-Use the embedded-browser skill to open the rendered Investing.com page, select
-all Türkiye shares, expand/scroll the rendered table by page state, and capture
-all four tabs. Validate the capture and publish the bundle atomically. The
+Use the embedded-browser skill to open
+`https://tr.investing.com/equities/turkey`, confirm the Turkish
+Fiyat/Performans/Teknik/Temel labels, select all Türkiye shares, expand/scroll
+the rendered table by page state, and capture all four tabs. Validate the capture and publish the bundle atomically. The
 repository CLI launcher is not an embedded-browser adapter and must not be used
 for this workflow. Do not bypass CAPTCHA, Cloudflare, or another access
 challenge. When a challenge appears, ask the user to complete it in the

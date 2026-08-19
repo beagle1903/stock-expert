@@ -11,7 +11,16 @@ from pathlib import Path
 from unittest.mock import patch
 
 from stock_expert.config import Settings
-from stock_expert.daily_csv import import_daily_csv_command, import_daily_csv_folder_command
+from stock_expert.daily_csv import (
+    DailyCsvError,
+    _load_ticker_map,
+    _normalize_key,
+    _parse_number,
+    _resolve_ticker,
+    _validate_live_ticker_coverage,
+    import_daily_csv_command,
+    import_daily_csv_folder_command,
+)
 from stock_expert.database import (
     create_snapshot_run,
     get_latest_snapshot_id,
@@ -41,6 +50,13 @@ class DailyCsvImportTests(unittest.TestCase):
             writer = csv.writer(handle)
             writer.writerow(headers)
             writer.writerow(row)
+
+    def _write_csv_rows(self, name: str, headers: list[str], rows: list[list[str]]) -> None:
+        path = self.settings.data_dir / name
+        with path.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(headers)
+            writer.writerows(rows)
 
     def _write_ticker_map(self) -> None:
         self._write_csv(
@@ -82,6 +98,72 @@ class DailyCsvImportTests(unittest.TestCase):
         self.assertEqual(len(snapshots), 1)
         self.assertEqual(snapshots[0].revenue, 2_100_000_000.0)
         self.assertEqual(snapshots[0].pe_ratio, 12.77)
+
+    def test_imports_english_decimal_format_without_scaling_values(self) -> None:
+        self._write_ticker_map()
+        self._write_csv(
+            "fiyat.csv",
+            ["İsim", "Son", " Yüksek", " Düşük", "Fark", "Fark %", "Hac.", "Zaman"],
+            ["Adel", "32.60", "33.70", "31.78", "+0.02", "+0.06%", "5.76M", "10:59:54"],
+        )
+        self._write_csv(
+            "performans.csv",
+            ["İsim", "Günlük", "Haftalık", " 1 Aylık", "YTD", "1 Yıllık", "3 Yıllık"],
+            ["Adel", "+0.06", "1.25", "2.50", "3.75", "4.25", "5.50"],
+        )
+        self._write_csv(
+            "teknik.csv",
+            ["İsim", "Saatlik", "Günlük", "Haftalık", "Aylık"],
+            ["Adel", "Strong Buy", "Buy", "Neutral", "Buy"],
+        )
+        self._write_csv(
+            "temel.csv",
+            ["İsim", "Ortalama Hacim (3Ay)", "Piyasa değeri", "Gelir", "Fiyat / Kazanç Oranı", "Beta"],
+            ["Adel", "4.82M", "12.02B", "2.10B", "12.77", "-0.59"],
+        )
+
+        payload = json.loads(import_daily_csv_command(self.settings, "2026-08-18"))
+        snapshots = get_market_snapshots_for_date(self.settings, date(2026, 8, 18))
+
+        self.assertEqual(payload["decimal_separator"], ".")
+        self.assertEqual(payload["rows_read"], 1)
+        self.assertEqual(snapshots[0].last_price, 32.6)
+        self.assertEqual(snapshots[0].daily_change_pct, 0.06)
+        self.assertEqual(snapshots[0].volume, 5_760_000)
+        self.assertEqual(snapshots[0].market_cap, 12_020_000_000)
+
+    def test_number_parser_handles_locale_grouping(self) -> None:
+        self.assertEqual(_parse_number("1.679,00", decimal_separator=","), 1679.0)
+        self.assertEqual(_parse_number("1,679.00", decimal_separator="."), 1679.0)
+        self.assertEqual(_parse_number("180.20", decimal_separator="."), 180.2)
+
+    def test_ticker_map_loads_safe_name_and_symbol_aliases(self) -> None:
+        self._write_csv_rows(
+            "ticker_map.csv",
+            ["company_key", "ticker", "company_name", "matched_name", "match_type"],
+            [
+                ["AYDEMENERJI", "AYDEM", "Aydem Enerji", "Aydem Yenilenebilir Enerji A.S.", "token_subset"],
+                ["CEMZEYTIN", "CEMZY", "Cem Zeytin", "Cem Zeytin Anonim Sirketi", "prefix"],
+                ["DEVAHOLDINGAS", "DEVA", "Deva Holding A.Ş.", "Deva Holding A.S.", "exact_key"],
+                ["ORGEENERJIELEKTRIK", "ORGE", "Orge Enerji Elektrik", "Orge Enerji Elektrik", "prefix"],
+            ],
+        )
+
+        ticker_map = _load_ticker_map(self.settings.data_dir / "ticker_map.csv")
+
+        self.assertEqual(_resolve_ticker(ticker_map, "Aydem Yenilenebilir Enerji AS"), "AYDEM")
+        self.assertEqual(_resolve_ticker(ticker_map, "Cem Zeytin AS"), "CEMZY")
+        self.assertEqual(_resolve_ticker(ticker_map, "Deva Holding"), "DEVA")
+        self.assertEqual(_resolve_ticker(ticker_map, "Orge"), "ORGE")
+
+    def test_large_live_import_rejects_low_ticker_coverage(self) -> None:
+        with self.assertRaisesRegex(DailyCsvError, "ticker coverage is too low"):
+            _validate_live_ticker_coverage(source_rows=653, eligible_rows=634, distinct_tickers=402)
+
+        self.assertAlmostEqual(
+            _validate_live_ticker_coverage(source_rows=653, eligible_rows=634, distinct_tickers=509),
+            509 / 634,
+        )
 
     def test_malformed_fundamentals_fall_back_to_neutral(self) -> None:
         self._write_minimal_csv_set("", "N/A")

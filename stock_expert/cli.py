@@ -6,7 +6,7 @@ import sys
 from datetime import date
 
 from stock_expert.config import get_settings
-from stock_expert.daily_csv import import_daily_csv_command, import_daily_csv_folder_command
+from stock_expert.daily_csv import DailyCsvError, import_daily_csv_command, import_daily_csv_folder_command
 from stock_expert.investing_csv import InvestingCsvError, refresh_investing_csvs_command
 from stock_expert.services import (
     RankingContext,
@@ -196,7 +196,11 @@ def main() -> int:
         )
         return 0
     if args.command == "import-daily-csv":
-        print(import_daily_csv_command(settings=settings, snapshot_date=args.as_of, data_dir=args.data_dir))
+        try:
+            print(import_daily_csv_command(settings=settings, snapshot_date=args.as_of, data_dir=args.data_dir))
+        except DailyCsvError as exc:
+            print(f"import-daily-csv: {exc}", file=sys.stderr)
+            return 1
         return 0
     if args.command == "refresh-investing-csvs":
         try:
@@ -216,14 +220,22 @@ def main() -> int:
             return 1
         return 0
     if args.command == "import-daily-folder":
-        print(import_daily_csv_folder_command(settings=settings, folder=args.folder))
+        try:
+            print(import_daily_csv_folder_command(settings=settings, folder=args.folder))
+        except DailyCsvError as exc:
+            print(f"import-daily-folder: {exc}", file=sys.stderr)
+            return 1
         return 0
     if args.command in {"routine", "midday-routine"}:
         as_of = date.fromisoformat(args.as_of)
         ranking_context = RankingContext()
-        import_result = json.loads(
-            import_daily_csv_command(settings=settings, snapshot_date=args.as_of, data_dir=args.data_dir)
-        )
+        try:
+            import_result = json.loads(
+                import_daily_csv_command(settings=settings, snapshot_date=args.as_of, data_dir=args.data_dir)
+            )
+        except DailyCsvError as exc:
+            print(f"{args.command}: {exc}", file=sys.stderr)
+            return 1
         print(
             json.dumps(
                 {"routine": args.command, "routine_date": args.as_of, "import": import_result},

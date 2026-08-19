@@ -8,6 +8,7 @@ from unittest.mock import ANY, patch
 
 from stock_expert import cli
 from stock_expert.config import Settings
+from stock_expert.daily_csv import DailyCsvError
 from stock_expert.investing_csv import InvestingCsvError
 
 
@@ -203,6 +204,23 @@ class CliRoutineTests(unittest.TestCase):
             self.assertEqual(cli.main(), 0)
 
         folder_import.assert_called_once_with(settings=self.settings, folder="data/20260421")
+
+    def test_routine_reports_unsafe_daily_csv_without_running_strategy(self) -> None:
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch(
+                "stock_expert.cli.import_daily_csv_command",
+                side_effect=DailyCsvError("ticker coverage is too low"),
+            ),
+            patch("stock_expert.cli.daily_summary") as daily_summary,
+            patch("sys.argv", ["stocks", "routine", "--date", "2026-08-18"]),
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            exit_code = cli.main()
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("ticker coverage is too low", stderr.getvalue())
+        daily_summary.assert_not_called()
 
     def test_midday_routine_uses_dry_run_review(self) -> None:
         with (
