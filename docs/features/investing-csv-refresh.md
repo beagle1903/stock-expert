@@ -6,7 +6,7 @@
 D:\miniconda3\python.exe -m stock_expert refresh-investing-csvs
 ```
 
-Prefer Codex's embedded browser for operator-visible refreshes. On the page, select `Türkiye tüm hisse senetleri`, then expand `Daha Fazla` on the first table until the control disappears. Switching to Performans, Teknik, and Temel preserves the expanded row set, so do not repeat the clicks unless the control reappears.
+Prefer Codex's embedded browser for operator-visible refreshes. Open `https://tr.investing.com/equities/turkey`, confirm the Turkish Fiyat/Performans/Teknik/Temel labels, select `Türkiye tüm hisse senetleri`, then expand `Daha Fazla` on the first table until the control disappears. Switching tabs preserves the expanded row set, so do not repeat the clicks unless the control reappears.
 
 The operator workflow uses Codex's embedded browser only. Standalone Edge and
 Chrome launches are deliberately unsupported for this workflow because they
@@ -24,6 +24,7 @@ Use the automation only with the permissions required by the data provider's ter
 - All four tables must have identical company-name coverage, including duplicates.
 - Files are quoted UTF-8 CSVs with a BOM.
 - Existing live CSVs are replaced only after the complete bundle validates; failures restore the prior files.
+- The subsequent daily import detects numeric locale and rejects live-size bundles whose resolved ticker coverage falls below 75%, preventing a translated company-name set from becoming a partial operational snapshot.
 
 The persistent browser profile is local and ignored at `data/.investing-browser-profile/`. The refresh command only updates CSV files; importing or running the persisted routine remains a separate operator action.
 
