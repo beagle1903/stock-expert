@@ -20,6 +20,7 @@ frontend/.npmrc
 
 data/stock_expert.db
 data/stock_expert_*.db
+data/backups/
 data/fiyat.csv
 data/performans.csv
 data/teknik.csv
