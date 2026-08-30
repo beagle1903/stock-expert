@@ -30,6 +30,29 @@ export interface ReviewOutcome {
   won: boolean;
 }
 
+export type MissedMoverClassification = "actionable" | "non_actionable";
+export type MissedMoversStatus = "captured" | "not_captured";
+
+export type MissedMoverSignals = Omit<PickSignals, "totalBoost" | "netAdjustment">;
+
+export interface MissedMover {
+  ticker: string;
+  returnPct: number;
+  classification: MissedMoverClassification;
+  reason: string;
+  attribution: {
+    dataStatus: string;
+    candidateRank: number | null;
+    selectionNote: string;
+    selectionBucket: string | null;
+    signals: MissedMoverSignals | null;
+    adjustments: {
+      totalBoost: number;
+      netAdjustment: number;
+    } | null;
+  };
+}
+
 export interface ReviewSummary {
   id: number;
   signalDate: string;
@@ -40,6 +63,8 @@ export interface ReviewSummary {
   pickCount: number;
   minimumWinReturn: number;
   outcomes: ReviewOutcome[];
+  missedMoversStatus: MissedMoversStatus;
+  missedMovers: MissedMover[];
 }
 
 export interface ReviewHistoryItem {

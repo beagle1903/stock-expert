@@ -44,6 +44,7 @@
 - CSV snapshot runs are published atomically only after all market and price rows validate and persist
 - Historical ranking uses weights effective on or before the signal date; rolling reviews exclude later review dates
 - Persisted review bundles are immutable on rerun and include signal snapshot, weight date, and strategy version metadata
+- New review runs capture ordered missed-mover classification and attribution in the review transaction; older runs remain explicitly `not_captured` rather than being recalculated with later rules or target snapshots
 - Operational picks and complete pilot control/variant baskets publish atomically; reviewed basket membership cannot be replaced
 - Pilot eligibility begins at the recorded start date, sessions are evaluated by signal date, and pre-start reviews keep historical weights and score-ranked reporting
 - Fully or partially missing-price reviews persist as incomplete non-counting pilot evidence and report `missing_price_outcomes` with explicit counts

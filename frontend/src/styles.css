@@ -550,10 +550,67 @@ button:focus-visible {
 .history-return,
 .history-wins { text-align: right; font-variant-numeric: tabular-nums; }
 .history-wins { display: grid; gap: 3px; }
-.review-detail { min-width: 0; min-height: 0; display: flex; flex-direction: column; scroll-margin-top: 8px; }
+.review-detail { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; scroll-margin-top: 8px; }
 .review-detail .review-panel { flex: 1; }
 .review-error { margin: 0 0 8px; padding: 12px 14px; border: 1px solid var(--rose); border-radius: 4px; color: var(--rose); background: var(--surface); }
 .review-loading { color: var(--muted); }
+
+.missed-mover-panel { padding: 24px 22px; }
+.missed-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.missed-panel-heading h2 { margin: 0; }
+.missed-panel-heading > p { max-width: 430px; margin: 0; color: var(--muted); line-height: 1.45; }
+.missed-filters { display: flex; flex-wrap: wrap; gap: 7px; margin: 18px 0 12px; }
+.missed-filters button {
+  min-height: 38px;
+  padding: 7px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface-quiet);
+  color: var(--muted);
+  text-transform: capitalize;
+  cursor: pointer;
+}
+.missed-filters button:hover,
+.missed-filters button.is-active { border-color: var(--indigo); color: var(--text); background: #102347; }
+.missed-filters button span { margin-left: 5px; color: var(--indigo); font-variant-numeric: tabular-nums; }
+.missed-explorer-layout { display: grid; grid-template-columns: minmax(165px, 0.55fr) minmax(0, 1.45fr); gap: 8px; }
+.missed-mover-list { display: grid; align-content: start; gap: 5px; }
+.missed-mover-list button {
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 3px 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-quiet);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.missed-mover-list button:hover { border-color: var(--line-strong); }
+.missed-mover-list button.is-selected { border-color: var(--indigo); background: #102347; box-shadow: inset 3px 0 0 #9bb0ff; }
+.missed-mover-list button span { font-variant-numeric: tabular-nums; }
+.missed-mover-list button small { grid-column: 1 / -1; color: var(--muted); text-transform: capitalize; }
+.missed-mover-detail { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-quiet); }
+.missed-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.missed-detail-heading h3 { margin: 0; padding: 0; font-size: 25px; }
+.missed-detail-heading > strong { font-size: 24px; font-variant-numeric: tabular-nums; }
+.missed-mover-detail .tag-row { padding: 14px 0 8px; }
+.missed-actionable { color: var(--teal); }
+.missed-non_actionable { color: var(--rose); }
+.missed-summary { margin: 5px 0 16px; }
+.missed-summary > div { display: grid; grid-template-columns: minmax(130px, 0.55fr) minmax(0, 1.45fr); gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.missed-summary dt { color: var(--muted); }
+.missed-summary dd { margin: 0; }
+.missed-mover-detail h4 { margin: 14px 0 8px; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
+.missed-signal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; background: var(--line); }
+.missed-signal-grid > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 10px; background: var(--surface); }
+.missed-signal-grid dt { color: var(--muted); }
+.missed-signal-grid dd { margin: 0; font-variant-numeric: tabular-nums; }
+.missed-empty,
+.missed-no-signals { margin: 20px 0 4px; color: var(--muted); }
 
 .run-timeline {
   position: relative;
@@ -942,6 +999,7 @@ button:focus-visible {
   .review-detail { grid-row: 1; }
   .review-history-panel { grid-row: 2; height: 480px; min-height: 0; }
   .review-panel.is-expanded { height: auto; overflow: visible; }
+  .missed-panel-heading { display: grid; gap: 8px; }
   .boot-shell .status-view { width: calc(100vw - 24px); }
 }
 
@@ -976,6 +1034,11 @@ button:focus-visible {
   .review-history-row { grid-template-columns: minmax(0, 1fr) 74px 48px; gap: 7px; }
   .metric-table { width: 100%; margin-inline: 0; }
   .metric-table > div { grid-template-columns: 1fr 82px; }
+  .missed-mover-panel { padding: 18px 12px; }
+  .missed-explorer-layout { grid-template-columns: 1fr; }
+  .missed-mover-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .missed-summary > div { grid-template-columns: 1fr; gap: 4px; }
+  .missed-signal-grid { grid-template-columns: 1fr; }
   .routine-launcher { padding: 20px 14px; }
   .routine-route { grid-template-columns: 1fr; }
   .routine-route > div { min-width: 0; }

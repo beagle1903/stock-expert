@@ -62,6 +62,36 @@ class ReviewPersistenceTests(unittest.TestCase):
             }
         ]
 
+    def _missed_movers(self, ticker: str = "BBB") -> list[dict[str, object]]:
+        return [
+            {
+                "ticker": ticker,
+                "close_change_return": 0.08,
+                "classification": "actionable",
+                "reason": "not_selected_by_score",
+                "attribution": {
+                    "data_status": "ranked_candidate",
+                    "candidate_rank": 6,
+                    "selection_note": "below_top_pick_cutoff",
+                    "selection_bucket": "score_ranked",
+                    "signals": {
+                        "momentum": 0.7,
+                        "volume": 0.6,
+                        "technical": 0.04,
+                        "fundamental": 0.01,
+                        "quality": 0.02,
+                        "setup_penalty": 0.03,
+                        "ma_trend": 1.0,
+                        "liquidity": 0.9,
+                    },
+                    "adjustments": {
+                        "total_boost": 0.07,
+                        "net_adjustment": 0.04,
+                    },
+                },
+            }
+        ]
+
     def _pilot_baskets(self) -> list[dict[str, object]]:
         return [
             {
@@ -186,6 +216,86 @@ class ReviewPersistenceTests(unittest.TestCase):
                 ("score_ranked", 1, 1, 0, 0.0, 1),
             ],
         )
+
+    def test_missed_movers_are_persisted_once_with_the_review_bundle(self) -> None:
+        review_id, created = persist_review_bundle(
+            self.settings,
+            as_of=date(2026, 4, 20),
+            review_date=date(2026, 4, 21),
+            avg_return=0.05,
+            win_rate=1.0,
+            picks=self._picks(),
+            weights=Weights(date=date(2026, 4, 21), momentum_weight=0.4, volume_weight=0.6),
+            candidate_outcomes=self._outcomes(),
+            signal_snapshot_id=None,
+            missed_movers=self._missed_movers(),
+        )
+        rerun_id, rerun_created = persist_review_bundle(
+            self.settings,
+            as_of=date(2026, 4, 20),
+            review_date=date(2026, 4, 21),
+            avg_return=-0.05,
+            win_rate=0.0,
+            picks=self._picks(),
+            weights=Weights(date=date(2026, 4, 21), momentum_weight=0.9, volume_weight=0.1),
+            candidate_outcomes=self._outcomes(score=9.0),
+            signal_snapshot_id=None,
+            missed_movers=self._missed_movers(ticker="CHANGED"),
+        )
+
+        with connect(self.settings) as conn:
+            review = conn.execute(
+                "SELECT missed_movers_captured FROM review_runs WHERE id = ?",
+                (review_id,),
+            ).fetchone()
+            movers = conn.execute(
+                """
+                SELECT ticker, mover_order, classification, reason, candidate_rank,
+                       momentum, total_boost, net_adjustment
+                FROM review_missed_mover_results
+                WHERE review_run_id = ?
+                """,
+                (review_id,),
+            ).fetchall()
+
+        self.assertTrue(created)
+        self.assertFalse(rerun_created)
+        self.assertEqual(rerun_id, review_id)
+        self.assertEqual(review["missed_movers_captured"], 1)
+        self.assertEqual(len(movers), 1)
+        self.assertEqual(movers[0]["ticker"], "BBB")
+        self.assertEqual(movers[0]["mover_order"], 1)
+        self.assertEqual(movers[0]["classification"], "actionable")
+        self.assertEqual(movers[0]["reason"], "not_selected_by_score")
+        self.assertEqual(movers[0]["candidate_rank"], 6)
+        self.assertEqual(movers[0]["momentum"], 0.7)
+        self.assertEqual(movers[0]["total_boost"], 0.07)
+        self.assertEqual(movers[0]["net_adjustment"], 0.04)
+
+    def test_missed_mover_insert_failure_rolls_back_the_review_bundle(self) -> None:
+        with patch(
+            "stock_expert.database._insert_review_missed_movers_conn",
+            side_effect=RuntimeError("missed mover insert failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "missed mover insert failed"):
+                persist_review_bundle(
+                    self.settings,
+                    as_of=date(2026, 4, 20),
+                    review_date=date(2026, 4, 21),
+                    avg_return=0.05,
+                    win_rate=1.0,
+                    picks=self._picks(),
+                    weights=Weights(date=date(2026, 4, 21), momentum_weight=0.4, volume_weight=0.6),
+                    candidate_outcomes=self._outcomes(),
+                    signal_snapshot_id=None,
+                    missed_movers=self._missed_movers(),
+                )
+
+        with connect(self.settings) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM review_runs").fetchone()[0], 0)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM review_pick_results").fetchone()[0], 0)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM candidate_outcomes").fetchone()[0], 0)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM review_missed_mover_results").fetchone()[0], 0)
 
     def test_state_evaluation_ignores_sessions_before_pilot_start(self) -> None:
         self._prepare_pilot()

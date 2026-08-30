@@ -82,6 +82,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-08-15 | The dashboard's latest-picks query selects the newest signal-date snapshot that owns persisted picks. | Prevents later price-only or historical repair snapshots from hiding the operational basket; pick-dependent views render an explicit empty state if no selection exists. |
 | 2026-08-16 | Web-app boot and reuse run through a launcher-owned post-ready watchdog lasting at least five minutes. | The launcher starts only missing components, records/discovers pids, captures ignored UI/API logs, checks direct/proxied endpoints and operational-basket semantics every 20 seconds, and writes early likely-cause/log-tail summaries; browser-console inspection remains complementary. |
 | 2026-08-18 | Daily CSV import became numeric-locale aware and gained collision-free company aliases plus a 75% live ticker-coverage gate. | Prevents English decimal punctuation or translated Investing.com names from scaling prices incorrectly or publishing a partial operational snapshot. |
+| 2026-08-30 | Reviews now atomically persist ordered missed-mover evidence and expose it through a filterable dashboard explorer. | Keeps actionability, exclusion reasons, realized returns, and point-in-time attribution immutable; pre-feature reviews report `not_captured` instead of being silently recomputed. |
 
 ## Workflows
 

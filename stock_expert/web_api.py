@@ -40,7 +40,38 @@ class RoutineRequestError(Exception):
         self.status = status
 
 
-def _serialize_review(review: Any, outcomes: list[Any]) -> dict[str, Any]:
+def _serialize_missed_mover(row: Any) -> dict[str, Any]:
+    has_ranked_signals = row["momentum"] is not None
+    return {
+        "ticker": str(row["ticker"]),
+        "returnPct": float(row["close_change_return"]),
+        "classification": str(row["classification"]),
+        "reason": str(row["reason"]),
+        "attribution": {
+            "dataStatus": str(row["data_status"]),
+            "candidateRank": int(row["candidate_rank"]) if row["candidate_rank"] is not None else None,
+            "selectionNote": str(row["selection_note"]),
+            "selectionBucket": str(row["selection_bucket"]) if row["selection_bucket"] is not None else None,
+            "signals": {
+                "momentum": float(row["momentum"]),
+                "volume": float(row["volume"]),
+                "technical": float(row["technical"]),
+                "fundamental": float(row["fundamental"]),
+                "quality": float(row["quality"]),
+                "setupPenalty": float(row["setup_penalty"]),
+                "maTrend": float(row["ma_trend"]),
+                "liquidity": float(row["liquidity"]),
+            } if has_ranked_signals else None,
+            "adjustments": {
+                "totalBoost": float(row["total_boost"]),
+                "netAdjustment": float(row["net_adjustment"]),
+            } if has_ranked_signals else None,
+        },
+    }
+
+
+def _serialize_review(review: Any, outcomes: list[Any], missed_movers: list[Any]) -> dict[str, Any]:
+    missed_movers_captured = bool(review["missed_movers_captured"])
     return {
         "id": int(review["id"]),
         "signalDate": str(review["as_of_date"]),
@@ -58,13 +89,19 @@ def _serialize_review(review: Any, outcomes: list[Any]) -> dict[str, Any]:
             }
             for outcome in outcomes
         ],
+        "missedMoversStatus": "captured" if missed_movers_captured else "not_captured",
+        "missedMovers": [
+            _serialize_missed_mover(row)
+            for row in missed_movers
+        ] if missed_movers_captured else [],
     }
 
 
 def _load_review_by_id_connection(connection: Any, review_id: int) -> dict[str, Any] | None:
     review = connection.execute(
         """
-        SELECT id, as_of_date, review_date, avg_return, win_rate, pick_count, wins
+        SELECT id, as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+               missed_movers_captured
         FROM review_runs
         WHERE id = ?
         """,
@@ -81,7 +118,19 @@ def _load_review_by_id_connection(connection: Any, review_id: int) -> dict[str, 
         """,
         (review_id,),
     ).fetchall()
-    return _serialize_review(review, outcomes)
+    missed_movers = connection.execute(
+        """
+        SELECT ticker, classification, reason, close_change_return, data_status,
+               candidate_rank, selection_note, selection_bucket, momentum, volume,
+               technical, fundamental, quality, setup_penalty, ma_trend, liquidity,
+               total_boost, net_adjustment
+        FROM review_missed_mover_results
+        WHERE review_run_id = ?
+        ORDER BY mover_order
+        """,
+        (review_id,),
+    ).fetchall()
+    return _serialize_review(review, outcomes, missed_movers)
 
 
 def load_review_by_id(settings: Settings, review_id: int) -> dict[str, Any] | None:

@@ -15,7 +15,7 @@
 - `stock_expert/yahoo.py`: Yahoo OHLCV downloader with CSV export and optional SQLite import
 - `.codex/hooks/validate_docs_update.py`: deterministic Codex Stop hook validator for development documentation updates
 - `frontend/`: React/Vite Evidence Console with a live persisted-review read and typed sample data for deferred panels
-- `frontend/src/data/dashboardRepository.ts`: dashboard adapter for the latest persisted review, historical review summaries, and selected review detail
+- `frontend/src/data/dashboardRepository.ts`: dashboard adapter for the latest persisted review, historical review summaries, selected review detail, and captured missed-mover evidence
 - `frontend/src/data/routineRepository.ts`: typed HTTP adapter for routine preview/execution
 - `frontend/scripts/dev.mjs`: start/reuse owner for hidden UI/API processes, ignored logs, pid files, and the post-boot observation lifecycle
 - `frontend/scripts/watchdog.mjs`: injectable five-minute liveness, proxy, dashboard-semantic, and runtime-log monitor with operator summaries
@@ -24,18 +24,19 @@
 ## Frontend Boundary
 
 - Presentation components consume `DashboardData` instead of importing Python or SQLite concerns.
-- The latest review and its pick outcomes are read from SQLite through `GET /api/reviews/latest`; historical summaries use `GET /api/reviews/history`, and selected immutable outcomes use `GET /api/reviews/{id}`. Picks, diagnostics, exposure, snapshot, and timeline panels remain sample evidence.
+- The latest review, pick outcomes, and captured missed movers are read from SQLite through `GET /api/reviews/latest`; historical summaries use `GET /api/reviews/history`, and selected immutable detail uses `GET /api/reviews/{id}`. Picks, diagnostics, exposure, snapshot, and timeline panels remain persisted evidence from the picks endpoint.
 - A successful web routine reloads the dashboard adapter so the Reviews screen reflects the newly persisted review without a page refresh.
 - Data & Runs is the only mutating web surface. Its local API invokes `python -m stock_expert routine` without changing strategy or SQLite semantics.
 - The dashboard does not expose order execution, live quotes, portfolios, forecasts, or target prices.
 
 ## Persistence
 
-- SQLite tables: `snapshot_runs`, `stocks`, `signals`, `picks`, `weights`, `market_snapshots`, `review_runs`, `review_pick_results`, `candidate_outcomes`, `strategy_pilot_state`, `strategy_pilot_picks`, `strategy_pilot_sessions`
+- SQLite tables: `snapshot_runs`, `stocks`, `signals`, `picks`, `weights`, `market_snapshots`, `review_runs`, `review_pick_results`, `review_missed_mover_results`, `candidate_outcomes`, `strategy_pilot_state`, `strategy_pilot_picks`, `strategy_pilot_sessions`
 - `snapshot_runs` stores each live CSV import; market rows, signals, and picks reference a snapshot id
 - Date-based reads use the latest snapshot for each date
 - Daily snapshot publication is one transaction covering the run, market rows, and price rows
 - Review runs, resulting weights, pick results, and candidate outcomes are persisted as one idempotent transaction
+- Captured missed movers join that review transaction; their ordered classification and attribution are immutable on rerun, while a review-level flag keeps legacy and captured-empty states distinct
 - Operational picks and both pilot baskets share one signal-publication transaction
 - Pilot pick outcomes, paired session summaries, and active-state evaluation join the same review transaction when operational picks are reviewable; missing-price reviews persist an idempotent incomplete pilot session
 - `strategy_pilot_state` owns the fixed pilot weights and terminal decision; `strategy_pilot_picks` owns complete signal-time arm membership and realized outcomes; `strategy_pilot_sessions` owns equal-weight arm summaries
