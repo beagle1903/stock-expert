@@ -134,6 +134,32 @@ export const mockDashboard: DashboardData = {
       { ticker: "BVSAN", returnPct: 0.0016, won: false },
       { ticker: "ISGSY", returnPct: -0.0336, won: false },
     ],
+    missedMoversStatus: "captured",
+    missedMovers: [
+      {
+        ticker: "MISSED",
+        returnPct: 0.081,
+        classification: "actionable",
+        reason: "not_selected_by_score",
+        attribution: {
+          dataStatus: "ranked_candidate",
+          candidateRank: 6,
+          selectionNote: "below_top_pick_cutoff",
+          selectionBucket: "score_ranked",
+          signals: {
+            momentum: 0.72,
+            volume: 0.61,
+            technical: 0.04,
+            fundamental: 0.01,
+            quality: 0.02,
+            setupPenalty: 0.03,
+            maTrend: 1,
+            liquidity: 0.9,
+          },
+          adjustments: { totalBoost: 0.07, netAdjustment: 0.04 },
+        },
+      },
+    ],
   },
   reviewHistory: [
     {

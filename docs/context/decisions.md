@@ -44,6 +44,7 @@
 - CSV snapshot runs are published atomically only after all market and price rows validate and persist
 - Historical ranking uses weights effective on or before the signal date; rolling reviews exclude later review dates
 - Persisted review bundles are immutable on rerun and include signal snapshot, weight date, and strategy version metadata
+- New review runs capture ordered missed-mover classification and attribution in the review transaction; older runs remain explicitly `not_captured` rather than being recalculated with later rules or target snapshots
 - Operational picks and complete pilot control/variant baskets publish atomically; reviewed basket membership cannot be replaced
 - Pilot eligibility begins at the recorded start date, sessions are evaluated by signal date, and pre-start reviews keep historical weights and score-ranked reporting
 - Fully or partially missing-price reviews persist as incomplete non-counting pilot evidence and report `missing_price_outcomes` with explicit counts
@@ -54,3 +55,4 @@
 - Detached HEAD and failed git detection use isolated databases instead of `data/stock_expert.db`
 - The Investing.com CSV refresh remains separate from `routine`; prefer the embedded browser, select all Turkish shares, expand `Daha Fazla` fully on the first tab, and rely on the existing four-file publication guard. The current CLI launcher still uses a separate Edge/Chrome process and cannot attach directly to an embedded tab.
 - Every web start or reuse goes through the launcher-owned watchdog: component logs and pids stay under ignored `.test_tmp/`, production observation lasts at least five minutes at a 15-30 second interval, and direct/proxied endpoint plus operational-basket failures produce an early persisted summary. Browser-console inspection is a complementary run-skill check, not the durable monitor.
+- GitHub CI runs the standard-library Python test suite and the frontend test/build gates for pull requests into `main` and pushes to `main`; subprocess-based tests reuse the active interpreter for runner portability, and deployment remains separate until a hosting target is selected.

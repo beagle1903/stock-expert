@@ -1253,6 +1253,7 @@ def review_output(
             "ticker": entry["ticker"],
             "date": entry["date"],
             "close_change_return": entry["close_change_return"],
+            "classification": bucket,
             "reason": reason,
             "attribution": _attribution_for_pick(
                 settings,
@@ -1339,6 +1340,7 @@ def review_output(
                 signal_snapshot_id=signal_snapshot_id,
                 strategy_version=_review_strategy_version(recent_rows),
                 pilot_target_prices=target_prices,
+                missed_movers=missed_top_movers,
             )
             if not created:
                 existing_review = get_review_run(settings, signal_date, review_date)

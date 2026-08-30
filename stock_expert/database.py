@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS review_runs (
     signal_snapshot_id INTEGER,
     weight_date TEXT,
     strategy_version TEXT NOT NULL DEFAULT 'score-v1',
+    missed_movers_captured INTEGER NOT NULL DEFAULT 0,
     UNIQUE (as_of_date, review_date)
 );
 
@@ -135,6 +136,32 @@ CREATE TABLE IF NOT EXISTS candidate_outcomes (
     return_pct REAL NOT NULL,
     won INTEGER NOT NULL,
     PRIMARY KEY (signal_date, review_date, ticker),
+    FOREIGN KEY (review_run_id) REFERENCES review_runs(id)
+);
+
+CREATE TABLE IF NOT EXISTS review_missed_mover_results (
+    review_run_id INTEGER NOT NULL,
+    mover_order INTEGER NOT NULL,
+    ticker TEXT NOT NULL,
+    classification TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    close_change_return REAL NOT NULL,
+    data_status TEXT NOT NULL,
+    candidate_rank INTEGER,
+    selection_note TEXT NOT NULL,
+    selection_bucket TEXT,
+    momentum REAL,
+    volume REAL,
+    technical REAL,
+    fundamental REAL,
+    quality REAL,
+    setup_penalty REAL,
+    ma_trend REAL,
+    liquidity REAL,
+    total_boost REAL,
+    net_adjustment REAL,
+    PRIMARY KEY (review_run_id, ticker),
+    UNIQUE (review_run_id, mover_order),
     FOREIGN KEY (review_run_id) REFERENCES review_runs(id)
 );
 
@@ -193,6 +220,9 @@ ON snapshot_runs(snapshot_date, id DESC);
 
 CREATE INDEX IF NOT EXISTS idx_candidate_outcomes_review_rank
 ON candidate_outcomes(review_date DESC, candidate_rank);
+
+CREATE INDEX IF NOT EXISTS idx_review_missed_movers_order
+ON review_missed_mover_results(review_run_id, mover_order);
 
 CREATE INDEX IF NOT EXISTS idx_strategy_pilot_sessions_order
 ON strategy_pilot_sessions(pilot_name, signal_snapshot_id, strategy);
@@ -336,6 +366,8 @@ def _ensure_review_integrity(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE review_runs ADD COLUMN weight_date TEXT")
     if not _has_column(conn, "review_runs", "strategy_version"):
         conn.execute("ALTER TABLE review_runs ADD COLUMN strategy_version TEXT NOT NULL DEFAULT 'score-v1'")
+    if not _has_column(conn, "review_runs", "missed_movers_captured"):
+        conn.execute("ALTER TABLE review_runs ADD COLUMN missed_movers_captured INTEGER NOT NULL DEFAULT 0")
     if not _has_column(conn, "candidate_outcomes", "review_run_id"):
         conn.execute("ALTER TABLE candidate_outcomes ADD COLUMN review_run_id INTEGER")
 
@@ -355,6 +387,7 @@ def _ensure_review_integrity(conn: sqlite3.Connection) -> None:
     ]
     if duplicate_ids:
         placeholders = ",".join("?" for _ in duplicate_ids)
+        conn.execute(f"DELETE FROM review_missed_mover_results WHERE review_run_id IN ({placeholders})", duplicate_ids)
         conn.execute(f"DELETE FROM review_pick_results WHERE review_run_id IN ({placeholders})", duplicate_ids)
         conn.execute(f"DELETE FROM review_runs WHERE id IN ({placeholders})", duplicate_ids)
     conn.execute(
@@ -367,6 +400,12 @@ def _ensure_review_integrity(conn: sqlite3.Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_candidate_outcomes_review_rank
         ON candidate_outcomes(review_date DESC, candidate_rank)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_review_missed_movers_order
+        ON review_missed_mover_results(review_run_id, mover_order)
         """
     )
 
@@ -961,10 +1000,12 @@ def persist_review_bundle(
     signal_snapshot_id: int | None,
     strategy_version: str = "score-v1",
     pilot_target_prices: dict[str, object] | None = None,
+    missed_movers: Iterable[dict[str, object]] | None = None,
 ) -> tuple[int, bool]:
     init_db(settings)
     pick_rows = list(picks)
     outcome_rows = list(candidate_outcomes)
+    missed_mover_rows = None if missed_movers is None else list(missed_movers)
     wins = sum(1 for row in pick_rows if _review_pick_won(row))
     with connect(settings) as conn:
         cursor = conn.execute(
@@ -972,9 +1013,9 @@ def persist_review_bundle(
             INSERT OR IGNORE INTO review_runs (
                 as_of_date, review_date, avg_return, win_rate, pick_count, wins,
                 momentum_weight, volume_weight, signal_snapshot_id, weight_date,
-                strategy_version
+                strategy_version, missed_movers_captured
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 as_of.isoformat(),
@@ -988,6 +1029,7 @@ def persist_review_bundle(
                 signal_snapshot_id,
                 weights.date.isoformat(),
                 strategy_version,
+                1 if missed_mover_rows is not None else 0,
             ),
         )
         if cursor.rowcount == 0:
@@ -1014,6 +1056,8 @@ def persist_review_bundle(
         )
         _insert_review_pick_results_conn(conn, review_run_id, pick_rows)
         _insert_candidate_outcomes_conn(conn, review_run_id, as_of, review_date, outcome_rows)
+        if missed_mover_rows is not None:
+            _insert_review_missed_movers_conn(conn, review_run_id, missed_mover_rows)
         if signal_snapshot_id is not None and pilot_target_prices is not None:
             _insert_strategy_pilot_results_conn(
                 conn,
@@ -1089,6 +1133,57 @@ def _insert_candidate_outcomes_conn(
             )
             for row in outcome_rows
         ],
+    )
+
+
+def _insert_review_missed_movers_conn(
+    conn: sqlite3.Connection,
+    review_run_id: int,
+    missed_movers: Iterable[dict[str, object]],
+) -> None:
+    values = []
+    for mover_order, row in enumerate(missed_movers, start=1):
+        attribution = row.get("attribution")
+        attribution = attribution if isinstance(attribution, dict) else {}
+        signals = attribution.get("signals")
+        signals = signals if isinstance(signals, dict) else {}
+        adjustments = attribution.get("adjustments")
+        adjustments = adjustments if isinstance(adjustments, dict) else {}
+        values.append(
+            (
+                review_run_id,
+                mover_order,
+                row["ticker"],
+                row["classification"],
+                row["reason"],
+                row["close_change_return"],
+                attribution.get("data_status", "not_in_current_ranked_candidates"),
+                attribution.get("candidate_rank"),
+                attribution.get("selection_note", "Evidence unavailable."),
+                attribution.get("selection_bucket"),
+                signals.get("momentum"),
+                signals.get("volume"),
+                signals.get("technical"),
+                signals.get("fundamental"),
+                signals.get("quality"),
+                signals.get("setup_penalty"),
+                signals.get("ma_trend"),
+                signals.get("liquidity"),
+                adjustments.get("total_boost"),
+                adjustments.get("net_adjustment"),
+            )
+        )
+    conn.executemany(
+        """
+        INSERT INTO review_missed_mover_results (
+            review_run_id, mover_order, ticker, classification, reason,
+            close_change_return, data_status, candidate_rank, selection_note,
+            selection_bucket, momentum, volume, technical, fundamental, quality,
+            setup_penalty, ma_trend, liquidity, total_boost, net_adjustment
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        values,
     )
 
 

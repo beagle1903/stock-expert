@@ -285,7 +285,7 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_pick_results", return_value=recent_rows),
             patch("stock_expert.services.get_top_movers", return_value=[]),
             patch("stock_expert.services.get_latest_weights", return_value=None),
-            patch("stock_expert.services.persist_review_bundle", return_value=(7, True)),
+            patch("stock_expert.services.persist_review_bundle", return_value=(7, True)) as persist_review_bundle,
         ):
             payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
 
@@ -629,14 +629,17 @@ class ReviewOutputTests(unittest.TestCase):
             patch("stock_expert.services.get_pick_results", return_value=recent_rows),
             patch("stock_expert.services.get_top_movers", return_value=movers),
             patch("stock_expert.services.get_latest_weights", return_value=None),
-            patch("stock_expert.services.persist_review_bundle", return_value=(7, True)),
+            patch("stock_expert.services.persist_review_bundle", return_value=(7, True)) as persist_review_bundle,
         ):
             payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
 
         self.assertEqual(payload["reviewed_picks"][0]["ticker"], "AAA")
         self.assertEqual(payload["reviewed_picks"][0]["attribution"]["candidate_rank"], 1)
         self.assertEqual(payload["missed_actionable"][0]["ticker"], "BBB")
+        self.assertEqual(payload["missed_actionable"][0]["classification"], "actionable")
         self.assertEqual(payload["missed_actionable"][0]["attribution"]["selection_note"], "penalized_by_setup_context")
+        persisted_movers = persist_review_bundle.call_args.kwargs["missed_movers"]
+        self.assertEqual(persisted_movers, payload["missed_top_movers"])
 
     def test_persisted_review_wins_require_four_percent_return(self) -> None:
         init_db(self.settings)

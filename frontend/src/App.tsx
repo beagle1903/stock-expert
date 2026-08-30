@@ -17,6 +17,8 @@ import { dashboardRepository } from "./data/dashboardRepository";
 import { RoutineLauncher } from "./components/RoutineLauncher";
 import type {
   DashboardData,
+  MissedMover,
+  MissedMoverClassification,
   Pick,
   ReviewHistoryItem,
   ReviewSummary,
@@ -258,6 +260,148 @@ function ReviewPanel({ review, expanded = false, title = "Last review", loading 
   );
 }
 
+type MissedMoverFilter = "all" | MissedMoverClassification;
+
+function missedReason(reason: string) {
+  const labels: Record<string, string> = {
+    not_selected_by_score: "Passed the stored liquidity and volatility gates but was not selected by score.",
+    low_liquidity: "Did not pass the stored traded-value liquidity gate.",
+    extreme_volatility: "Moved beyond the stored momentum safety range.",
+  };
+  return labels[reason] ?? reason.replaceAll("_", " ");
+}
+
+function selectionNote(note: string) {
+  const labels: Record<string, string> = {
+    inside_top_pick_cutoff: "Ranked inside the normal pick cutoff.",
+    below_top_pick_cutoff: "Ranked below the active pick cutoff.",
+    excluded_by_breadth_cap: "Excluded because weak breadth reduced the basket size.",
+    penalized_by_setup_context: "Setup context reduced the candidate's final score.",
+  };
+  return labels[note] ?? note.replaceAll("_", " ");
+}
+
+function MissedMoverDetail({ mover }: { mover: MissedMover }) {
+  const signals = mover.attribution.signals;
+  const adjustments = mover.attribution.adjustments;
+  return (
+    <div className="missed-mover-detail">
+      <div className="missed-detail-heading">
+        <div>
+          <p className="eyebrow">Stored review evidence</p>
+          <h3>{mover.ticker}</h3>
+        </div>
+        <strong className={valueTone(mover.returnPct)}>{percent(mover.returnPct)}</strong>
+      </div>
+      <div className="tag-row">
+        <span className={`tag missed-${mover.classification}`}>{mover.classification.replace("_", " ")}</span>
+        {mover.attribution.candidateRank !== null && <span className="tag tag-blue">rank #{mover.attribution.candidateRank}</span>}
+      </div>
+      <dl className="missed-summary">
+        <div><dt>Classification reason</dt><dd>{missedReason(mover.reason)}</dd></div>
+        <div><dt>Selection evidence</dt><dd>{selectionNote(mover.attribution.selectionNote)}</dd></div>
+        <div><dt>Candidate status</dt><dd>{mover.attribution.dataStatus.replaceAll("_", " ")}</dd></div>
+      </dl>
+      {signals && adjustments ? (
+        <>
+          <h4>Point-in-time signals</h4>
+          <dl className="missed-signal-grid">
+            <div><dt>Momentum</dt><dd>{fixed(signals.momentum)}</dd></div>
+            <div><dt>Volume</dt><dd>{fixed(signals.volume)}</dd></div>
+            <div><dt>Technical</dt><dd>{signedFixed(signals.technical)}</dd></div>
+            <div><dt>Fundamental</dt><dd>{signedFixed(signals.fundamental)}</dd></div>
+            <div><dt>Quality</dt><dd>{signedFixed(signals.quality)}</dd></div>
+            <div><dt>Setup penalty</dt><dd>{fixed(signals.setupPenalty)}</dd></div>
+            <div><dt>Total boost</dt><dd>{signedFixed(adjustments.totalBoost)}</dd></div>
+            <div><dt>Net adjustment</dt><dd>{signedFixed(adjustments.netAdjustment)}</dd></div>
+          </dl>
+        </>
+      ) : (
+        <p className="missed-no-signals">This mover was not present in the stored ranked-candidate evidence.</p>
+      )}
+    </div>
+  );
+}
+
+function MissedMoverExplorer({ review }: { review: ReviewSummary }) {
+  const [filter, setFilter] = useState<MissedMoverFilter>("all");
+  const [selectedTicker, setSelectedTicker] = useState(review.missedMovers[0]?.ticker ?? "");
+
+  if (review.missedMoversStatus === "not_captured") {
+    return (
+      <section className="panel missed-mover-panel" aria-labelledby="missed-mover-title">
+        <h2 id="missed-mover-title">Missed-mover explorer</h2>
+        <p className="missed-empty">This review predates persisted missed-mover evidence. It is left unchanged rather than recomputed with newer rules.</p>
+      </section>
+    );
+  }
+
+  if (review.missedMovers.length === 0) {
+    return (
+      <section className="panel missed-mover-panel" aria-labelledby="missed-mover-title">
+        <h2 id="missed-mover-title">Missed-mover explorer</h2>
+        <p className="missed-empty">No missed leading movers were captured for this review.</p>
+      </section>
+    );
+  }
+
+  const filtered = review.missedMovers.filter((mover) => filter === "all" || mover.classification === filter);
+  const selectedMover = filtered.find((mover) => mover.ticker === selectedTicker) ?? filtered[0];
+  const counts = {
+    all: review.missedMovers.length,
+    actionable: review.missedMovers.filter((mover) => mover.classification === "actionable").length,
+    non_actionable: review.missedMovers.filter((mover) => mover.classification === "non_actionable").length,
+  };
+
+  return (
+    <section className="panel missed-mover-panel" aria-labelledby="missed-mover-title">
+      <div className="missed-panel-heading">
+        <div>
+          <p className="eyebrow">Review-time attribution</p>
+          <h2 id="missed-mover-title">Missed-mover explorer</h2>
+        </div>
+        <p>Actionable means the mover passed stored liquidity and volatility gates—not that it is a recommendation.</p>
+      </div>
+      <div className="missed-filters" aria-label="Filter missed movers">
+        {(["all", "actionable", "non_actionable"] as MissedMoverFilter[]).map((value) => (
+          <button
+            type="button"
+            key={value}
+            className={filter === value ? "is-active" : ""}
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+          >
+            {value.replace("_", " ")} <span>{counts[value]}</span>
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 ? (
+        <p className="missed-empty">No movers match this filter.</p>
+      ) : (
+        <div className="missed-explorer-layout">
+          <div className="missed-mover-list" role="listbox" aria-label="Missed movers">
+            {filtered.map((mover) => (
+              <button
+                type="button"
+                role="option"
+                aria-selected={selectedMover?.ticker === mover.ticker}
+                className={selectedMover?.ticker === mover.ticker ? "is-selected" : ""}
+                key={mover.ticker}
+                onClick={() => setSelectedTicker(mover.ticker)}
+              >
+                <strong>{mover.ticker}</strong>
+                <span className={valueTone(mover.returnPct)}>{percent(mover.returnPct)}</span>
+                <small>{mover.classification.replace("_", " ")}</small>
+              </button>
+            ))}
+          </div>
+          {selectedMover && <MissedMoverDetail mover={selectedMover} />}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ReviewHistoryList({ reviews, selectedId, onSelect }: {
   reviews: ReviewHistoryItem[];
   selectedId: number | null;
@@ -453,6 +597,9 @@ function ReviewsView({
             expanded
             loading={loading}
           />
+          {!loading && !error && selectedReview && (
+            <MissedMoverExplorer key={selectedReview.id} review={selectedReview} />
+          )}
         </div>
       </div>
     </div>

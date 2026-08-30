@@ -52,3 +52,16 @@
 - Data & Runs no longer includes the UI-only Presentation states preview controls.
 - The repo-local plugin exposes `refresh-data` for validated BIST CSV publication and hands successful refreshes to the direct `?view=runs` web entry point.
 - The repo-local `run` launcher starts only missing UI/API components, retains component pids and ignored logs, and requires a launcher-owned five-minute post-boot watchdog result for both new and reused processes.
+
+## Active Enhancement
+
+- Missed-Mover Explorer is implemented on `codex/missed-mover-explorer`.
+- New reviews atomically persist immutable missed-mover evidence; old reviews
+  explicitly report that this evidence was not captured.
+- Review detail provides all/actionable/non-actionable filters and stored
+  selection attribution without changing strategy behavior.
+- The implementation scope and verification record live in
+  `docs/tasks/missed-mover-explorer.md`.
+- The four-item enhancement queue is recorded in `docs/tasks/backlog.md`.
+- Basic GitHub CI now gates pull requests and `main` with Python tests plus
+  frontend tests and a production build; deployment is intentionally deferred.

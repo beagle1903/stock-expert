@@ -230,6 +230,8 @@ class RoutineWebApiTests(unittest.TestCase):
         self.assertEqual(review["reviewDate"], "2026-07-16")
         self.assertEqual(review["minimumWinReturn"], 0.04)
         self.assertEqual([outcome["ticker"] for outcome in review["outcomes"]], ["HIGH", "LOW"])
+        self.assertEqual(review["missedMoversStatus"], "not_captured")
+        self.assertEqual(review["missedMovers"], [])
 
         history = load_review_history(self.settings)
         self.assertEqual([item["id"] for item in history], [latest_id, older_id])
@@ -242,7 +244,67 @@ class RoutineWebApiTests(unittest.TestCase):
         assert selected is not None
         self.assertEqual(selected["signalDate"], "2026-07-17")
         self.assertEqual(selected["outcomes"], [])
+        self.assertEqual(selected["missedMoversStatus"], "not_captured")
         self.assertIsNone(load_review_by_id(self.settings, 999))
+
+    def test_review_detail_serializes_captured_missed_mover_evidence(self) -> None:
+        init_db(self.settings)
+        with connect(self.settings) as connection:
+            review_id = connection.execute(
+                """
+                INSERT INTO review_runs (
+                    as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                    momentum_weight, volume_weight, missed_movers_captured
+                ) VALUES ('2026-07-22', '2026-07-23', 0.01, 0.2, 5, 1, 0.6, 0.4, 1)
+                """
+            ).lastrowid
+            connection.execute(
+                """
+                INSERT INTO review_missed_mover_results (
+                    review_run_id, mover_order, ticker, classification, reason,
+                    close_change_return, data_status, candidate_rank, selection_note,
+                    selection_bucket, momentum, volume, technical, fundamental,
+                    quality, setup_penalty, ma_trend, liquidity, total_boost,
+                    net_adjustment
+                ) VALUES (
+                    ?, 1, 'MISSED', 'actionable', 'not_selected_by_score', 0.08,
+                    'ranked_candidate', 6, 'below_top_pick_cutoff', 'score_ranked',
+                    0.7, 0.6, 0.04, 0.01, 0.02, 0.03, 1.0, 0.9, 0.07, 0.04
+                )
+                """,
+                (review_id,),
+            )
+
+        review = load_review_by_id(self.settings, int(review_id))
+
+        assert review is not None
+        self.assertEqual(review["missedMoversStatus"], "captured")
+        self.assertEqual(len(review["missedMovers"]), 1)
+        mover = review["missedMovers"][0]
+        self.assertEqual(mover["ticker"], "MISSED")
+        self.assertEqual(mover["classification"], "actionable")
+        self.assertEqual(mover["returnPct"], 0.08)
+        self.assertEqual(mover["attribution"]["candidateRank"], 6)
+        self.assertEqual(mover["attribution"]["signals"]["setupPenalty"], 0.03)
+        self.assertEqual(mover["attribution"]["adjustments"]["netAdjustment"], 0.04)
+
+    def test_review_detail_distinguishes_captured_empty_evidence(self) -> None:
+        init_db(self.settings)
+        with connect(self.settings) as connection:
+            review_id = connection.execute(
+                """
+                INSERT INTO review_runs (
+                    as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                    momentum_weight, volume_weight, missed_movers_captured
+                ) VALUES ('2026-07-22', '2026-07-23', 0.01, 0.2, 5, 1, 0.6, 0.4, 1)
+                """
+            ).lastrowid
+
+        review = load_review_by_id(self.settings, int(review_id))
+
+        assert review is not None
+        self.assertEqual(review["missedMoversStatus"], "captured")
+        self.assertEqual(review["missedMovers"], [])
 
     def test_preview_resolves_recurring_holiday_to_previous_session(self) -> None:
         self.write_inputs()

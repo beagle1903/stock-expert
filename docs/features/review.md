@@ -30,4 +30,8 @@
 - `routine` mutates the prior-session review before current picks but retains the operator-facing picks-then-review display order
 - `midday-routine` reports the dry-run review after picks without writing review rows
 - The dashboard exposes a persisted review history ordered by review id, and selecting a prior signal date loads that review's immutable pick outcomes by id; compact date navigation and a bounded list avoid pushing selected outcomes below a long history
+- New persisted reviews atomically store their ordered missed movers in `review_missed_mover_results`, including actionability, classification reason, realized return, candidate rank, selection note, signal components, boosts, and setup penalty.
+- `review_runs.missed_movers_captured` distinguishes a captured empty result from historical reviews created before missed-mover persistence; old reviews are never silently recomputed with newer rules or snapshots.
+- Review detail exposes the stored missed movers through `missedMoversStatus` and `missedMovers`; review-history summaries remain compact and do not include the larger evidence payload.
+- The Reviews screen filters stored misses by all, actionable, and non-actionable, then displays the selected mover's immutable exclusion evidence. Actionable means the stored liquidity and volatility gates passed, not a recommendation.
 - No KAP inputs
