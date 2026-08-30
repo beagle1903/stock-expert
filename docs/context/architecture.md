@@ -14,6 +14,7 @@
 - `stock_expert/web_api.py`: loopback-only routine preview/execution adapter around the existing CLI
 - `stock_expert/yahoo.py`: Yahoo OHLCV downloader with CSV export and optional SQLite import
 - `.codex/hooks/validate_docs_update.py`: deterministic Codex Stop hook validator for development documentation updates
+- `.github/workflows/ci.yml`: pull-request and `main` checks for the Python suite plus frontend tests and production build
 - `frontend/`: React/Vite Evidence Console with a live persisted-review read and typed sample data for deferred panels
 - `frontend/src/data/dashboardRepository.ts`: dashboard adapter for the latest persisted review, historical review summaries, selected review detail, and captured missed-mover evidence
 - `frontend/src/data/routineRepository.ts`: typed HTTP adapter for routine preview/execution

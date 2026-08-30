@@ -63,3 +63,5 @@
 - The implementation scope and verification record live in
   `docs/tasks/missed-mover-explorer.md`.
 - The four-item enhancement queue is recorded in `docs/tasks/backlog.md`.
+- Basic GitHub CI now gates pull requests and `main` with Python tests plus
+  frontend tests and a production build; deployment is intentionally deferred.
