@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,7 +17,7 @@ def run_validator(
     hook_input: dict[str, object] | None = None,
     task_note: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    command = ["D:\\miniconda3\\python.exe", str(SCRIPT)]
+    command = [sys.executable, str(SCRIPT)]
     for path in changed_files:
         command.extend(["--changed-file", path])
     if task_note:
