@@ -7,7 +7,11 @@ from datetime import date
 
 from stock_expert.config import get_settings
 from stock_expert.daily_csv import DailyCsvError, import_daily_csv_command, import_daily_csv_folder_command
-from stock_expert.investing_csv import InvestingCsvError, refresh_investing_csvs_command
+from stock_expert.investing_csv import (
+    InvestingCsvError,
+    publish_uploaded_csvs_command,
+    refresh_investing_csvs_command,
+)
 from stock_expert.services import (
     RankingContext,
     bucketed_strategy_comparison_output,
@@ -19,6 +23,11 @@ from stock_expert.services import (
     review_output,
 )
 from stock_expert.yahoo import download_ohlcv_command, import_ohlcv_excel_command
+from stock_expert.workspace_bundle import (
+    WorkspaceBundleError,
+    export_workspace_bundle,
+    import_workspace_bundle,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -109,6 +118,45 @@ def build_parser() -> argparse.ArgumentParser:
         "--headless",
         action="store_true",
         help="Run without a visible browser; visible mode is more reliable for access challenges",
+    )
+    upload_parser = subparsers.add_parser(
+        "publish-investing-csvs",
+        help="Validate and atomically publish an uploaded four-file Investing.com CSV bundle",
+    )
+    upload_parser.add_argument(
+        "--source-dir",
+        required=True,
+        help="Directory containing the uploaded fiyat/performans/teknik/temel CSV files",
+    )
+    upload_parser.add_argument("--data-dir", default="data", help="Destination directory for the four CSV files")
+    upload_parser.add_argument("--min-rows", type=int, default=500, help="Minimum rows required in every table")
+    export_parser = subparsers.add_parser(
+        "export-workspace-bundle",
+        help="Create a portable SQLite and live-CSV bundle for another workspace",
+    )
+    export_parser.add_argument(
+        "--output",
+        default="data/backups/stock_expert_workspace.zip",
+        help="Output ZIP path relative to the project root",
+    )
+    export_parser.add_argument("--data-dir", default="data", help="Directory containing the four live CSV files")
+    export_parser.add_argument("--min-rows", type=int, default=500, help="Minimum rows required in every table")
+    export_parser.add_argument(
+        "--without-inputs",
+        action="store_true",
+        help="Export SQLite history only, without the four live CSV files",
+    )
+    import_parser = subparsers.add_parser(
+        "import-workspace-bundle",
+        help="Validate and restore a portable SQLite and live-CSV workspace bundle",
+    )
+    import_parser.add_argument("--input", required=True, help="Input ZIP path relative to the project root")
+    import_parser.add_argument("--data-dir", default="data", help="Destination directory for the four CSV files")
+    import_parser.add_argument("--min-rows", type=int, default=500, help="Minimum rows required in every table")
+    import_parser.add_argument(
+        "--replace-database",
+        action="store_true",
+        help="Replace an existing active database after creating a local backup",
     )
     folder_parser = subparsers.add_parser("import-daily-folder", help="Import a dated folder containing the four daily CSV files")
     folder_parser.add_argument("--folder", required=True, help="Folder path relative to the project root, e.g. data/20260408")
@@ -217,6 +265,58 @@ def main() -> int:
             )
         except (InvestingCsvError, ValueError) as exc:
             print(f"refresh-investing-csvs: {exc}", file=sys.stderr)
+            return 1
+        return 0
+    if args.command == "publish-investing-csvs":
+        try:
+            print(
+                publish_uploaded_csvs_command(
+                    settings=settings,
+                    source_dir=args.source_dir,
+                    data_dir=args.data_dir,
+                    min_rows=args.min_rows,
+                )
+            )
+        except (InvestingCsvError, ValueError) as exc:
+            print(f"publish-investing-csvs: {exc}", file=sys.stderr)
+            return 1
+        return 0
+    if args.command == "export-workspace-bundle":
+        try:
+            print(
+                json.dumps(
+                    export_workspace_bundle(
+                        settings=settings,
+                        output_path=args.output,
+                        data_dir=args.data_dir,
+                        include_inputs=not args.without_inputs,
+                        min_rows=args.min_rows,
+                    ),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        except (WorkspaceBundleError, InvestingCsvError, ValueError) as exc:
+            print(f"export-workspace-bundle: {exc}", file=sys.stderr)
+            return 1
+        return 0
+    if args.command == "import-workspace-bundle":
+        try:
+            print(
+                json.dumps(
+                    import_workspace_bundle(
+                        settings=settings,
+                        input_path=args.input,
+                        data_dir=args.data_dir,
+                        replace_database=args.replace_database,
+                        min_rows=args.min_rows,
+                    ),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        except (WorkspaceBundleError, InvestingCsvError, ValueError) as exc:
+            print(f"import-workspace-bundle: {exc}", file=sys.stderr)
             return 1
         return 0
     if args.command == "import-daily-folder":

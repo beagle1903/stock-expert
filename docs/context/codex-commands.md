@@ -13,6 +13,7 @@ Commands:
 - `/stock-expert:refresh-data`
 - `/stock-expert:routine`
 - `/stock-expert:run`
+- `/stock-expert:cloud-workspace`
 
 Fallback text shortcuts:
 
@@ -23,7 +24,8 @@ Fallback text shortcuts:
 Autocomplete uses plugin-qualified command names. Use
 `/stock-expert:refresh-data` to publish the validated live CSV bundle,
 `/stock-expert:run` to open the web app, and `/stock-expert:routine` for a
-direct persisted CLI run. Bare shortcuts are repo conventions, not separately
+direct persisted CLI run. Use `/stock-expert:cloud-workspace` for CSV/SQLite
+handoff guidance. Bare shortcuts are repo conventions, not separately
 registered autocomplete commands.
 
 ## Data Refresh

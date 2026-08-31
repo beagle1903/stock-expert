@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cloud Workspace"
+  short_description: "Transfer CSV and SQLite state safely"
+  default_prompt: "Use $cloud-workspace to move Stock Expert runtime state between local and Cloud."

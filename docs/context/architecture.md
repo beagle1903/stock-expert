@@ -4,6 +4,7 @@
 - `stock_expert/services.py`: `daily`, `picks`, `review` orchestration
 - `stock_expert/daily_csv.py`: imports the daily CSV snapshot files
 - `stock_expert/investing_csv.py`: validates and rollback-safe publishes the four rendered Investing.com table extracts
+- `stock_expert/workspace_bundle.py`: validates, checksums, and transfers portable SQLite plus live-CSV workspace bundles
 - `scripts/investing_csv_extract.mjs`: drives a dedicated Edge/Chrome session through the browser debugging protocol without a third-party browser dependency
 - `stock_expert/trading_calendar.py`: shared BIST session and exact-closure routing
 - `data/ticker_map.csv`: persistent company-name to ticker overrides used during import
@@ -21,6 +22,24 @@
 - `frontend/scripts/dev.mjs`: start/reuse owner for hidden UI/API processes, ignored logs, pid files, and the post-boot observation lifecycle
 - `frontend/scripts/watchdog.mjs`: injectable five-minute liveness, proxy, dashboard-semantic, and runtime-log monitor with operator summaries
 - `plugins/stock-expert/skills/refresh-data/SKILL.md`: validated BIST CSV refresh and direct Data & Runs handoff
+
+## Cloud/Local Boundary
+
+- A Cloud task starts from tracked repository content; ignored live CSVs,
+  SQLite databases, `.env`, and browser profiles are not assumed to be present.
+- `export-workspace-bundle` and `import-workspace-bundle` carry only the
+  explicitly selected SQLite state and validated live CSV inputs. The bundle
+  has a manifest and SHA-256 checksums and never includes credentials or the
+  browser profile.
+- Local desktop refresh uses Codex's embedded browser. Cloud may use the
+  repository's headless extractor when a compatible browser and network access
+  are available; otherwise an uploaded four-file CSV bundle is published with
+  the same validation gates.
+- The CLI and SQLite state are portable; the loopback-only Data & Runs web
+  handoff remains a local-desktop operation in this phase.
+- Local and Cloud workspaces must not write the same logical SQLite history at
+  the same time. Transfer a bundle deliberately when moving continuity between
+  them.
 
 ## Frontend Boundary
 

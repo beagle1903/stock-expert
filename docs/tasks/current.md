@@ -8,6 +8,9 @@
   - `daily`
   - `picks`
   - `review`
+  - `publish-investing-csvs`
+  - `export-workspace-bundle`
+  - `import-workspace-bundle`
 
 ## Constraints
 
@@ -23,6 +26,7 @@
 - Daily CSV import flow is available
 - Live root CSV routine supports repeated same-day imports
 - Rendered Investing.com tables can refresh all four live CSVs with cross-table coverage validation and rollback-safe publication
+- Codex Cloud can receive validated CSV uploads and a checksummed SQLite workspace bundle without committing runtime data
 - Routine and midday dry-run behavior are covered by tests
 - Snapshot and review persistence are atomic and idempotent
 - Historical review evidence is point-in-time and immutable
@@ -65,3 +69,6 @@
 - The four-item enhancement queue is recorded in `docs/tasks/backlog.md`.
 - Basic GitHub CI now gates pull requests and `main` with Python tests plus
   frontend tests and a production build; deployment is intentionally deferred.
+- Cloud-first workspace portability is implemented on `codex/remote-csv-upload`;
+  the remaining pilot is an environment check after the branch is available to
+  Codex Cloud.

@@ -8,6 +8,10 @@
 - Daily CSV snapshots are the main operating input
 - Live root CSV files are the default input; SQLite snapshot runs preserve import history
 - Investing.com CSV refresh uses rendered browser tables rather than the protected download endpoint; it stops for access challenges and publishes only a validated four-file bundle
+- Treat Codex Cloud as a first-class execution surface without changing strategy semantics: Cloud can run the headless extractor when its environment has a compatible browser and network access, and otherwise accepts a user-supplied four-file CSV bundle
+- Keep local embedded-browser capture as the desktop fallback; do not make SSH or a local `127.0.0.1` handoff a Cloud requirement
+- Move SQLite continuity through a versioned, checksummed workspace ZIP; replacing an existing database requires an explicit flag and creates a recoverable backup
+- Enforce a one-writer rule for the same logical SQLite history across local and Cloud workspaces
 
 ## Current Notes
 
@@ -54,5 +58,6 @@
 - A routine-scoped `RankingContext` reuses each signal-date ranking across operator outputs
 - Detached HEAD and failed git detection use isolated databases instead of `data/stock_expert.db`
 - The Investing.com CSV refresh remains separate from `routine`; prefer the embedded browser, select all Turkish shares, expand `Daha Fazla` fully on the first tab, and rely on the existing four-file publication guard. The current CLI launcher still uses a separate Edge/Chrome process and cannot attach directly to an embedded tab.
+- Cloud workspace transfer uses `publish-investing-csvs`, `export-workspace-bundle`, and `import-workspace-bundle`; the four CSVs and SQLite database remain ignored runtime artifacts and are never committed
 - Every web start or reuse goes through the launcher-owned watchdog: component logs and pids stay under ignored `.test_tmp/`, production observation lasts at least five minutes at a 15-30 second interval, and direct/proxied endpoint plus operational-basket failures produce an early persisted summary. Browser-console inspection is a complementary run-skill check, not the durable monitor.
 - GitHub CI runs the standard-library Python test suite and the frontend test/build gates for pull requests into `main` and pushes to `main`; subprocess-based tests reuse the active interpreter for runner portability, and deployment remains separate until a hosting target is selected.

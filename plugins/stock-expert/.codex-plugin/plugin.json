@@ -1,7 +1,7 @@
 {
   "name": "stock-expert",
   "version": "1.1.0+codex.20260816",
-  "description": "Project-local BIST data refresh, persisted routine, and web app workflows for the stock expert repository.",
+  "description": "Project-local BIST data refresh, persisted routine, Cloud workspace handoff, and web app workflows for the stock expert repository.",
   "author": {
     "name": "Local"
   },
@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "Stock Expert",
     "shortDescription": "BIST data, routine, and web app workflows",
-    "longDescription": "Project-local Codex workflows for refreshing validated BIST CSV inputs, running the persisted daily routine, and launching the guarded Data & Runs web UI.",
+    "longDescription": "Project-local Codex workflows for refreshing validated BIST CSV inputs, moving SQLite/CSV state between local and Cloud workspaces, running the persisted daily routine, and launching the guarded Data & Runs web UI.",
     "developerName": "Local",
     "category": "Developer Tools",
     "capabilities": [
@@ -19,6 +19,7 @@
     ],
     "defaultPrompt": [
       "Refresh BIST data and open Data & Runs",
+      "Move Stock Expert CSV and SQLite state between local and Cloud workspaces",
       "Run the stock expert routine",
       "Open the Stock Expert web app"
     ]

@@ -6,11 +6,18 @@
 D:\miniconda3\python.exe -m stock_expert refresh-investing-csvs
 ```
 
-Prefer Codex's embedded browser for operator-visible refreshes. Open `https://tr.investing.com/equities/turkey`, confirm the Turkish Fiyat/Performans/Teknik/Temel labels, select `Türkiye tüm hisse senetleri`, then expand `Daha Fazla` on the first table until the control disappears. Switching tabs preserves the expanded row set, so do not repeat the clicks unless the control reappears.
+On the local desktop, prefer Codex's embedded browser for operator-visible
+refreshes. Open `https://tr.investing.com/equities/turkey`, confirm the Turkish
+Fiyat/Performans/Teknik/Temel labels, select `Türkiye tüm hisse senetleri`, then
+expand `Daha Fazla` on the first table until the control disappears. Switching
+tabs preserves the expanded row set, so do not repeat the clicks unless the
+control reappears.
 
-The operator workflow uses Codex's embedded browser only. Standalone Edge and
-Chrome launches are deliberately unsupported for this workflow because they
-have repeatedly failed to produce reliable table data.
+The local operator workflow uses Codex's embedded browser. The repository CLI
+extractor is a separate adapter for Cloud/headless environments and is only
+usable when a compatible browser and permitted network access are available.
+If Cloud cannot start a browser or receives an access challenge, supply the
+four CSV files and use the upload command below.
 
 Visible mode is the default because it lets the user complete a site access challenge when one appears. `--headless` is available for environments where the page does not challenge automated sessions. The command does not bypass CAPTCHAs or Cloudflare controls.
 
@@ -28,12 +35,30 @@ Use the automation only with the permissions required by the data provider's ter
 
 The persistent browser profile is local and ignored at `data/.investing-browser-profile/`. The refresh command only updates CSV files; importing or running the persisted routine remains a separate operator action.
 
+## Uploaded CSV fallback
+
+Place `fiyat.csv`, `performans.csv`, `teknik.csv`, and `temel.csv` in one
+directory, then run:
+
+```bash
+python3 -m stock_expert publish-investing-csvs --source-dir /path/to/csvs
+```
+
+The command applies the same schema, minimum-row, company-coverage, quoted
+UTF-8-with-BOM, and rollback-safe publication gates as browser capture. It
+does not import the snapshot or run the routine.
+
+For SQLite history plus the current CSV bundle, use the portable workflow in
+[Cloud-first operation](cloud-operation.md).
+
 ## Codex Plugin
 
-`/stock-expert:refresh-data` runs the same validated refresh command, verifies
-the published bundle, and opens `http://127.0.0.1:5173/?view=runs` unless the
-user requests CLI-only output. The skill never confirms or starts the persisted
-routine; Data & Runs remains the explicit execution boundary.
+`/stock-expert:refresh-data` selects the capture surface: embedded browser on
+the local desktop, headless extraction in Cloud when available, or validated
+uploaded CSV publication as the fallback. A successful local refresh opens
+`http://127.0.0.1:5173/?view=runs`; Cloud reports the CLI result because it does
+not assume a local loopback handoff. The skill never confirms or starts the
+persisted routine.
 
 ## Verification
 

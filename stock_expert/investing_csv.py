@@ -120,25 +120,53 @@ def validate_extracted_tables(payload: dict[str, Any], min_rows: int) -> dict[st
     return row_counts
 
 
-def publish_extracted_tables(payload: dict[str, Any], destination: Path, min_rows: int) -> dict[str, int]:
+def load_csv_bundle(source: Path) -> dict[str, Any]:
+    """Load the four published CSV files into the browser payload shape."""
+    tables: dict[str, Any] = {}
+    for filename in CSV_HEADERS:
+        path = source / filename
+        if not path.is_file():
+            raise InvestingCsvError(f"Uploaded CSV bundle is missing {filename}: {path}")
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                rows = list(csv.reader(handle))
+        except UnicodeDecodeError as exc:
+            raise InvestingCsvError(f"Uploaded CSV bundle is not valid UTF-8: {path}") from exc
+        if not rows:
+            raise InvestingCsvError(f"Uploaded CSV bundle is empty: {path}")
+        tables[filename] = {"headers": rows[0], "rows": rows[1:]}
+    return {"tables": tables}
+
+
+def validate_csv_bundle(source: Path, min_rows: int) -> dict[str, int]:
+    """Validate an uploaded four-file CSV bundle before publication."""
+    return validate_extracted_tables(load_csv_bundle(source), min_rows=min_rows)
+
+
+def stage_extracted_tables(payload: dict[str, Any], staging: Path, min_rows: int) -> dict[str, int]:
+    """Validate and render a canonical CSV bundle into a staging directory."""
     row_counts = validate_extracted_tables(payload, min_rows=min_rows)
-    destination.mkdir(parents=True, exist_ok=True)
+    staging.mkdir(parents=True, exist_ok=True)
+    for filename, headers in CSV_HEADERS.items():
+        staged_file = staging / filename
+        with staged_file.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.writer(handle, quoting=csv.QUOTE_ALL)
+            writer.writerow(headers)
+            writer.writerows(payload["tables"][filename]["rows"])
+            handle.flush()
+            os.fsync(handle.fileno())
+    return row_counts
+
+
+def publish_extracted_tables(payload: dict[str, Any], destination: Path, min_rows: int) -> dict[str, int]:
     transaction_id = uuid.uuid4().hex
+    destination.mkdir(parents=True, exist_ok=True)
     staging = destination / f".investing-stage-{transaction_id}"
-    staging.mkdir()
+    row_counts = stage_extracted_tables(payload, staging=staging, min_rows=min_rows)
     backups: dict[Path, Path] = {}
     published: list[Path] = []
 
     try:
-        for filename, headers in CSV_HEADERS.items():
-            staged_file = staging / filename
-            with staged_file.open("w", encoding="utf-8-sig", newline="") as handle:
-                writer = csv.writer(handle, quoting=csv.QUOTE_ALL)
-                writer.writerow(headers)
-                writer.writerows(payload["tables"][filename]["rows"])
-                handle.flush()
-                os.fsync(handle.fileno())
-
         for filename in CSV_HEADERS:
             target = destination / filename
             if target.exists():
@@ -159,6 +187,33 @@ def publish_extracted_tables(payload: dict[str, Any], destination: Path, min_row
         shutil.rmtree(staging, ignore_errors=True)
 
     return row_counts
+
+
+def publish_csv_bundle(source: Path, destination: Path, min_rows: int) -> dict[str, int]:
+    """Validate and atomically publish CSVs supplied outside the browser flow."""
+    return publish_extracted_tables(load_csv_bundle(source), destination=destination, min_rows=min_rows)
+
+
+def publish_uploaded_csvs_command(
+    settings: Settings,
+    source_dir: str = "data/uploaded",
+    data_dir: str = "data",
+    min_rows: int = 500,
+) -> str:
+    source = settings.base_dir / source_dir
+    destination = settings.base_dir / data_dir
+    row_counts = publish_csv_bundle(source, destination=destination, min_rows=min_rows)
+    return json.dumps(
+        {
+            "source_dir": str(source),
+            "destination_dir": str(destination),
+            "rows": row_counts,
+            "files": [str(destination / filename) for filename in CSV_HEADERS],
+            "publication": "atomic",
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 def refresh_investing_csvs_command(

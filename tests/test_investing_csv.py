@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import shutil
 import subprocess
 import unittest
@@ -13,7 +14,10 @@ from stock_expert.config import Settings
 from stock_expert.investing_csv import (
     CSV_HEADERS,
     InvestingCsvError,
+    load_csv_bundle,
+    publish_csv_bundle,
     publish_extracted_tables,
+    publish_uploaded_csvs_command,
     refresh_investing_csvs_command,
     validate_extracted_tables,
 )
@@ -74,6 +78,36 @@ class InvestingCsvTests(unittest.TestCase):
         with self.assertRaisesRegex(InvestingCsvError, "header mismatch"):
             validate_extracted_tables(payload, min_rows=2)
 
+    def test_rejects_invalid_payload_shapes(self) -> None:
+        with self.assertRaisesRegex(InvestingCsvError, "tables object"):
+            validate_extracted_tables({}, min_rows=2)
+
+        payload = self._payload()
+        payload["tables"]["fiyat.csv"]["rows"][0] = ["Adel"]
+        with self.assertRaisesRegex(InvestingCsvError, "expected 8"):
+            validate_extracted_tables(payload, min_rows=2)
+
+        payload = self._payload()
+        payload["tables"]["fiyat.csv"]["rows"][0][1] = 30.8
+        with self.assertRaisesRegex(InvestingCsvError, "non-text"):
+            validate_extracted_tables(payload, min_rows=2)
+
+        payload = self._payload()
+        payload["tables"]["fiyat.csv"]["rows"][0][0] = "  "
+        with self.assertRaisesRegex(InvestingCsvError, "empty company"):
+            validate_extracted_tables(payload, min_rows=2)
+
+    def test_rejects_company_coverage_drift(self) -> None:
+        payload = self._payload()
+        payload["tables"]["temel.csv"]["rows"][1][0] = "Different Company"
+
+        with self.assertRaisesRegex(InvestingCsvError, "company coverage differs"):
+            validate_extracted_tables(payload, min_rows=2)
+
+    def test_rejects_invalid_minimum_row_setting(self) -> None:
+        with self.assertRaisesRegex(ValueError, "min_rows"):
+            validate_extracted_tables(self._payload(), min_rows=0)
+
     def test_publishes_quoted_utf8_csv_bundle(self) -> None:
         counts = publish_extracted_tables(self._payload(), destination=self.base_dir, min_rows=2)
 
@@ -97,6 +131,96 @@ class InvestingCsvTests(unittest.TestCase):
 
         for filename in CSV_HEADERS:
             self.assertEqual((self.base_dir / filename).read_text(encoding="utf-8"), "existing")
+
+    def test_publishes_uploaded_csv_bundle_atomically(self) -> None:
+        source = self.base_dir / "uploaded"
+        destination = self.base_dir / "published"
+        publish_extracted_tables(self._payload(), destination=source, min_rows=2)
+
+        counts = publish_csv_bundle(source, destination=destination, min_rows=2)
+
+        self.assertEqual(counts, {filename: 2 for filename in CSV_HEADERS})
+        self.assertTrue((destination / "fiyat.csv").read_bytes().startswith(b"\xef\xbb\xbf"))
+        self.assertEqual(
+            (destination / "temel.csv").read_text(encoding="utf-8-sig").splitlines()[1].split(",")[0].strip('"'),
+            "Adel",
+        )
+
+    def test_invalid_uploaded_csv_bundle_does_not_replace_existing_files(self) -> None:
+        source = self.base_dir / "uploaded"
+        destination = self.base_dir / "published"
+        publish_extracted_tables(self._payload(), destination=source, min_rows=2)
+        publish_extracted_tables(self._payload(), destination=destination, min_rows=2)
+        (source / "teknik.csv").write_text("bad\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(InvestingCsvError, "header mismatch"):
+            publish_csv_bundle(source, destination=destination, min_rows=2)
+
+        self.assertIn("Adel", (destination / "teknik.csv").read_text(encoding="utf-8-sig"))
+
+    def test_uploaded_bundle_loader_reports_missing_empty_and_invalid_utf8(self) -> None:
+        missing = self.base_dir / "missing"
+        missing.mkdir()
+        with self.assertRaisesRegex(InvestingCsvError, "missing fiyat.csv"):
+            load_csv_bundle(missing)
+
+        empty = self.base_dir / "empty"
+        empty.mkdir()
+        (empty / "fiyat.csv").write_bytes(b"")
+        with self.assertRaisesRegex(InvestingCsvError, "empty"):
+            load_csv_bundle(empty)
+
+        invalid = self.base_dir / "invalid"
+        invalid.mkdir()
+        (invalid / "fiyat.csv").write_bytes(b"\xff")
+        with self.assertRaisesRegex(InvestingCsvError, "valid UTF-8"):
+            load_csv_bundle(invalid)
+
+    def test_uploaded_command_publishes_and_reports_paths(self) -> None:
+        source = self.base_dir / "uploaded"
+        destination = self.base_dir / "published"
+        publish_extracted_tables(self._payload(), destination=source, min_rows=2)
+        settings = Settings(
+            base_dir=self.base_dir,
+            data_dir=self.base_dir / "data",
+            db_path=self.base_dir / "data" / "test.db",
+        )
+
+        result = json.loads(
+            publish_uploaded_csvs_command(
+                settings,
+                source_dir="uploaded",
+                data_dir="published",
+                min_rows=2,
+            )
+        )
+
+        self.assertEqual(result["rows"], {filename: 2 for filename in CSV_HEADERS})
+        self.assertEqual(result["publication"], "atomic")
+        self.assertEqual(result["destination_dir"], str(destination))
+
+    def test_publish_rollback_restores_existing_files(self) -> None:
+        source = self.base_dir / "uploaded"
+        destination = self.base_dir / "published"
+        publish_extracted_tables(self._payload(), destination=source, min_rows=2)
+        publish_extracted_tables(self._payload(), destination=destination, min_rows=2)
+
+        real_replace = os.replace
+
+        def fail_on_second_file(source_path: Path, target_path: Path) -> None:
+            if source_path.name == "performans.csv" and target_path == destination / "performans.csv":
+                raise OSError("simulated replace failure")
+            real_replace(source_path, target_path)
+
+        with patch(
+            "stock_expert.investing_csv.os.replace",
+            side_effect=fail_on_second_file,
+        ):
+            with self.assertRaisesRegex(OSError, "simulated replace failure"):
+                publish_csv_bundle(source, destination=destination, min_rows=2)
+
+        for filename in CSV_HEADERS:
+            self.assertIn("Adel", (destination / filename).read_text(encoding="utf-8-sig"))
 
     def test_refresh_command_runs_extractor_and_publishes_bundle(self) -> None:
         script = self.base_dir / "scripts" / "investing_csv_extract.mjs"

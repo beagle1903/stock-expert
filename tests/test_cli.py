@@ -184,6 +184,33 @@ class CliRoutineTests(unittest.TestCase):
 
         with (
             patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.publish_uploaded_csvs_command", return_value="published") as publish,
+            patch(
+                "sys.argv",
+                [
+                    "stocks",
+                    "publish-investing-csvs",
+                    "--source-dir",
+                    "uploads/latest",
+                    "--data-dir",
+                    "data/live",
+                    "--min-rows",
+                    "600",
+                ],
+            ),
+            redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(cli.main(), 0)
+
+        publish.assert_called_once_with(
+            settings=self.settings,
+            source_dir="uploads/latest",
+            data_dir="data/live",
+            min_rows=600,
+        )
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
             patch(
                 "stock_expert.cli.refresh_investing_csvs_command",
                 side_effect=InvestingCsvError("access challenge"),
@@ -204,6 +231,65 @@ class CliRoutineTests(unittest.TestCase):
             self.assertEqual(cli.main(), 0)
 
         folder_import.assert_called_once_with(settings=self.settings, folder="data/20260421")
+
+    def test_workspace_bundle_commands_route_arguments(self) -> None:
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.export_workspace_bundle", return_value={"bundle": "out.zip"}) as export,
+            patch(
+                "sys.argv",
+                [
+                    "stocks",
+                    "export-workspace-bundle",
+                    "--output",
+                    "data/backups/out.zip",
+                    "--data-dir",
+                    "data/live",
+                    "--min-rows",
+                    "600",
+                    "--without-inputs",
+                ],
+            ),
+            redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(cli.main(), 0)
+
+        export.assert_called_once_with(
+            settings=self.settings,
+            output_path="data/backups/out.zip",
+            data_dir="data/live",
+            include_inputs=False,
+            min_rows=600,
+        )
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.import_workspace_bundle", return_value={"database": "data/test.db"}) as restore,
+            patch(
+                "sys.argv",
+                [
+                    "stocks",
+                    "import-workspace-bundle",
+                    "--input",
+                    "data/backups/out.zip",
+                    "--data-dir",
+                    "data/live",
+                    "--min-rows",
+                    "600",
+                    "--replace-database",
+                ],
+            ),
+            redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(cli.main(), 0)
+
+        restore.assert_called_once_with(
+            settings=self.settings,
+            input_path="data/backups/out.zip",
+            data_dir="data/live",
+            replace_database=True,
+            min_rows=600,
+        )
 
     def test_routine_reports_unsafe_daily_csv_without_running_strategy(self) -> None:
         with (

@@ -24,6 +24,7 @@ Current runtime mode: daily CSV snapshots.
 - Output rules: [docs/rules/output.md](docs/rules/output.md)
 - Architecture: [docs/context/architecture.md](docs/context/architecture.md)
 - Decisions: [docs/context/decisions.md](docs/context/decisions.md)
+- Cloud operation: [docs/features/cloud-operation.md](docs/features/cloud-operation.md)
 
 ## Commands
 
@@ -32,6 +33,9 @@ Run these from the repo root.
 ```powershell
 & 'D:\miniconda3\python.exe' -m stock_expert import-daily-folder --folder data\20260414
 & 'D:\miniconda3\python.exe' -m stock_expert refresh-investing-csvs
+& 'D:\miniconda3\python.exe' -m stock_expert publish-investing-csvs --source-dir data\uploaded
+& 'D:\miniconda3\python.exe' -m stock_expert import-workspace-bundle --input data\backups\stock_expert_workspace.zip --replace-database
+& 'D:\miniconda3\python.exe' -m stock_expert export-workspace-bundle --output data\backups\stock_expert_workspace.zip
 & 'D:\miniconda3\python.exe' -m stock_expert midday-routine --date 2026-04-21
 & 'D:\miniconda3\python.exe' -m stock_expert routine --date 2026-04-21
 & 'D:\miniconda3\python.exe' -m stock_expert daily --date 2026-04-14
@@ -54,6 +58,8 @@ Run these from the repo root.
 - Local `.env` can set `STOCK_EXPERT_DB_PATH`, for example see [.env.example](.env.example)
 - Daily CSV inputs: `fiyat.csv`, `performans.csv`, `teknik.csv`, `temel.csv`
 - Optional ticker override map: `data/ticker_map.csv`
+- Cloud transfer bundle: an ignored ZIP containing SQLite state and, by default,
+  the four validated live CSV inputs
 
 ## Git Workflow
 
