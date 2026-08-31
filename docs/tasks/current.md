@@ -55,13 +55,15 @@
 
 ## Active Enhancement
 
-- Missed-Mover Explorer is implemented on `codex/missed-mover-explorer`.
-- New reviews atomically persist immutable missed-mover evidence; old reviews
-  explicitly report that this evidence was not captured.
-- Review detail provides all/actionable/non-actionable filters and stored
-  selection attribution without changing strategy behavior.
+- Strategy Evidence Lab is implemented on `codex/strategy-evidence-lab`.
+- The read-only API provides bounded review windows, as-of pilot state, paired
+  strategy comparison, candidate diagnostics, and exact-snapshot breadth.
+- The responsive Strategy Lab preserves incomplete and unavailable evidence
+  states without changing strategy behavior or persistence.
+- PR review hardening keeps pilot start checks signal-date based, discards
+  superseded window responses, and decouples Strategy Lab from latest picks.
 - The implementation scope and verification record live in
-  `docs/tasks/missed-mover-explorer.md`.
+  `docs/tasks/strategy-evidence-lab.md`.
 - The four-item enhancement queue is recorded in `docs/tasks/backlog.md`.
 - Basic GitHub CI now gates pull requests and `main` with Python tests plus
   frontend tests and a production build; deployment is intentionally deferred.

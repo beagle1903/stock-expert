@@ -23,7 +23,21 @@ from stock_expert.database import (
     get_review_run,
     init_db,
 )
-from stock_expert.services import adaptive_pick_exposure, market_context_for_dates, rank_candidates
+from stock_expert.pilot import (
+    PILOT_MIN_BUCKETED_WINS,
+    PILOT_NAME,
+    PILOT_PROMOTION_EDGE,
+    PILOT_ROLLBACK_EDGE,
+    PILOT_SESSION_TARGET,
+    evaluate_pilot_sessions,
+    operational_strategy,
+)
+from stock_expert.services import (
+    adaptive_pick_exposure,
+    market_context_for_dates,
+    rank_candidates,
+    rolling_candidate_diagnostics,
+)
 from stock_expert.trading_calendar import is_trading_session, next_trading_session, previous_trading_session
 
 
@@ -32,6 +46,7 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 18765
 MAX_REQUEST_BYTES = 64 * 1024
 _ROUTINE_LOCK = threading.Lock()
+STRATEGY_EVIDENCE_WINDOWS = {5, 10, 20}
 
 
 class RoutineRequestError(Exception):
@@ -177,6 +192,452 @@ def load_review_history(settings: Settings) -> list[dict[str, Any]]:
         }
         for review in reviews
     ]
+
+
+def _metric_summary(row: Any) -> dict[str, Any]:
+    return {
+        "count": int(row["count"]),
+        "wins": int(row["wins"]),
+        "averageReturn": float(row["avg_return"]),
+        "winRate": float(row["win_rate"]),
+    }
+
+
+def _return_summary(values: list[float]) -> dict[str, Any]:
+    wins = sum(1 for value in values if value >= MIN_DAILY_WIN_RETURN)
+    return {
+        "count": len(values),
+        "wins": wins,
+        "averageReturn": round(sum(values) / len(values), 4) if values else 0.0,
+        "winRate": round(wins / len(values), 4) if values else 0.0,
+    }
+
+
+def _serialize_candidate_diagnostics(rows: list[Any]) -> dict[str, Any]:
+    diagnostics = rolling_candidate_diagnostics(rows)
+    cutoff_analysis = diagnostics["cutoff_analysis"]
+    normalized = [dict(row) for row in rows]
+    penalized_returns = [
+        float(row["return_pct"])
+        for row in normalized
+        if float(row["setup_penalty"]) > 0
+    ]
+    unpenalized_returns = [
+        float(row["return_pct"])
+        for row in normalized
+        if float(row["setup_penalty"]) <= 0
+    ]
+    return {
+        "sessionCount": int(diagnostics["session_count"]),
+        "candidateCount": int(diagnostics["candidate_count"]),
+        "rankBands": [
+            {"band": str(row["band"]), **_metric_summary(row)}
+            for row in diagnostics["rank_bands"]
+        ],
+        "cutoffAnalysis": {
+            "cutoffs": [
+                {"cutoff": str(row["cutoff"]), **_metric_summary(row)}
+                for row in cutoff_analysis["cutoffs"]
+            ],
+            "bestCutoff": cutoff_analysis["best_cutoff"],
+            "minimumObservations": int(cutoff_analysis["min_observations"]),
+        },
+        "patterns": [
+            {"pattern": str(row["pattern"]), **_metric_summary(row)}
+            for row in diagnostics["patterns"]
+        ],
+        "setupPenalty": {
+            "averagePenalty": round(
+                sum(float(row["setup_penalty"]) for row in normalized) / len(normalized),
+                4,
+            ) if normalized else 0.0,
+            "penalized": _return_summary(penalized_returns),
+            "unpenalized": _return_summary(unpenalized_returns),
+        },
+        "strategies": [
+            {"strategy": str(row["strategy"]), **_metric_summary(row)}
+            for row in diagnostics["strategies"]
+        ],
+        "note": str(diagnostics["note"]),
+    }
+
+
+def _pilot_session_payload(row: Any) -> dict[str, Any]:
+    return {
+        "pickCount": int(row["pick_count"]),
+        "evaluatedCount": int(row["evaluated_count"]),
+        "wins": int(row["wins"]),
+        "averageReturn": float(row["avg_return"]),
+        "isComplete": bool(row["is_complete"]),
+    }
+
+
+def _strategy_comparison(
+    rows: list[Any],
+    expected_sessions: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    sessions: dict[int, dict[str, Any]] = {
+        int(row["signalSnapshotId"]): {
+            **row,
+            "scoreRanked": None,
+            "bucketed": None,
+        }
+        for row in (expected_sessions or [])
+    }
+    for raw_row in rows:
+        row = dict(raw_row)
+        snapshot_id = int(row["signal_snapshot_id"])
+        session = sessions.setdefault(
+            snapshot_id,
+            {
+                "signalSnapshotId": snapshot_id,
+                "signalDate": str(row["signal_date"]),
+                "reviewDate": str(row["review_date"]),
+                "scoreRanked": None,
+                "bucketed": None,
+            },
+        )
+        key = "scoreRanked" if row["strategy"] == "score_ranked" else "bucketed"
+        session[key] = _pilot_session_payload(row)
+
+    ordered_sessions = sorted(
+        sessions.values(),
+        key=lambda row: (row["reviewDate"], row["signalDate"], row["signalSnapshotId"]),
+    )
+    complete_pairs = []
+    incomplete_pairs = 0
+    unpaired_sessions = 0
+    for session in ordered_sessions:
+        score = session["scoreRanked"]
+        bucketed = session["bucketed"]
+        if score is None or bucketed is None:
+            session["pairStatus"] = "unpaired"
+            unpaired_sessions += 1
+        elif score["isComplete"] and bucketed["isComplete"]:
+            session["pairStatus"] = "complete"
+            complete_pairs.append(session)
+        else:
+            session["pairStatus"] = "incomplete"
+            incomplete_pairs += 1
+
+    strategy_summaries = []
+    for key, strategy in (("scoreRanked", "score_ranked"), ("bucketed", "bucketed")):
+        values = [session[key] for session in complete_pairs]
+        growth = 1.0
+        for value in values:
+            growth *= 1.0 + value["averageReturn"]
+        evaluated_count = sum(value["evaluatedCount"] for value in values)
+        wins = sum(value["wins"] for value in values)
+        strategy_summaries.append(
+            {
+                "strategy": strategy,
+                "sessionCount": len(values),
+                "pickCount": sum(value["pickCount"] for value in values),
+                "evaluatedCount": evaluated_count,
+                "wins": wins,
+                "averageSessionReturn": round(
+                    sum(value["averageReturn"] for value in values) / len(values), 6
+                ) if values else 0.0,
+                "compoundedReturn": round(growth - 1.0, 6),
+                "pickWinRate": round(wins / evaluated_count, 4) if evaluated_count else 0.0,
+            }
+        )
+
+    bucketed_session_wins = sum(
+        1
+        for session in complete_pairs
+        if session["bucketed"]["averageReturn"] > session["scoreRanked"]["averageReturn"]
+    )
+    if not ordered_sessions:
+        status = "unavailable"
+    elif complete_pairs and not incomplete_pairs and not unpaired_sessions:
+        status = "available"
+    else:
+        status = "partial"
+    return {
+        "status": status,
+        "completePairedSessions": len(complete_pairs),
+        "incompletePairedSessions": incomplete_pairs,
+        "unpairedSessions": unpaired_sessions,
+        "bucketedSessionWins": bucketed_session_wins,
+        "strategies": strategy_summaries,
+        "sessions": ordered_sessions,
+    }
+
+
+def _pilot_as_of_payload(state: Any, session_rows: list[Any], end_signal_date: date | None) -> dict[str, Any]:
+    thresholds = {
+        "sessionTarget": PILOT_SESSION_TARGET,
+        "minimumBucketedSessionWins": PILOT_MIN_BUCKETED_WINS,
+        "promotionEdge": PILOT_PROMOTION_EDGE,
+        "rollbackEdge": PILOT_ROLLBACK_EDGE,
+    }
+    if state is None:
+        return {
+            "name": PILOT_NAME,
+            "status": "not_started",
+            "selectedStrategy": operational_strategy(None),
+            "completedSessions": 0,
+            "bucketedSessionWins": 0,
+            "scoreCompoundedReturn": 0.0,
+            "bucketedCompoundedReturn": 0.0,
+            "compoundedEdge": 0.0,
+            "decisionReason": "pilot_not_started",
+            "thresholds": thresholds,
+        }
+
+    started_signal_date = date.fromisoformat(str(state["started_signal_date"]))
+    if end_signal_date is None or end_signal_date < started_signal_date:
+        return {
+            "name": str(state["pilot_name"]),
+            "status": "not_started",
+            "selectedStrategy": "score_ranked",
+            "completedSessions": 0,
+            "bucketedSessionWins": 0,
+            "scoreCompoundedReturn": 0.0,
+            "bucketedCompoundedReturn": 0.0,
+            "compoundedEdge": 0.0,
+            "decisionReason": "pilot_not_started_as_of_window",
+            "thresholds": thresholds,
+        }
+
+    evaluation = evaluate_pilot_sessions(session_rows)
+    return {
+        "name": str(state["pilot_name"]),
+        "status": evaluation.status,
+        "selectedStrategy": operational_strategy(evaluation.status),
+        "startedSignalDate": started_signal_date.isoformat(),
+        "completedSessions": evaluation.completed_sessions,
+        "bucketedSessionWins": evaluation.bucketed_session_wins,
+        "scoreCompoundedReturn": evaluation.score_compounded_return,
+        "bucketedCompoundedReturn": evaluation.bucketed_compounded_return,
+        "compoundedEdge": evaluation.compounded_edge,
+        "momentumWeight": float(state["momentum_weight"]),
+        "volumeWeight": float(state["volume_weight"]),
+        "decisionReason": evaluation.decision_reason,
+        "thresholds": thresholds,
+    }
+
+
+def load_strategy_evidence(
+    settings: Settings,
+    *,
+    window: int | None = 10,
+    end_review_date: date | None = None,
+) -> dict[str, Any]:
+    if window is not None and window not in STRATEGY_EVIDENCE_WINDOWS:
+        raise RoutineRequestError("window must be 5, 10, 20, or all.")
+    init_db(settings)
+    with connect(settings) as connection:
+        params: list[Any] = []
+        where = ""
+        if end_review_date is not None:
+            where = "WHERE review_date <= ?"
+            params.append(end_review_date.isoformat())
+        all_reviews = list(
+            connection.execute(
+                f"""
+                SELECT id, as_of_date, review_date, signal_snapshot_id
+                FROM review_runs
+                {where}
+                ORDER BY review_date DESC, id DESC
+                """,
+                params,
+            )
+        )
+        selected_desc = all_reviews if window is None else all_reviews[:window]
+        reviews = list(reversed(selected_desc))
+        state = connection.execute(
+            "SELECT * FROM strategy_pilot_state WHERE pilot_name = ?",
+            (PILOT_NAME,),
+        ).fetchone()
+        if not reviews:
+            return {
+                "status": "empty",
+                "window": {
+                    "requested": "all" if window is None else str(window),
+                    "availableReviewCount": len(all_reviews),
+                    "includedReviewCount": 0,
+                    "startReviewDate": None,
+                    "endReviewDate": end_review_date.isoformat() if end_review_date else None,
+                },
+                "pilot": _pilot_as_of_payload(state, [], None),
+                "comparison": _strategy_comparison([]),
+                "candidateEvidence": {
+                    "status": "unavailable",
+                    "capturedReviewCount": 0,
+                    "missingReviewCount": 0,
+                    **_serialize_candidate_diagnostics([]),
+                },
+                "breadth": {
+                    "status": "unavailable",
+                    "availableSessionCount": 0,
+                    "unavailableSessionCount": 0,
+                    "averageAdvancerRatio": None,
+                    "minimumAdvancerRatio": None,
+                    "maximumAdvancerRatio": None,
+                    "sessions": [],
+                },
+            }
+
+        review_ids = [int(row["id"]) for row in reviews]
+        review_placeholders = ",".join("?" for _ in review_ids)
+        candidate_rows = list(
+            connection.execute(
+                f"""
+                SELECT *
+                FROM candidate_outcomes
+                WHERE review_run_id IN ({review_placeholders})
+                ORDER BY review_date, candidate_rank
+                """,
+                review_ids,
+            )
+        )
+        snapshot_ids = [
+            int(row["signal_snapshot_id"])
+            for row in reviews
+            if row["signal_snapshot_id"] is not None
+        ]
+        selected_session_rows: list[Any] = []
+        breadth_counts: dict[int, Any] = {}
+        if snapshot_ids:
+            snapshot_placeholders = ",".join("?" for _ in snapshot_ids)
+            selected_session_rows = list(
+                connection.execute(
+                    f"""
+                    SELECT *
+                    FROM strategy_pilot_sessions
+                    WHERE pilot_name = ?
+                      AND signal_snapshot_id IN ({snapshot_placeholders})
+                    ORDER BY review_date, signal_snapshot_id, strategy
+                    """,
+                    [PILOT_NAME, *snapshot_ids],
+                )
+            )
+            breadth_counts = {
+                int(row["snapshot_id"]): row
+                for row in connection.execute(
+                    f"""
+                    SELECT snapshot_id, COUNT(*) AS universe_count,
+                           SUM(CASE WHEN close_price > open_price THEN 1 ELSE 0 END) AS advancer_count
+                    FROM stocks
+                    WHERE snapshot_id IN ({snapshot_placeholders})
+                    GROUP BY snapshot_id
+                    """,
+                    snapshot_ids,
+                )
+            }
+
+        selected_end = date.fromisoformat(str(reviews[-1]["review_date"]))
+        cumulative_session_rows: list[Any] = []
+        if state is not None:
+            cumulative_session_rows = list(
+                connection.execute(
+                    """
+                    SELECT signal_snapshot_id, signal_date, strategy, avg_return, is_complete
+                    FROM strategy_pilot_sessions
+                    WHERE pilot_name = ? AND signal_date >= ? AND review_date <= ?
+                    ORDER BY signal_date, signal_snapshot_id, strategy
+                    """,
+                    (PILOT_NAME, state["started_signal_date"], selected_end.isoformat()),
+                )
+            )
+
+    captured_review_ids = {int(row["review_run_id"]) for row in candidate_rows}
+    if not candidate_rows:
+        candidate_status = "unavailable"
+    elif len(captured_review_ids) == len(review_ids):
+        candidate_status = "available"
+    else:
+        candidate_status = "partial"
+    candidate_evidence = {
+        "status": candidate_status,
+        "capturedReviewCount": len(captured_review_ids),
+        "missingReviewCount": len(review_ids) - len(captured_review_ids),
+        **_serialize_candidate_diagnostics(candidate_rows),
+    }
+
+    breadth_sessions = []
+    ratios = []
+    for review in reviews:
+        snapshot_id = review["signal_snapshot_id"]
+        counts = breadth_counts.get(int(snapshot_id)) if snapshot_id is not None else None
+        if counts is None or not int(counts["universe_count"]):
+            breadth_sessions.append(
+                {
+                    "reviewId": int(review["id"]),
+                    "signalDate": str(review["as_of_date"]),
+                    "reviewDate": str(review["review_date"]),
+                    "signalSnapshotId": int(snapshot_id) if snapshot_id is not None else None,
+                    "status": "unavailable",
+                    "universeCount": 0,
+                    "advancerCount": 0,
+                    "advancerRatio": None,
+                }
+            )
+            continue
+        ratio = round(int(counts["advancer_count"]) / int(counts["universe_count"]), 4)
+        ratios.append(ratio)
+        breadth_sessions.append(
+            {
+                "reviewId": int(review["id"]),
+                "signalDate": str(review["as_of_date"]),
+                "reviewDate": str(review["review_date"]),
+                "signalSnapshotId": int(snapshot_id),
+                "status": "available",
+                "universeCount": int(counts["universe_count"]),
+                "advancerCount": int(counts["advancer_count"]),
+                "advancerRatio": ratio,
+            }
+        )
+    unavailable_breadth = len(breadth_sessions) - len(ratios)
+    breadth_status = (
+        "unavailable" if not ratios else "available" if unavailable_breadth == 0 else "partial"
+    )
+
+    expected_pilot_sessions = []
+    if state is not None:
+        pilot_start = date.fromisoformat(str(state["started_signal_date"]))
+        expected_pilot_sessions = [
+            {
+                "signalSnapshotId": int(review["signal_snapshot_id"]),
+                "signalDate": str(review["as_of_date"]),
+                "reviewDate": str(review["review_date"]),
+            }
+            for review in reviews
+            if review["signal_snapshot_id"] is not None
+            and date.fromisoformat(str(review["as_of_date"])) >= pilot_start
+        ]
+
+    return {
+        "status": "available",
+        "window": {
+            "requested": "all" if window is None else str(window),
+            "availableReviewCount": len(all_reviews),
+            "includedReviewCount": len(reviews),
+            "startReviewDate": str(reviews[0]["review_date"]),
+            "endReviewDate": str(reviews[-1]["review_date"]),
+        },
+        "pilot": _pilot_as_of_payload(
+            state,
+            cumulative_session_rows,
+            date.fromisoformat(str(reviews[-1]["as_of_date"])),
+        ),
+        "comparison": _strategy_comparison(
+            selected_session_rows,
+            expected_pilot_sessions,
+        ),
+        "candidateEvidence": candidate_evidence,
+        "breadth": {
+            "status": breadth_status,
+            "availableSessionCount": len(ratios),
+            "unavailableSessionCount": unavailable_breadth,
+            "averageAdvancerRatio": round(sum(ratios) / len(ratios), 4) if ratios else None,
+            "minimumAdvancerRatio": min(ratios) if ratios else None,
+            "maximumAdvancerRatio": max(ratios) if ratios else None,
+            "sessions": breadth_sessions,
+        },
+    }
 
 
 def load_latest_picks(settings: Settings) -> dict[str, Any] | None:
@@ -503,6 +964,36 @@ class RoutineApiHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/reviews/history":
                 self._send_json(HTTPStatus.OK, {"reviews": load_review_history(self.server.settings)})
+                return
+            if parsed.path == "/api/strategy-evidence":
+                params = parse_qs(parsed.query)
+                requested_window = params.get("window", ["10"])[0]
+                if requested_window == "all":
+                    window = None
+                else:
+                    try:
+                        window = int(requested_window)
+                    except ValueError as exc:
+                        raise RoutineRequestError(
+                            "window must be 5, 10, 20, or all."
+                        ) from exc
+                end_value = params.get("end_review_date", [None])[0]
+                try:
+                    end_review_date = date.fromisoformat(end_value) if end_value else None
+                except ValueError as exc:
+                    raise RoutineRequestError(
+                        "end_review_date must use YYYY-MM-DD format."
+                    ) from exc
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "evidence": load_strategy_evidence(
+                            self.server.settings,
+                            window=window,
+                            end_review_date=end_review_date,
+                        )
+                    },
+                )
                 return
             if parsed.path.startswith("/api/reviews/"):
                 review_id_text = parsed.path.removeprefix("/api/reviews/")

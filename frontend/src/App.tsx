@@ -14,6 +14,13 @@ import {
   Star,
 } from "@phosphor-icons/react";
 import { dashboardRepository } from "./data/dashboardRepository";
+import { strategyEvidenceRepository } from "./data/strategyEvidenceRepository";
+import {
+  appContentMode,
+  evidenceDisplayState,
+  evidenceWindowOptions,
+  findStrategySummary,
+} from "./data/strategyEvidenceViewModel.mjs";
 import { RoutineLauncher } from "./components/RoutineLauncher";
 import type {
   DashboardData,
@@ -24,13 +31,15 @@ import type {
   ReviewSummary,
   ViewKey,
 } from "./domain/dashboard";
+import type { EvidenceWindow, StrategyEvidence } from "./domain/strategyEvidence";
 import { useDashboard } from "./hooks/useDashboard";
+import { useStrategyEvidence } from "./hooks/useStrategyEvidence";
 
 const navigation = [
   { key: "overview", label: "Overview", icon: Gauge },
   { key: "picks", label: "Today's Picks", icon: Star },
   { key: "reviews", label: "Reviews", icon: ClipboardText },
-  { key: "diagnostics", label: "Diagnostics", icon: Pulse },
+  { key: "diagnostics", label: "Strategy Lab", icon: Pulse },
   { key: "runs", label: "Data & Runs", icon: Database },
 ] as const;
 
@@ -49,6 +58,14 @@ function signedFixed(value: number) {
 
 function percent(value: number, digits = 2) {
   return `${value > 0 ? "+" : ""}${(value * 100).toFixed(digits)}%`;
+}
+
+function ratioPercent(value: number, digits = 1) {
+  return `${(value * 100).toFixed(digits)}%`;
+}
+
+function label(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 function valueTone(value: number) {
@@ -606,12 +623,257 @@ function ReviewsView({
   );
 }
 
-function DiagnosticsView({ picks, selectedPick, onSelect }: { picks: Pick[]; selectedPick: Pick; onSelect: (ticker: string) => void }) {
+function EvidenceWindowControl({ value, onChange }: {
+  value: EvidenceWindow;
+  onChange: (value: EvidenceWindow) => void;
+}) {
+  return (
+    <fieldset className="evidence-window-control">
+      <legend>Review window</legend>
+      <div>
+        {evidenceWindowOptions.map((option) => (
+          <button
+            type="button"
+            key={option}
+            className={value === option ? "is-selected" : ""}
+            aria-pressed={value === option}
+            onClick={() => onChange(option)}
+          >
+            {option === "all" ? "All" : `Last ${option}`}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+function PilotPanel({ evidence }: { evidence: StrategyEvidence }) {
+  const pilot = evidence.pilot;
+  return (
+    <section className="panel lab-pilot-panel" aria-labelledby="pilot-status-title">
+      <div className="lab-panel-heading">
+        <h3 id="pilot-status-title">Pilot status</h3>
+        <span className={`evidence-status evidence-status-${pilot.status}`}>{label(pilot.status)}</span>
+      </div>
+      <dl className="lab-kpi-grid">
+        <div><dt>Complete sessions</dt><dd>{pilot.completedSessions}/{pilot.thresholds.sessionTarget}</dd></div>
+        <div><dt>Bucketed wins</dt><dd>{pilot.bucketedSessionWins}/{pilot.thresholds.minimumBucketedSessionWins}</dd></div>
+        <div><dt>Compounded edge</dt><dd className={valueTone(pilot.compoundedEdge)}>{percent(pilot.compoundedEdge)}</dd></div>
+        <div><dt>Active strategy</dt><dd>{label(pilot.selectedStrategy)}</dd></div>
+      </dl>
+      <dl className="compact-list lab-thresholds">
+        <div><dt>Promotion edge</dt><dd>{percent(pilot.thresholds.promotionEdge)}</dd></div>
+        <div><dt>Rollback edge</dt><dd>{percent(pilot.thresholds.rollbackEdge)}</dd></div>
+        <div><dt>Decision</dt><dd>{label(pilot.decisionReason)}</dd></div>
+      </dl>
+    </section>
+  );
+}
+
+function StrategyComparisonPanel({ evidence }: { evidence: StrategyEvidence }) {
+  const score = findStrategySummary(evidence, "score_ranked");
+  const bucketed = findStrategySummary(evidence, "bucketed");
+  return (
+    <section className="panel lab-comparison-panel" aria-labelledby="strategy-comparison-title">
+      <div className="lab-panel-heading">
+        <h3 id="strategy-comparison-title">Paired strategy comparison</h3>
+        <span className={`evidence-status evidence-status-${evidence.comparison.status}`}>{evidence.comparison.status}</span>
+      </div>
+      <div className="strategy-compare-grid">
+        {[score, bucketed].map((strategy) => strategy && (
+          <article key={strategy.strategy}>
+            <h4>{label(strategy.strategy)}</h4>
+            <strong className={valueTone(strategy.compoundedReturn)}>{percent(strategy.compoundedReturn)}</strong>
+            <span>Compounded return</span>
+            <dl>
+              <div><dt>Average session</dt><dd>{percent(strategy.averageSessionReturn)}</dd></div>
+              <div><dt>Pick win rate</dt><dd>{ratioPercent(strategy.pickWinRate)}</dd></div>
+              <div><dt>Evaluated picks</dt><dd>{strategy.evaluatedCount}</dd></div>
+            </dl>
+          </article>
+        ))}
+      </div>
+      <p className="evidence-coverage">
+        {evidence.comparison.completePairedSessions} complete paired sessions · {evidence.comparison.bucketedSessionWins} bucketed session wins
+        {evidence.comparison.incompletePairedSessions > 0 && ` · ${evidence.comparison.incompletePairedSessions} incomplete`}
+        {evidence.comparison.unpairedSessions > 0 && ` · ${evidence.comparison.unpairedSessions} unpaired`}
+      </p>
+    </section>
+  );
+}
+
+function CandidateEvidencePanel({ evidence }: { evidence: StrategyEvidence }) {
+  const candidates = evidence.candidateEvidence;
+  return (
+    <section className="panel candidate-evidence-panel" aria-labelledby="candidate-evidence-title">
+      <div className="lab-panel-heading">
+        <h3 id="candidate-evidence-title">Candidate evidence</h3>
+        <span className={`evidence-status evidence-status-${candidates.status}`}>{candidates.status}</span>
+      </div>
+      <p className="evidence-coverage">{candidates.candidateCount} candidates across {candidates.sessionCount} captured sessions</p>
+      <div className="candidate-evidence-grid">
+        <div>
+          <h4>Cutoff analysis</h4>
+          <div className="table-scroll">
+            <table className="evidence-table">
+              <thead><tr><th>Cutoff</th><th>Count</th><th>Avg return</th><th>Win rate</th></tr></thead>
+              <tbody>
+                {candidates.cutoffAnalysis.cutoffs.map((row) => (
+                  <tr key={row.cutoff} className={candidates.cutoffAnalysis.bestCutoff === row.cutoff ? "is-best" : ""}>
+                    <td>{label(row.cutoff)}{candidates.cutoffAnalysis.bestCutoff === row.cutoff && <span className="best-mark">Best</span>}</td>
+                    <td>{row.count}</td><td className={valueTone(row.averageReturn)}>{percent(row.averageReturn)}</td><td>{ratioPercent(row.winRate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <h4>Rank bands</h4>
+          <div className="rank-band-list">
+            {candidates.rankBands.map((row) => (
+              <div key={row.band}>
+                <strong>{row.band}</strong>
+                <span>{row.count} candidates</span>
+                <b className={valueTone(row.averageReturn)}>{percent(row.averageReturn)}</b>
+                <span>{ratioPercent(row.winRate)} wins</span>
+              </div>
+            ))}
+          </div>
+          <h4>Setup penalty</h4>
+          <div className="setup-compare-list">
+            {([
+              ["Penalized", candidates.setupPenalty.penalized],
+              ["No penalty", candidates.setupPenalty.unpenalized],
+            ] as const).map(([name, row]) => (
+              <div key={name}>
+                <strong>{name}</strong><span>{row.count} candidates</span>
+                <b className={valueTone(row.averageReturn)}>{percent(row.averageReturn)}</b>
+                <span>{ratioPercent(row.winRate)} wins</span>
+              </div>
+            ))}
+          </div>
+          <p className="evidence-coverage">Average stored penalty {fixed(candidates.setupPenalty.averagePenalty)}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BreadthEvidencePanel({ evidence }: { evidence: StrategyEvidence }) {
+  const breadth = evidence.breadth;
+  return (
+    <section className="panel breadth-evidence-panel" aria-labelledby="breadth-evidence-title">
+      <div className="lab-panel-heading">
+        <h3 id="breadth-evidence-title">Signal-snapshot breadth</h3>
+        <span className={`evidence-status evidence-status-${breadth.status}`}>{breadth.status}</span>
+      </div>
+      <dl className="lab-kpi-grid breadth-kpis">
+        <div><dt>Average advancers</dt><dd>{breadth.averageAdvancerRatio === null ? "—" : ratioPercent(breadth.averageAdvancerRatio)}</dd></div>
+        <div><dt>Minimum</dt><dd>{breadth.minimumAdvancerRatio === null ? "—" : ratioPercent(breadth.minimumAdvancerRatio)}</dd></div>
+        <div><dt>Maximum</dt><dd>{breadth.maximumAdvancerRatio === null ? "—" : ratioPercent(breadth.maximumAdvancerRatio)}</dd></div>
+        <div><dt>Exact snapshots</dt><dd>{breadth.availableSessionCount}/{evidence.window.includedReviewCount}</dd></div>
+      </dl>
+      <div className="breadth-session-list">
+        {breadth.sessions.map((session) => (
+          <div key={session.reviewId}>
+            <span>{displayDate(session.signalDate)}</span>
+            <div className="breadth-bar" aria-label={session.advancerRatio === null ? "Breadth unavailable" : `${ratioPercent(session.advancerRatio)} advancers`}>
+              <i style={{ width: `${(session.advancerRatio ?? 0) * 100}%` }} />
+            </div>
+            <strong>{session.advancerRatio === null ? "Unavailable" : ratioPercent(session.advancerRatio)}</strong>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PilotSessionTable({ evidence }: { evidence: StrategyEvidence }) {
+  return (
+    <section className="panel pilot-session-panel" aria-labelledby="pilot-session-title">
+      <h3 id="pilot-session-title">Persisted pilot sessions</h3>
+      {evidence.comparison.sessions.length === 0 ? (
+        <p className="evidence-empty-inline">No persisted pilot sessions fall inside this review window.</p>
+      ) : (
+        <div className="table-scroll">
+          <table className="evidence-table session-table">
+            <thead><tr><th>Signal date</th><th>Pair</th><th>Score-ranked</th><th>Bucketed</th></tr></thead>
+            <tbody>
+              {evidence.comparison.sessions.map((session) => (
+                <tr key={session.signalSnapshotId}>
+                  <td>{displayDate(session.signalDate)}</td>
+                  <td><span className={`evidence-status evidence-status-${session.pairStatus}`}>{session.pairStatus}</span></td>
+                  <td className={session.scoreRanked ? valueTone(session.scoreRanked.averageReturn) : "neutral"}>{session.scoreRanked ? percent(session.scoreRanked.averageReturn) : "—"}</td>
+                  <td className={session.bucketed ? valueTone(session.bucketed.averageReturn) : "neutral"}>{session.bucketed ? percent(session.bucketed.averageReturn) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DiagnosticsView({
+  picks,
+  selectedPick,
+  onSelect,
+  evidence,
+  evidenceStatus,
+  evidenceError,
+  evidenceWindow,
+  onEvidenceWindowChange,
+  onRetryEvidence,
+}: {
+  picks: Pick[];
+  selectedPick: Pick | null;
+  onSelect: (ticker: string) => void;
+  evidence: StrategyEvidence | null;
+  evidenceStatus: "idle" | "loading" | "loaded" | "error";
+  evidenceError: string | null;
+  evidenceWindow: EvidenceWindow;
+  onEvidenceWindowChange: (window: EvidenceWindow) => void;
+  onRetryEvidence: () => void;
+}) {
+  const displayState = evidenceDisplayState(evidence);
   return (
     <div className="diagnostics-view">
-      <div className="view-intro"><p className="eyebrow">Point-in-time evidence</p><h2>Pick diagnostics</h2><p>Normalized signal values and bounded adjustments from the selected signal date.</p></div>
-      <PickList picks={picks} selectedTicker={selectedPick.ticker} onSelect={onSelect} />
-      <EvidencePanel pick={selectedPick} />
+      <header className="strategy-lab-header">
+        <div><h2>Strategy evidence lab</h2><p>Persisted reviews, candidate outcomes, pilot sessions, and exact signal snapshots.</p></div>
+        <EvidenceWindowControl value={evidenceWindow} onChange={onEvidenceWindowChange} />
+      </header>
+      {evidenceStatus === "loading" && !evidence && (
+        <section className="panel evidence-loading" aria-live="polite"><SpinnerGap className="spin" size={24} /> Loading strategy evidence…</section>
+      )}
+      {evidenceStatus === "error" && (
+        <section className="panel evidence-error" role="alert"><p>{evidenceError}</p><button type="button" className="secondary-action" onClick={onRetryEvidence}>Retry</button></section>
+      )}
+      {evidence && evidence.status === "empty" && evidenceStatus !== "error" && (
+        <section className="panel evidence-empty"><h3>No persisted review evidence</h3><p>Run and review a persisted basket before using the Strategy Evidence Lab.</p></section>
+      )}
+      {evidence && evidence.status === "available" && evidenceStatus !== "error" && (
+        <>
+          <div className="evidence-window-meta" aria-live="polite">
+            <span>{evidence.window.includedReviewCount} of {evidence.window.availableReviewCount} reviews</span>
+            <span>{displayDate(evidence.window.startReviewDate ?? "—")} → {displayDate(evidence.window.endReviewDate ?? "—")}</span>
+            {evidenceStatus === "loading" && <span><SpinnerGap className="spin" size={16} /> Updating</span>}
+          </div>
+          {displayState.notices.length > 0 && (
+            <div className="evidence-notices" role="status">{displayState.notices.map((notice) => <p key={notice}>{notice}</p>)}</div>
+          )}
+          <div className="lab-summary-grid"><PilotPanel evidence={evidence} /><StrategyComparisonPanel evidence={evidence} /></div>
+          <CandidateEvidencePanel evidence={evidence} />
+          <div className="lab-detail-grid"><BreadthEvidencePanel evidence={evidence} /><PilotSessionTable evidence={evidence} /></div>
+        </>
+      )}
+      <div className="latest-pick-heading"><h3>Latest persisted pick evidence</h3><p>Normalized signals and bounded adjustments for the selected latest pick.</p></div>
+      {selectedPick ? (
+        <div className="latest-pick-grid"><PickList picks={picks} selectedTicker={selectedPick.ticker} onSelect={onSelect} /><EvidencePanel pick={selectedPick} /></div>
+      ) : (
+        <section className="panel evidence-empty"><h3>No latest persisted picks</h3><p>Strategy evidence remains available above; run the persisted routine to populate latest-pick diagnostics.</p></section>
+      )}
     </div>
   );
 }
@@ -641,6 +903,10 @@ function RunsView({ data, reload }: {
 export function App() {
   const { data, status, reload } = useDashboard(dashboardRepository);
   const [activeView, setActiveView] = useState<ViewKey>(initialView);
+  const strategyEvidence = useStrategyEvidence(
+    strategyEvidenceRepository,
+    activeView === "diagnostics",
+  );
   const [selectedTicker, setSelectedTicker] = useState("AKSEN");
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [selectedReview, setSelectedReview] = useState<ReviewSummary | null>(null);
@@ -716,16 +982,26 @@ export function App() {
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   };
 
-  if (!data) {
-    return (
-      <div className="app-shell boot-shell">
-        <Sidebar activeView={activeView} onNavigate={navigate} />
-        <main className="workspace"><StatusView kind={status === "error" ? "empty" : "loading"} onRetry={() => void reload()} /></main>
-      </div>
-    );
-  }
-
+  const contentMode = appContentMode(activeView, data !== null);
   const renderView = () => {
+    if (contentMode === "strategy_lab") {
+      return (
+        <DiagnosticsView
+          picks={data?.picks ?? []}
+          selectedPick={selectedPick ?? null}
+          onSelect={selectPick}
+          evidence={strategyEvidence.evidence}
+          evidenceStatus={strategyEvidence.status}
+          evidenceError={strategyEvidence.error}
+          evidenceWindow={strategyEvidence.window}
+          onEvidenceWindowChange={strategyEvidence.setWindow}
+          onRetryEvidence={() => void strategyEvidence.reload()}
+        />
+      );
+    }
+    if (contentMode === "dashboard_unavailable" || !data) {
+      return <StatusView kind={status === "error" ? "empty" : "loading"} onRetry={() => void reload()} />;
+    }
     if (activeView === "overview") return <OverviewView data={data} onNavigate={navigate} />;
     if (activeView === "reviews") {
       return (
@@ -739,9 +1015,10 @@ export function App() {
         />
       );
     }
-    if (activeView === "runs") return <RunsView data={data} reload={reload} />;
+    if (activeView === "runs") return <RunsView data={data} reload={async () => {
+      await Promise.all([reload(), strategyEvidence.reload()]);
+    }} />;
     if (!selectedPick) return <StatusView kind="empty" onRetry={() => void reload()} />;
-    if (activeView === "diagnostics") return <DiagnosticsView picks={data.picks} selectedPick={selectedPick} onSelect={selectPick} />;
 
     return (
       <div className="dashboard-view">
@@ -756,10 +1033,10 @@ export function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${contentMode === "dashboard_unavailable" ? " boot-shell" : ""}`}>
       <Sidebar activeView={activeView} onNavigate={navigate} />
       <main className="workspace">
-        <SessionHeader data={data} />
+        {data && <SessionHeader data={data} />}
         {renderView()}
       </main>
     </div>

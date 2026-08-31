@@ -84,6 +84,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-08-18 | Daily CSV import became numeric-locale aware and gained collision-free company aliases plus a 75% live ticker-coverage gate. | Prevents English decimal punctuation or translated Investing.com names from scaling prices incorrectly or publishing a partial operational snapshot. |
 | 2026-08-30 | Reviews now atomically persist ordered missed-mover evidence and expose it through a filterable dashboard explorer. | Keeps actionability, exclusion reasons, realized returns, and point-in-time attribution immutable; pre-feature reviews report `not_captured` instead of being silently recomputed. |
 | 2026-08-30 | Basic GitHub CI runs Python tests plus frontend tests and a production build on pull requests and `main`. | Establishes lightweight merge gates without coupling the repository to a deployment target that has not been selected. |
+| 2026-08-31 | Strategy Evidence Lab reads bounded review-owned candidate outcomes, immutable pilot sessions, and exact signal snapshots through a read-only API. | Prevents later reviews or snapshots from leaking into historical windows; incomplete pilot pairs remain visible but are excluded from fair strategy comparisons. |
 
 ## Workflows
 
