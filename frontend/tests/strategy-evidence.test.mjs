@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  appContentMode,
+  createLatestRequestGuard,
   evidenceDisplayState,
   evidenceWindowOptions,
   findEvidencePattern,
@@ -31,6 +33,23 @@ function fixture(overrides = {}) {
 
 test("exposes only supported review windows", () => {
   assert.deepEqual(evidenceWindowOptions, ["5", "10", "20", "all"]);
+});
+
+test("accepts results only from the latest evidence request", () => {
+  const guard = createLatestRequestGuard();
+  const firstRequest = guard.begin();
+  const secondRequest = guard.begin();
+
+  assert.equal(guard.isLatest(firstRequest), false);
+  assert.equal(guard.isLatest(secondRequest), true);
+  guard.invalidate();
+  assert.equal(guard.isLatest(secondRequest), false);
+});
+
+test("routes Strategy Lab independently of dashboard data", () => {
+  assert.equal(appContentMode("diagnostics", false), "strategy_lab");
+  assert.equal(appContentMode("picks", false), "dashboard_unavailable");
+  assert.equal(appContentMode("picks", true), "dashboard");
 });
 
 test("maps empty evidence to the explicit empty state", () => {

@@ -60,6 +60,8 @@
   strategy comparison, candidate diagnostics, and exact-snapshot breadth.
 - The responsive Strategy Lab preserves incomplete and unavailable evidence
   states without changing strategy behavior or persistence.
+- PR review hardening keeps pilot start checks signal-date based, discards
+  superseded window responses, and decouples Strategy Lab from latest picks.
 - The implementation scope and verification record live in
   `docs/tasks/strategy-evidence-lab.md`.
 - The four-item enhancement queue is recorded in `docs/tasks/backlog.md`.

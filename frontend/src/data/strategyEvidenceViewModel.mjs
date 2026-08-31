@@ -1,5 +1,26 @@
 export const evidenceWindowOptions = ["5", "10", "20", "all"];
 
+export function createLatestRequestGuard() {
+  let latestRequestId = 0;
+  return {
+    begin() {
+      latestRequestId += 1;
+      return latestRequestId;
+    },
+    isLatest(requestId) {
+      return requestId === latestRequestId;
+    },
+    invalidate() {
+      latestRequestId += 1;
+    },
+  };
+}
+
+export function appContentMode(activeView, hasDashboardData) {
+  if (activeView === "diagnostics") return "strategy_lab";
+  return hasDashboardData ? "dashboard" : "dashboard_unavailable";
+}
+
 export function evidenceDisplayState(evidence) {
   if (!evidence || evidence.status === "empty") {
     return { kind: "empty", notices: [] };

@@ -41,6 +41,14 @@ conditions behind their outcomes.
    empty/incomplete states in Python and frontend tests.
 5. Run full tests/build, browser QA, and update feature/context/task memory.
 
+## Review Hardening
+
+- Use the final selected signal date, not its later review date, when deciding
+  whether the pilot had started for a historical window.
+- Discard superseded evidence-window responses before they can update UI state.
+- Keep Strategy Lab available without a latest-picks snapshot; only the
+  latest-pick diagnostics subsection depends on that snapshot.
+
 ## Out of Scope
 
 - Changes to scoring, selection, weights, pilot thresholds, or persistence.
@@ -58,9 +66,9 @@ conditions behind their outcomes.
 
 ## Verification Record
 
-- Python: 153 tests passed.
-- Trace: 92.33% weighted production-line coverage (4,047/4,383 lines).
-- Frontend: 14 Node tests passed; production build passed.
+- Python: 154 tests passed.
+- Trace: 92.74% weighted production-line coverage (3,819/4,118 lines).
+- Frontend: 16 Node tests passed; production build passed.
 - Browser: live 5/10/20/all window controls, real persisted metrics, desktop and
   390px layouts, local table scrolling, page overflow, and new console errors
   checked.

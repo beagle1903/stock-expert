@@ -365,7 +365,7 @@ def _strategy_comparison(
     }
 
 
-def _pilot_as_of_payload(state: Any, session_rows: list[Any], end_review_date: date | None) -> dict[str, Any]:
+def _pilot_as_of_payload(state: Any, session_rows: list[Any], end_signal_date: date | None) -> dict[str, Any]:
     thresholds = {
         "sessionTarget": PILOT_SESSION_TARGET,
         "minimumBucketedSessionWins": PILOT_MIN_BUCKETED_WINS,
@@ -387,7 +387,7 @@ def _pilot_as_of_payload(state: Any, session_rows: list[Any], end_review_date: d
         }
 
     started_signal_date = date.fromisoformat(str(state["started_signal_date"]))
-    if end_review_date is None or end_review_date < started_signal_date:
+    if end_signal_date is None or end_signal_date < started_signal_date:
         return {
             "name": str(state["pilot_name"]),
             "status": "not_started",
@@ -461,7 +461,7 @@ def load_strategy_evidence(
                     "startReviewDate": None,
                     "endReviewDate": end_review_date.isoformat() if end_review_date else None,
                 },
-                "pilot": _pilot_as_of_payload(state, [], end_review_date),
+                "pilot": _pilot_as_of_payload(state, [], None),
                 "comparison": _strategy_comparison([]),
                 "candidateEvidence": {
                     "status": "unavailable",
@@ -618,7 +618,11 @@ def load_strategy_evidence(
             "startReviewDate": str(reviews[0]["review_date"]),
             "endReviewDate": str(reviews[-1]["review_date"]),
         },
-        "pilot": _pilot_as_of_payload(state, cumulative_session_rows, selected_end),
+        "pilot": _pilot_as_of_payload(
+            state,
+            cumulative_session_rows,
+            date.fromisoformat(str(reviews[-1]["as_of_date"])),
+        ),
         "comparison": _strategy_comparison(
             selected_session_rows,
             expected_pilot_sessions,

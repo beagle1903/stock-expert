@@ -8,6 +8,9 @@
 - Today's Picks reads the newest signal-date snapshot that owns a persisted `picks` basket through `/api/picks/latest`; later price-only repair snapshots cannot hide the operational basket. Signal and target-trade dates, snapshot metadata, exposure, diagnostics, and run timeline come from that persisted snapshot rather than sample data.
 - Strategy Lab reads `/api/strategy-evidence` with selectable 5, 10, 20, or all-review windows. It shows pilot status and thresholds, complete paired score-ranked versus bucketed results, cutoff and rank-band diagnostics, setup-penalty comparison, exact-snapshot breadth, and persisted session integrity.
 - Strategy Lab labels missing candidate outcomes, unavailable signal snapshots, and incomplete or unpaired pilot sessions. Only complete paired sessions contribute to the strategy comparison.
+- Historical pilot status uses the final selected signal date for the pilot-start boundary, while review dates continue to bound persisted outcomes; pre-pilot baskets cannot be mislabeled active merely because they were reviewed after the start date.
+- Strategy Lab remains reachable when no latest-picks snapshot exists, renders its persisted review evidence independently, and limits the empty state to the latest-pick subsection.
+- Evidence-window loads use latest-request-wins semantics so a superseded response cannot overwrite the currently selected window.
 - The dashboard repository loads the latest picks, latest review, and review-history endpoints together and reloads them after a successful routine; historical detail selection remains read-only.
 - Data & Runs uses `stock_expert.web_api` to preview and execute the real persisted CLI routine through a loopback-only API.
 - The launcher resolves weekends/confirmed holidays through the shared trading calendar, shows signal date separately from target trade date, and surfaces market-context policy.

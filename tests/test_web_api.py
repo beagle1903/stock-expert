@@ -264,6 +264,34 @@ class RoutineWebApiTests(unittest.TestCase):
         self.assertEqual(evidence["comparison"]["incompletePairedSessions"], 1)
         self.assertEqual(evidence["pilot"]["completedSessions"], 0)
 
+    def test_strategy_evidence_uses_signal_date_for_pilot_start_boundary(self) -> None:
+        self.seed_strategy_evidence_session(
+            signal_date="2026-07-01",
+            review_date="2026-07-02",
+            score_return=0.01,
+            bucketed_return=0.02,
+            advancer_count=2,
+        )
+        with connect(self.settings) as connection:
+            connection.execute(
+                """
+                UPDATE strategy_pilot_state
+                SET started_signal_date = '2026-07-02'
+                WHERE pilot_name = 'bucketed-default-v1'
+                """
+            )
+
+        evidence = load_strategy_evidence(
+            self.settings,
+            window=5,
+            end_review_date=date(2026, 7, 2),
+        )
+
+        self.assertEqual(evidence["window"]["endReviewDate"], "2026-07-02")
+        self.assertEqual(evidence["pilot"]["status"], "not_started")
+        self.assertEqual(evidence["pilot"]["selectedStrategy"], "score_ranked")
+        self.assertEqual(evidence["pilot"]["decisionReason"], "pilot_not_started_as_of_window")
+
     def test_strategy_evidence_marks_missing_pilot_sessions_as_unpaired(self) -> None:
         self.seed_strategy_evidence_session(
             signal_date="2026-07-01",

@@ -16,6 +16,7 @@ import {
 import { dashboardRepository } from "./data/dashboardRepository";
 import { strategyEvidenceRepository } from "./data/strategyEvidenceRepository";
 import {
+  appContentMode,
   evidenceDisplayState,
   evidenceWindowOptions,
   findStrategySummary,
@@ -827,7 +828,7 @@ function DiagnosticsView({
   onRetryEvidence,
 }: {
   picks: Pick[];
-  selectedPick: Pick;
+  selectedPick: Pick | null;
   onSelect: (ticker: string) => void;
   evidence: StrategyEvidence | null;
   evidenceStatus: "idle" | "loading" | "loaded" | "error";
@@ -868,7 +869,11 @@ function DiagnosticsView({
         </>
       )}
       <div className="latest-pick-heading"><h3>Latest persisted pick evidence</h3><p>Normalized signals and bounded adjustments for the selected latest pick.</p></div>
-      <div className="latest-pick-grid"><PickList picks={picks} selectedTicker={selectedPick.ticker} onSelect={onSelect} /><EvidencePanel pick={selectedPick} /></div>
+      {selectedPick ? (
+        <div className="latest-pick-grid"><PickList picks={picks} selectedTicker={selectedPick.ticker} onSelect={onSelect} /><EvidencePanel pick={selectedPick} /></div>
+      ) : (
+        <section className="panel evidence-empty"><h3>No latest persisted picks</h3><p>Strategy evidence remains available above; run the persisted routine to populate latest-pick diagnostics.</p></section>
+      )}
     </div>
   );
 }
@@ -977,16 +982,26 @@ export function App() {
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   };
 
-  if (!data) {
-    return (
-      <div className="app-shell boot-shell">
-        <Sidebar activeView={activeView} onNavigate={navigate} />
-        <main className="workspace"><StatusView kind={status === "error" ? "empty" : "loading"} onRetry={() => void reload()} /></main>
-      </div>
-    );
-  }
-
+  const contentMode = appContentMode(activeView, data !== null);
   const renderView = () => {
+    if (contentMode === "strategy_lab") {
+      return (
+        <DiagnosticsView
+          picks={data?.picks ?? []}
+          selectedPick={selectedPick ?? null}
+          onSelect={selectPick}
+          evidence={strategyEvidence.evidence}
+          evidenceStatus={strategyEvidence.status}
+          evidenceError={strategyEvidence.error}
+          evidenceWindow={strategyEvidence.window}
+          onEvidenceWindowChange={strategyEvidence.setWindow}
+          onRetryEvidence={() => void strategyEvidence.reload()}
+        />
+      );
+    }
+    if (contentMode === "dashboard_unavailable" || !data) {
+      return <StatusView kind={status === "error" ? "empty" : "loading"} onRetry={() => void reload()} />;
+    }
     if (activeView === "overview") return <OverviewView data={data} onNavigate={navigate} />;
     if (activeView === "reviews") {
       return (
@@ -1004,21 +1019,6 @@ export function App() {
       await Promise.all([reload(), strategyEvidence.reload()]);
     }} />;
     if (!selectedPick) return <StatusView kind="empty" onRetry={() => void reload()} />;
-    if (activeView === "diagnostics") {
-      return (
-        <DiagnosticsView
-          picks={data.picks}
-          selectedPick={selectedPick}
-          onSelect={selectPick}
-          evidence={strategyEvidence.evidence}
-          evidenceStatus={strategyEvidence.status}
-          evidenceError={strategyEvidence.error}
-          evidenceWindow={strategyEvidence.window}
-          onEvidenceWindowChange={strategyEvidence.setWindow}
-          onRetryEvidence={() => void strategyEvidence.reload()}
-        />
-      );
-    }
 
     return (
       <div className="dashboard-view">
@@ -1033,10 +1033,10 @@ export function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${contentMode === "dashboard_unavailable" ? " boot-shell" : ""}`}>
       <Sidebar activeView={activeView} onNavigate={navigate} />
       <main className="workspace">
-        <SessionHeader data={data} />
+        {data && <SessionHeader data={data} />}
         {renderView()}
       </main>
     </div>
