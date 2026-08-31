@@ -15,7 +15,7 @@ the next one begins. The numbers preserve the original idea labels; delivery
 starts with item 2.
 
 - [x] **2. Missed-Mover Explorer** — persist and display actionable and non-actionable missed movers, exclusion reasons, candidate rank, signal attribution, and realized return. See `docs/tasks/missed-mover-explorer.md`.
-- [ ] **1. Strategy Evidence Lab** — expose score-ranked versus bucketed results, pilot thresholds, cutoff analysis, rank bands, breadth, and setup-penalty evidence.
+- [x] **1. Strategy Evidence Lab** — expose score-ranked versus bucketed results, pilot thresholds, cutoff analysis, rank bands, breadth, and setup-penalty evidence. See `docs/tasks/strategy-evidence-lab.md`.
 - [ ] **4. Historical Strategy Playback** — provide a read-only signal-date view of the preserved basket, evidence, market context, and eventual review outcome.
 - [ ] **3. Data Quality & Snapshot History** — persist snapshot provenance and validation metrics, then expose import health, coverage, mapping failures, lineage, and prior-snapshot comparison.
 

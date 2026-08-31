@@ -26,6 +26,7 @@
 
 - Presentation components consume `DashboardData` instead of importing Python or SQLite concerns.
 - The latest review, pick outcomes, and captured missed movers are read from SQLite through `GET /api/reviews/latest`; historical summaries use `GET /api/reviews/history`, and selected immutable detail uses `GET /api/reviews/{id}`. Picks, diagnostics, exposure, snapshot, and timeline panels remain persisted evidence from the picks endpoint.
+- `GET /api/strategy-evidence` provides bounded read-only Strategy Lab aggregates from review-owned candidate outcomes, immutable pilot sessions, and exact signal snapshots. It accepts 5/10/20/all windows plus an optional end review date and does not invoke ranking or selection logic.
 - A successful web routine reloads the dashboard adapter so the Reviews screen reflects the newly persisted review without a page refresh.
 - Data & Runs is the only mutating web surface. Its local API invokes `python -m stock_expert routine` without changing strategy or SQLite semantics.
 - The dashboard does not expose order execution, live quotes, portfolios, forecasts, or target prices.

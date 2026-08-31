@@ -23,6 +23,7 @@ from stock_expert.web_api import (
     load_review_history,
     load_latest_picks,
     load_latest_review,
+    load_strategy_evidence,
 )
 
 
@@ -54,11 +55,246 @@ class RoutineWebApiTests(unittest.TestCase):
             path.write_text("header\nvalue\n", encoding="utf-8")
             os.utime(path, (timestamp, timestamp))
 
+    def seed_strategy_evidence_session(
+        self,
+        *,
+        signal_date: str,
+        review_date: str,
+        score_return: float,
+        bucketed_return: float,
+        advancer_count: int,
+        complete: bool = True,
+    ) -> tuple[int, int]:
+        init_db(self.settings)
+        with connect(self.settings) as connection:
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO strategy_pilot_state (
+                    pilot_name, status, started_signal_date, momentum_weight,
+                    volume_weight, decision_reason
+                ) VALUES ('bucketed-default-v1', 'active', '2026-07-01', 0.6, 0.4, 'pilot_active')
+                """
+            )
+            snapshot_id = int(
+                connection.execute(
+                    """
+                    INSERT INTO snapshot_runs (snapshot_date, source_label, source_dir)
+                    VALUES (?, 'daily_csv', 'data')
+                    """,
+                    (signal_date,),
+                ).lastrowid
+            )
+            connection.executemany(
+                """
+                INSERT INTO stocks (
+                    snapshot_id, ticker, date, open_price, close_price, volume
+                ) VALUES (?, ?, ?, 10, ?, 1000)
+                """,
+                [
+                    (
+                        snapshot_id,
+                        f"S{snapshot_id}{index}",
+                        signal_date,
+                        11 if index <= advancer_count else 9,
+                    )
+                    for index in range(1, 5)
+                ],
+            )
+            review_id = int(
+                connection.execute(
+                    """
+                    INSERT INTO review_runs (
+                        as_of_date, review_date, avg_return, win_rate, pick_count,
+                        wins, momentum_weight, volume_weight, signal_snapshot_id
+                    ) VALUES (?, ?, ?, 0.2, 5, 1, 0.6, 0.4, ?)
+                    """,
+                    (signal_date, review_date, score_return, snapshot_id),
+                ).lastrowid
+            )
+            connection.executemany(
+                """
+                INSERT INTO candidate_outcomes (
+                    review_run_id, signal_date, review_date, ticker,
+                    candidate_rank, score, momentum, volume, technical,
+                    fundamental, quality, setup_penalty, selected_score_ranked,
+                    selected_bucketed, bucketed_bucket, return_pct, won
+                ) VALUES (?, ?, ?, ?, ?, ?, 0.7, 0.6, 0.06, 0.01, 0.02, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        review_id,
+                        signal_date,
+                        review_date,
+                        f"C{snapshot_id}{rank}",
+                        rank,
+                        1.0 - rank / 100,
+                        0.0 if rank == 1 else 0.03,
+                        1 if rank <= 3 else 0,
+                        1 if rank in {2, 4} else 0,
+                        "core_momentum" if rank in {2, 4} else None,
+                        rank / 100,
+                        1 if rank >= 4 else 0,
+                    )
+                    for rank in range(1, 6)
+                ],
+            )
+            connection.executemany(
+                """
+                INSERT INTO strategy_pilot_sessions (
+                    pilot_name, signal_snapshot_id, signal_date, review_date,
+                    strategy, pick_count, evaluated_count, wins, avg_return,
+                    is_complete
+                ) VALUES ('bucketed-default-v1', ?, ?, ?, ?, 3, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        snapshot_id,
+                        signal_date,
+                        review_date,
+                        "score_ranked",
+                        3 if complete else 2,
+                        1 if score_return >= 0.04 else 0,
+                        score_return,
+                        1 if complete else 0,
+                    ),
+                    (
+                        snapshot_id,
+                        signal_date,
+                        review_date,
+                        "bucketed",
+                        3 if complete else 2,
+                        1 if bucketed_return >= 0.04 else 0,
+                        bucketed_return,
+                        1 if complete else 0,
+                    ),
+                ],
+            )
+        return snapshot_id, review_id
+
     def test_latest_review_returns_none_for_empty_database(self) -> None:
         self.assertIsNone(load_latest_review(self.settings))
 
     def test_latest_picks_returns_none_for_empty_database(self) -> None:
         self.assertIsNone(load_latest_picks(self.settings))
+
+    def test_strategy_evidence_returns_explicit_empty_state(self) -> None:
+        evidence = load_strategy_evidence(self.settings)
+
+        self.assertEqual(evidence["status"], "empty")
+        self.assertEqual(evidence["window"]["includedReviewCount"], 0)
+        self.assertEqual(evidence["comparison"]["status"], "unavailable")
+        self.assertEqual(evidence["candidateEvidence"]["status"], "unavailable")
+        self.assertEqual(evidence["breadth"]["status"], "unavailable")
+
+    def test_strategy_evidence_is_bounded_and_uses_exact_signal_snapshots(self) -> None:
+        self.seed_strategy_evidence_session(
+            signal_date="2026-07-01",
+            review_date="2026-07-02",
+            score_return=0.01,
+            bucketed_return=0.02,
+            advancer_count=2,
+        )
+        self.seed_strategy_evidence_session(
+            signal_date="2026-07-02",
+            review_date="2026-07-03",
+            score_return=-0.01,
+            bucketed_return=0.03,
+            advancer_count=1,
+        )
+        self.seed_strategy_evidence_session(
+            signal_date="2026-07-03",
+            review_date="2026-07-06",
+            score_return=0.80,
+            bucketed_return=-0.80,
+            advancer_count=4,
+        )
+        with connect(self.settings) as connection:
+            repair_snapshot_id = int(
+                connection.execute(
+                    """
+                    INSERT INTO snapshot_runs (snapshot_date, source_label, source_dir)
+                    VALUES ('2026-07-02', 'repair', 'repair')
+                    """
+                ).lastrowid
+            )
+            connection.execute(
+                """
+                INSERT INTO stocks (
+                    snapshot_id, ticker, date, open_price, close_price, volume
+                ) VALUES (?, 'LATER', '2026-07-02', 10, 20, 1000)
+                """,
+                (repair_snapshot_id,),
+            )
+
+        evidence = load_strategy_evidence(
+            self.settings,
+            window=5,
+            end_review_date=date(2026, 7, 3),
+        )
+
+        self.assertEqual(evidence["window"]["includedReviewCount"], 2)
+        self.assertEqual(evidence["window"]["endReviewDate"], "2026-07-03")
+        self.assertEqual(evidence["candidateEvidence"]["candidateCount"], 10)
+        self.assertEqual(evidence["candidateEvidence"]["capturedReviewCount"], 2)
+        self.assertEqual(evidence["candidateEvidence"]["setupPenalty"]["penalized"]["count"], 8)
+        self.assertEqual(evidence["candidateEvidence"]["setupPenalty"]["unpenalized"]["count"], 2)
+        self.assertEqual(evidence["comparison"]["completePairedSessions"], 2)
+        self.assertEqual(evidence["comparison"]["bucketedSessionWins"], 2)
+        self.assertEqual(evidence["pilot"]["completedSessions"], 2)
+        self.assertEqual(evidence["breadth"]["averageAdvancerRatio"], 0.375)
+        self.assertEqual(
+            [row["advancerRatio"] for row in evidence["breadth"]["sessions"]],
+            [0.5, 0.25],
+        )
+
+    def test_strategy_evidence_keeps_incomplete_pairs_visible(self) -> None:
+        self.seed_strategy_evidence_session(
+            signal_date="2026-07-01",
+            review_date="2026-07-02",
+            score_return=0.01,
+            bucketed_return=0.02,
+            advancer_count=2,
+            complete=False,
+        )
+
+        evidence = load_strategy_evidence(self.settings, window=5)
+
+        self.assertEqual(evidence["comparison"]["status"], "partial")
+        self.assertEqual(evidence["comparison"]["completePairedSessions"], 0)
+        self.assertEqual(evidence["comparison"]["incompletePairedSessions"], 1)
+        self.assertEqual(evidence["pilot"]["completedSessions"], 0)
+
+    def test_strategy_evidence_marks_missing_pilot_sessions_as_unpaired(self) -> None:
+        self.seed_strategy_evidence_session(
+            signal_date="2026-07-01",
+            review_date="2026-07-02",
+            score_return=0.01,
+            bucketed_return=0.02,
+            advancer_count=2,
+        )
+        missing_snapshot_id, _ = self.seed_strategy_evidence_session(
+            signal_date="2026-07-02",
+            review_date="2026-07-03",
+            score_return=0.02,
+            bucketed_return=0.03,
+            advancer_count=3,
+        )
+        with connect(self.settings) as connection:
+            connection.execute(
+                "DELETE FROM strategy_pilot_sessions WHERE signal_snapshot_id = ?",
+                (missing_snapshot_id,),
+            )
+
+        evidence = load_strategy_evidence(self.settings, window=5)
+
+        self.assertEqual(evidence["comparison"]["status"], "partial")
+        self.assertEqual(evidence["comparison"]["completePairedSessions"], 1)
+        self.assertEqual(evidence["comparison"]["unpairedSessions"], 1)
+        self.assertEqual(len(evidence["comparison"]["sessions"]), 2)
+
+    def test_strategy_evidence_rejects_unsupported_windows(self) -> None:
+        with self.assertRaisesRegex(RoutineRequestError, "5, 10, 20, or all"):
+            load_strategy_evidence(self.settings, window=7)
 
     def test_latest_picks_uses_newest_snapshot_and_persisted_portfolio(self) -> None:
         init_db(self.settings)
@@ -183,6 +419,8 @@ class RoutineWebApiTests(unittest.TestCase):
                 health = json.load(response)
             with urlopen(f"http://127.0.0.1:{port}/api/picks/latest", timeout=5) as response:
                 picks = json.load(response)
+            with urlopen(f"http://127.0.0.1:{port}/api/strategy-evidence?window=5", timeout=5) as response:
+                strategy_evidence = json.load(response)
         finally:
             server.shutdown()
             server.server_close()
@@ -191,6 +429,8 @@ class RoutineWebApiTests(unittest.TestCase):
         self.assertEqual(health, {"ok": True, "apiPort": port})
         self.assertEqual(picks["dashboard"]["snapshot"]["id"], picks_snapshot_id)
         self.assertEqual([item["ticker"] for item in picks["dashboard"]["picks"]], ["PICK"])
+        self.assertEqual(strategy_evidence["evidence"]["status"], "empty")
+        self.assertEqual(strategy_evidence["evidence"]["window"]["requested"], "5")
 
     def test_latest_review_returns_newest_persisted_run_and_outcomes(self) -> None:
         init_db(self.settings)

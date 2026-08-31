@@ -6,6 +6,8 @@
 - The Reviews screen reads the newest `review_runs` row and its `review_pick_results` from SQLite through the loopback API, lists all persisted review summaries through `/api/reviews/history`, and loads selected historical outcomes through `/api/reviews/{id}`. A compact date navigator, older/newer controls, bounded history list, and detail-first narrow layout keep historical outcomes immediately reachable.
 - Selected review detail includes a filterable Missed-Mover Explorer backed only by captured `review_missed_mover_results`. It shows stored actionability, reason, realized return, candidate rank, selection note, and signal adjustments; legacy reviews render a not-captured explanation instead of recomputation.
 - Today's Picks reads the newest signal-date snapshot that owns a persisted `picks` basket through `/api/picks/latest`; later price-only repair snapshots cannot hide the operational basket. Signal and target-trade dates, snapshot metadata, exposure, diagnostics, and run timeline come from that persisted snapshot rather than sample data.
+- Strategy Lab reads `/api/strategy-evidence` with selectable 5, 10, 20, or all-review windows. It shows pilot status and thresholds, complete paired score-ranked versus bucketed results, cutoff and rank-band diagnostics, setup-penalty comparison, exact-snapshot breadth, and persisted session integrity.
+- Strategy Lab labels missing candidate outcomes, unavailable signal snapshots, and incomplete or unpaired pilot sessions. Only complete paired sessions contribute to the strategy comparison.
 - The dashboard repository loads the latest picks, latest review, and review-history endpoints together and reloads them after a successful routine; historical detail selection remains read-only.
 - Data & Runs uses `stock_expert.web_api` to preview and execute the real persisted CLI routine through a loopback-only API.
 - The launcher resolves weekends/confirmed holidays through the shared trading calendar, shows signal date separately from target trade date, and surfaces market-context policy.
@@ -18,6 +20,7 @@
 - Dashboard loading and retry states remain available; Data & Runs shows only real routine readiness, confirmation, running, success, and failure states rather than UI-only presentation previews.
 - An unexpectedly empty persisted basket renders an explicit empty state on pick-dependent views instead of collapsing the workspace to its header.
 - Desktop, tablet, and mobile layouts preserve keyboard focus and explicit date/freshness labels.
+- Strategy Lab keeps wide evidence tables inside local horizontal scrollers and bounds long breadth histories so the page itself does not overflow at narrow widths.
 - The desktop right column sizes Exposure policy to its content and gives the remaining height to the scrollable review, preventing the two panels from overlapping above the run timeline.
 
 ## Commands

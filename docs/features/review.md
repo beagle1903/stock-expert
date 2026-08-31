@@ -33,5 +33,8 @@
 - New persisted reviews atomically store their ordered missed movers in `review_missed_mover_results`, including actionability, classification reason, realized return, candidate rank, selection note, signal components, boosts, and setup penalty.
 - `review_runs.missed_movers_captured` distinguishes a captured empty result from historical reviews created before missed-mover persistence; old reviews are never silently recomputed with newer rules or snapshots.
 - Review detail exposes the stored missed movers through `missedMoversStatus` and `missedMovers`; review-history summaries remain compact and do not include the larger evidence payload.
+- `/api/strategy-evidence` selects its window from persisted `review_runs`, joins candidate outcomes by `review_run_id`, and bounds historical pilot-state reconstruction to stored sessions at or before the selected end review date.
+- Strategy comparison compounds only complete score-ranked/bucketed session pairs. Incomplete and unpaired rows remain visible but do not advance comparison metrics.
+- Strategy Lab breadth uses the exact `review_runs.signal_snapshot_id` stock rows; it never substitutes a newer snapshot for missing historical breadth.
 - The Reviews screen filters stored misses by all, actionable, and non-actionable, then displays the selected mover's immutable exclusion evidence. Actionable means the stored liquidity and volatility gates passed, not a recommendation.
 - No KAP inputs
