@@ -309,7 +309,15 @@ function StrategyPlaybackPanel({ playback, loading }: {
         <div><dt>Version</dt><dd>{playback.strategy.version}</dd></div>
         <div><dt>Universe</dt><dd>{playback.signal.status === "available" ? playback.signal.universeCount : "—"}</dd></div>
         <div><dt>Advancers</dt><dd>{playback.signal.advancerRatio === null ? "—" : ratioPercent(playback.signal.advancerRatio)}</dd></div>
-        <div><dt>Weights</dt><dd>{fixed(playback.strategy.momentumWeight)} / {fixed(playback.strategy.volumeWeight)}</dd></div>
+        <div>
+          <dt>Signal weights</dt>
+          <dd>
+            {playback.strategy.momentumWeight === null || playback.strategy.volumeWeight === null
+              ? "—"
+              : `${fixed(playback.strategy.momentumWeight)} / ${fixed(playback.strategy.volumeWeight)}`}
+            {playback.strategy.weightDate && <small> effective {displayDate(playback.strategy.weightDate)}</small>}
+          </dd>
+        </div>
         <div><dt>Source</dt><dd>{playback.signal.source ?? "Unavailable"}</dd></div>
       </dl>
       {notices.length > 0 && (

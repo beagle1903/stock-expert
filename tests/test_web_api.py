@@ -337,10 +337,18 @@ class RoutineWebApiTests(unittest.TestCase):
             connection.execute(
                 """
                 UPDATE review_runs
-                SET strategy_version = 'bucketed-default-v1:bucketed', weight_date = '2026-07-01'
+                SET strategy_version = 'bucketed-default-v1:bucketed',
+                    momentum_weight = 0.2, volume_weight = 0.8,
+                    weight_date = '2026-07-02'
                 WHERE id = ?
                 """,
                 (review_id,),
+            )
+            connection.execute(
+                """
+                INSERT INTO weights (date, kap_weight, momentum_weight, volume_weight)
+                VALUES ('2026-07-01', 0, 0.7, 0.3)
+                """
             )
             connection.executemany(
                 """
@@ -399,13 +407,57 @@ class RoutineWebApiTests(unittest.TestCase):
         self.assertEqual(playback["signal"]["universeCount"], 4)
         self.assertEqual(playback["signal"]["advancerRatio"], 0.5)
         self.assertEqual(playback["strategy"]["selectedStrategy"], "bucketed")
+        self.assertEqual(playback["strategy"]["weightsStatus"], "available")
+        self.assertEqual(playback["strategy"]["momentumWeight"], 0.7)
+        self.assertEqual(playback["strategy"]["volumeWeight"], 0.3)
+        self.assertEqual(playback["strategy"]["weightDate"], "2026-07-01")
         self.assertEqual(playback["basket"]["attributionStatus"], "available")
         self.assertEqual(
             [row["candidateRank"] for row in playback["basket"]["picks"]],
             [2, 4],
         )
         self.assertEqual(playback["basket"]["picks"][0]["selectionBucket"], "core_momentum")
+        self.assertEqual(playback["pilotComparison"]["status"], "available")
         self.assertEqual(len(playback["pilotComparison"]["arms"]), 2)
+
+    def test_strategy_playback_marks_incomplete_pilot_arms_partial(self) -> None:
+        _, review_id = self.seed_strategy_evidence_session(
+            signal_date="2026-07-01",
+            review_date="2026-07-02",
+            score_return=0.01,
+            bucketed_return=0.02,
+            advancer_count=2,
+            complete=False,
+        )
+
+        playback = load_strategy_playback(self.settings, review_id)
+
+        assert playback is not None
+        self.assertEqual(playback["pilotComparison"]["status"], "partial")
+        self.assertEqual(len(playback["pilotComparison"]["arms"]), 2)
+
+    def test_strategy_playback_marks_missing_pilot_arm_partial(self) -> None:
+        snapshot_id, review_id = self.seed_strategy_evidence_session(
+            signal_date="2026-07-01",
+            review_date="2026-07-02",
+            score_return=0.01,
+            bucketed_return=0.02,
+            advancer_count=2,
+        )
+        with connect(self.settings) as connection:
+            connection.execute(
+                """
+                DELETE FROM strategy_pilot_sessions
+                WHERE signal_snapshot_id = ? AND strategy = 'bucketed'
+                """,
+                (snapshot_id,),
+            )
+
+        playback = load_strategy_playback(self.settings, review_id)
+
+        assert playback is not None
+        self.assertEqual(playback["pilotComparison"]["status"], "partial")
+        self.assertEqual(len(playback["pilotComparison"]["arms"]), 1)
 
     def test_strategy_playback_preserves_legacy_unavailable_states(self) -> None:
         init_db(self.settings)
@@ -436,6 +488,9 @@ class RoutineWebApiTests(unittest.TestCase):
         self.assertEqual(playback["basket"]["status"], "available")
         self.assertEqual(playback["basket"]["attributionStatus"], "unavailable")
         self.assertIsNone(playback["basket"]["picks"][0]["signals"])
+        self.assertEqual(playback["strategy"]["weightsStatus"], "unavailable")
+        self.assertIsNone(playback["strategy"]["momentumWeight"])
+        self.assertIsNone(playback["strategy"]["volumeWeight"])
         self.assertIsNone(load_strategy_playback(self.settings, 999))
 
     def test_latest_picks_uses_newest_snapshot_and_persisted_portfolio(self) -> None:

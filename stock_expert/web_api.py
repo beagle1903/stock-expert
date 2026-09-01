@@ -201,8 +201,7 @@ def load_strategy_playback(settings: Settings, review_id: int) -> dict[str, Any]
         review_row = connection.execute(
             """
             SELECT id, as_of_date, review_date, avg_return, win_rate, pick_count, wins,
-                   momentum_weight, volume_weight, signal_snapshot_id, weight_date,
-                   strategy_version, missed_movers_captured
+                   signal_snapshot_id, strategy_version, missed_movers_captured
             FROM review_runs
             WHERE id = ?
             """,
@@ -269,6 +268,16 @@ def load_strategy_playback(settings: Settings, review_id: int) -> dict[str, Any]
                     (PILOT_NAME, snapshot_id),
                 )
             )
+        signal_weights = connection.execute(
+            """
+            SELECT date, momentum_weight, volume_weight
+            FROM weights
+            WHERE date <= ?
+            ORDER BY date DESC
+            LIMIT 1
+            """,
+            (str(review_row["as_of_date"]),),
+        ).fetchone()
 
     attributed_count = sum(1 for row in basket_rows if row["candidate_rank"] is not None)
     if not basket_rows or not attributed_count:
@@ -280,6 +289,18 @@ def load_strategy_playback(settings: Settings, review_id: int) -> dict[str, Any]
 
     strategy_version = str(review_row["strategy_version"])
     selected_strategy = "bucketed" if strategy_version.endswith(":bucketed") else "score_ranked"
+    expected_pilot_strategies = {"score_ranked", "bucketed"}
+    pilot_strategies = {str(row["strategy"]) for row in pilot_rows}
+    if not pilot_rows:
+        pilot_status = "unavailable"
+    elif (
+        pilot_strategies == expected_pilot_strategies
+        and len(pilot_rows) == len(expected_pilot_strategies)
+        and all(bool(row["is_complete"]) for row in pilot_rows)
+    ):
+        pilot_status = "available"
+    else:
+        pilot_status = "partial"
     basket = []
     for basket_order, row in enumerate(basket_rows, start=1):
         selection_bucket = row["selection_bucket"]
@@ -331,9 +352,10 @@ def load_strategy_playback(settings: Settings, review_id: int) -> dict[str, Any]
         "strategy": {
             "version": strategy_version,
             "selectedStrategy": selected_strategy,
-            "momentumWeight": float(review_row["momentum_weight"]),
-            "volumeWeight": float(review_row["volume_weight"]),
-            "weightDate": str(review_row["weight_date"]) if review_row["weight_date"] else None,
+            "weightsStatus": "available" if signal_weights is not None else "unavailable",
+            "momentumWeight": float(signal_weights["momentum_weight"]) if signal_weights is not None else None,
+            "volumeWeight": float(signal_weights["volume_weight"]) if signal_weights is not None else None,
+            "weightDate": str(signal_weights["date"]) if signal_weights is not None else None,
         },
         "basket": {
             "status": "available" if basket else "unavailable",
@@ -341,7 +363,7 @@ def load_strategy_playback(settings: Settings, review_id: int) -> dict[str, Any]
             "picks": basket,
         },
         "pilotComparison": {
-            "status": "available" if pilot_rows else "unavailable",
+            "status": pilot_status,
             "arms": [
                 {
                     "strategy": str(row["strategy"]),

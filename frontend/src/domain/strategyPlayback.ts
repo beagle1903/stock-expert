@@ -40,8 +40,9 @@ export interface StrategyPlayback {
   strategy: {
     version: string;
     selectedStrategy: "score_ranked" | "bucketed";
-    momentumWeight: number;
-    volumeWeight: number;
+    weightsStatus: "available" | "unavailable";
+    momentumWeight: number | null;
+    volumeWeight: number | null;
     weightDate: string | null;
   };
   basket: {
@@ -50,7 +51,7 @@ export interface StrategyPlayback {
     picks: StrategyPlaybackPick[];
   };
   pilotComparison: {
-    status: "available" | "unavailable";
+    status: PlaybackAvailability;
     arms: Array<{
       strategy: "score_ranked" | "bucketed";
       pickCount: number;

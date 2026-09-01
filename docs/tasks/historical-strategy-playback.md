@@ -16,6 +16,9 @@ review outcome without invoking current ranking or selection logic.
   `candidate_outcomes.review_run_id`.
 - Market breadth and provenance use only `review_runs.signal_snapshot_id`.
 - Pilot arms use only stored sessions for that exact snapshot.
+- Signal weights come from the latest persisted `weights` row effective on or
+  before the signal date; post-review weights stored on the review row are not
+  presented as basket-generation inputs.
 - Missing legacy evidence remains explicitly unavailable; no latest-snapshot
   fallback or historical recomputation is allowed.
 
@@ -38,14 +41,24 @@ review outcome without invoking current ranking or selection logic.
 
 ## Verification Record
 
-- Python: 156 tests passed.
-- Trace: 93.06% weighted production-line coverage (3,941/4,235 lines).
-- Frontend: 18 Node tests passed; production build passed.
+- Python: 158 tests passed.
+- Trace: 93.08% weighted production-line coverage (3,955/4,249 lines).
+- Frontend: 19 Node tests passed; production build passed.
 - Real SQLite: 85 reviews loaded; latest exact snapshot, five-pick basket,
   partial attribution, and both pilot arms verified.
 - Browser: latest and legacy playback, date switching, desktop and 390px
   layouts, local table scrolling, page overflow, and console errors checked.
 - Watchdog: passed 300 seconds / 15 polls with UI PID 7720 and API PID 7240.
+
+## Review Hardening
+
+- Signal weights now expose their effective date and remain unavailable when no
+  persisted signal-time row exists.
+- Pilot comparison is available only when both expected arms exist and both are
+  complete; missing or incomplete arms are explicitly partial and warned as an
+  unfair comparison.
+- Real SQLite verification confirmed review 102 exposes the signal-effective
+  2026-08-28 weights rather than its post-review 2026-08-31 weight update.
 
 ## Done When
 
