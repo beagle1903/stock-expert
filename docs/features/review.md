@@ -37,4 +37,6 @@
 - Strategy comparison compounds only complete score-ranked/bucketed session pairs. Incomplete and unpaired rows remain visible but do not advance comparison metrics.
 - Strategy Lab breadth uses the exact `review_runs.signal_snapshot_id` stock rows; it never substitutes a newer snapshot for missing historical breadth.
 - The Reviews screen filters stored misses by all, actionable, and non-actionable, then displays the selected mover's immutable exclusion evidence. Actionable means the stored liquidity and volatility gates passed, not a recommendation.
+- `/api/strategy-playback/{review_id}` assembles one point-in-time review from immutable pick results, review-owned candidate outcomes, its exact signal snapshot, stored strategy metadata, and exact-snapshot pilot sessions. Missing optional evidence remains partial or unavailable.
+- Historical playback never falls forward to a later repair/import snapshot and never invokes current ranking, selection, or exposure rules.
 - No KAP inputs

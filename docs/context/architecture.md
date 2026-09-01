@@ -17,6 +17,7 @@
 - `.github/workflows/ci.yml`: pull-request and `main` checks for the Python suite plus frontend tests and production build
 - `frontend/`: React/Vite Evidence Console with a live persisted-review read and typed sample data for deferred panels
 - `frontend/src/data/dashboardRepository.ts`: dashboard adapter for the latest persisted review, historical review summaries, selected review detail, and captured missed-mover evidence
+- `frontend/src/data/strategyPlaybackViewModel.mjs`: explicit partial and unavailable playback evidence messaging
 - `frontend/src/data/routineRepository.ts`: typed HTTP adapter for routine preview/execution
 - `frontend/scripts/dev.mjs`: start/reuse owner for hidden UI/API processes, ignored logs, pid files, and the post-boot observation lifecycle
 - `frontend/scripts/watchdog.mjs`: injectable five-minute liveness, proxy, dashboard-semantic, and runtime-log monitor with operator summaries
@@ -27,6 +28,7 @@
 - Presentation components consume `DashboardData` instead of importing Python or SQLite concerns.
 - The latest review, pick outcomes, and captured missed movers are read from SQLite through `GET /api/reviews/latest`; historical summaries use `GET /api/reviews/history`, and selected immutable detail uses `GET /api/reviews/{id}`. Picks, diagnostics, exposure, snapshot, and timeline panels remain persisted evidence from the picks endpoint.
 - `GET /api/strategy-evidence` provides bounded read-only Strategy Lab aggregates from review-owned candidate outcomes, immutable pilot sessions, and exact signal snapshots. It accepts 5/10/20/all windows plus an optional end review date and does not invoke ranking or selection logic.
+- `GET /api/strategy-playback/{review_id}` returns one review-owned operational basket, exact signal snapshot context, stored strategy metadata, paired pilot arms, and eventual outcome without recomputation or latest-snapshot fallback.
 - A successful web routine reloads the dashboard adapter so the Reviews screen reflects the newly persisted review without a page refresh.
 - Data & Runs is the only mutating web surface. Its local API invokes `python -m stock_expert routine` without changing strategy or SQLite semantics.
 - The dashboard does not expose order execution, live quotes, portfolios, forecasts, or target prices.
