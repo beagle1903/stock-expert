@@ -85,6 +85,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-08-30 | Reviews now atomically persist ordered missed-mover evidence and expose it through a filterable dashboard explorer. | Keeps actionability, exclusion reasons, realized returns, and point-in-time attribution immutable; pre-feature reviews report `not_captured` instead of being silently recomputed. |
 | 2026-08-30 | Basic GitHub CI runs Python tests plus frontend tests and a production build on pull requests and `main`. | Establishes lightweight merge gates without coupling the repository to a deployment target that has not been selected. |
 | 2026-08-31 | Strategy Evidence Lab reads bounded review-owned candidate outcomes, immutable pilot sessions, and exact signal snapshots through a read-only API. | Prevents later reviews or snapshots from leaking into historical windows; incomplete pilot pairs remain visible but are excluded from fair strategy comparisons. |
+| 2026-09-01 | Historical Strategy Playback reads one immutable review bundle and its exact recorded signal snapshot through a read-only API. | Keeps preserved baskets, outcomes, strategy metadata, and pilot arms inspectable without recomputing legacy evidence or borrowing newer snapshots. |
 
 ## Workflows
 

@@ -23,6 +23,7 @@ from stock_expert.web_api import (
     load_review_history,
     load_latest_picks,
     load_latest_review,
+    load_strategy_playback,
     load_strategy_evidence,
 )
 
@@ -324,6 +325,174 @@ class RoutineWebApiTests(unittest.TestCase):
         with self.assertRaisesRegex(RoutineRequestError, "5, 10, 20, or all"):
             load_strategy_evidence(self.settings, window=7)
 
+    def test_strategy_playback_uses_review_owned_rows_and_exact_snapshot(self) -> None:
+        snapshot_id, review_id = self.seed_strategy_evidence_session(
+            signal_date="2026-07-01",
+            review_date="2026-07-02",
+            score_return=0.05,
+            bucketed_return=0.02,
+            advancer_count=2,
+        )
+        with connect(self.settings) as connection:
+            connection.execute(
+                """
+                UPDATE review_runs
+                SET strategy_version = 'bucketed-default-v1:bucketed',
+                    momentum_weight = 0.2, volume_weight = 0.8,
+                    weight_date = '2026-07-02'
+                WHERE id = ?
+                """,
+                (review_id,),
+            )
+            connection.execute(
+                """
+                INSERT INTO weights (date, kap_weight, momentum_weight, volume_weight)
+                VALUES ('2026-07-01', 0, 0.7, 0.3)
+                """
+            )
+            connection.executemany(
+                """
+                INSERT INTO review_pick_results (
+                    review_run_id, ticker, score, open_price, close_price, return_pct, won
+                ) VALUES (?, ?, ?, 10, ?, ?, ?)
+                """,
+                [
+                    (review_id, f"C{snapshot_id}2", 0.98, 10.5, 0.05, 1),
+                    (review_id, f"C{snapshot_id}4", 0.96, 9.8, -0.02, 0),
+                ],
+            )
+            connection.executemany(
+                """
+                INSERT INTO picks (
+                    snapshot_id, date, ticker, score, kap, momentum, volume,
+                    risk, horizon, selection_bucket
+                ) VALUES (?, '2026-07-01', ?, ?, 0, 0.7, 0.6, 'high', 'intraday', ?)
+                """,
+                [
+                    (snapshot_id, f"C{snapshot_id}2", 0.98, "core_momentum"),
+                    (snapshot_id, f"C{snapshot_id}4", 0.96, "core_momentum"),
+                ],
+            )
+            later_snapshot_id = connection.execute(
+                """
+                INSERT INTO snapshot_runs (snapshot_date, source_label, source_dir)
+                VALUES ('2026-07-01', 'repair', 'repair')
+                """
+            ).lastrowid
+            connection.execute(
+                """
+                INSERT INTO stocks (snapshot_id, ticker, date, open_price, close_price, volume)
+                VALUES (?, 'LATER', '2026-07-01', 10, 20, 1000)
+                """,
+                (later_snapshot_id,),
+            )
+            connection.execute(
+                """
+                INSERT INTO candidate_outcomes (
+                    review_run_id, signal_date, review_date, ticker, candidate_rank,
+                    score, momentum, volume, technical, fundamental, quality,
+                    setup_penalty, selected_score_ranked, selected_bucketed,
+                    bucketed_bucket, return_pct, won
+                ) VALUES (?, '2026-07-01', '2026-07-02', 'UNRELATED', 99,
+                    0.1, 0, 0, 0, 0, 0, 0, 0, 0, NULL, 0, 0)
+                """,
+                (review_id,),
+            )
+
+        playback = load_strategy_playback(self.settings, review_id)
+
+        assert playback is not None
+        self.assertEqual(playback["signal"]["snapshotId"], snapshot_id)
+        self.assertEqual(playback["signal"]["source"], "daily_csv")
+        self.assertEqual(playback["signal"]["universeCount"], 4)
+        self.assertEqual(playback["signal"]["advancerRatio"], 0.5)
+        self.assertEqual(playback["strategy"]["selectedStrategy"], "bucketed")
+        self.assertEqual(playback["strategy"]["weightsStatus"], "available")
+        self.assertEqual(playback["strategy"]["momentumWeight"], 0.7)
+        self.assertEqual(playback["strategy"]["volumeWeight"], 0.3)
+        self.assertEqual(playback["strategy"]["weightDate"], "2026-07-01")
+        self.assertEqual(playback["basket"]["attributionStatus"], "available")
+        self.assertEqual(
+            [row["candidateRank"] for row in playback["basket"]["picks"]],
+            [2, 4],
+        )
+        self.assertEqual(playback["basket"]["picks"][0]["selectionBucket"], "core_momentum")
+        self.assertEqual(playback["pilotComparison"]["status"], "available")
+        self.assertEqual(len(playback["pilotComparison"]["arms"]), 2)
+
+    def test_strategy_playback_marks_incomplete_pilot_arms_partial(self) -> None:
+        _, review_id = self.seed_strategy_evidence_session(
+            signal_date="2026-07-01",
+            review_date="2026-07-02",
+            score_return=0.01,
+            bucketed_return=0.02,
+            advancer_count=2,
+            complete=False,
+        )
+
+        playback = load_strategy_playback(self.settings, review_id)
+
+        assert playback is not None
+        self.assertEqual(playback["pilotComparison"]["status"], "partial")
+        self.assertEqual(len(playback["pilotComparison"]["arms"]), 2)
+
+    def test_strategy_playback_marks_missing_pilot_arm_partial(self) -> None:
+        snapshot_id, review_id = self.seed_strategy_evidence_session(
+            signal_date="2026-07-01",
+            review_date="2026-07-02",
+            score_return=0.01,
+            bucketed_return=0.02,
+            advancer_count=2,
+        )
+        with connect(self.settings) as connection:
+            connection.execute(
+                """
+                DELETE FROM strategy_pilot_sessions
+                WHERE signal_snapshot_id = ? AND strategy = 'bucketed'
+                """,
+                (snapshot_id,),
+            )
+
+        playback = load_strategy_playback(self.settings, review_id)
+
+        assert playback is not None
+        self.assertEqual(playback["pilotComparison"]["status"], "partial")
+        self.assertEqual(len(playback["pilotComparison"]["arms"]), 1)
+
+    def test_strategy_playback_preserves_legacy_unavailable_states(self) -> None:
+        init_db(self.settings)
+        with connect(self.settings) as connection:
+            review_id = int(
+                connection.execute(
+                    """
+                    INSERT INTO review_runs (
+                        as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                        momentum_weight, volume_weight
+                    ) VALUES ('2026-06-01', '2026-06-02', 0, 0, 1, 0, 0.6, 0.4)
+                    """
+                ).lastrowid
+            )
+            connection.execute(
+                """
+                INSERT INTO review_pick_results (
+                    review_run_id, ticker, score, open_price, close_price, return_pct, won
+                ) VALUES (?, 'LEGACY', 0.5, 10, 9, -0.1, 0)
+                """,
+                (review_id,),
+            )
+
+        playback = load_strategy_playback(self.settings, review_id)
+
+        assert playback is not None
+        self.assertEqual(playback["signal"]["status"], "unavailable")
+        self.assertEqual(playback["basket"]["status"], "available")
+        self.assertEqual(playback["basket"]["attributionStatus"], "unavailable")
+        self.assertIsNone(playback["basket"]["picks"][0]["signals"])
+        self.assertEqual(playback["strategy"]["weightsStatus"], "unavailable")
+        self.assertIsNone(playback["strategy"]["momentumWeight"])
+        self.assertIsNone(playback["strategy"]["volumeWeight"])
+        self.assertIsNone(load_strategy_playback(self.settings, 999))
+
     def test_latest_picks_uses_newest_snapshot_and_persisted_portfolio(self) -> None:
         init_db(self.settings)
         with connect(self.settings) as connection:
@@ -437,6 +606,25 @@ class RoutineWebApiTests(unittest.TestCase):
                     'yahoo_history_browser', 'repair.json')
                 """
             )
+            playback_review_id = int(
+                connection.execute(
+                    """
+                    INSERT INTO review_runs (
+                        as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                        momentum_weight, volume_weight, signal_snapshot_id
+                    ) VALUES ('2026-07-22', '2026-07-23', 0.05, 1, 1, 1, 0.6, 0.4, ?)
+                    """,
+                    (picks_snapshot_id,),
+                ).lastrowid
+            )
+            connection.execute(
+                """
+                INSERT INTO review_pick_results (
+                    review_run_id, ticker, score, open_price, close_price, return_pct, won
+                ) VALUES (?, 'PICK', 1, 10, 10.5, 0.05, 1)
+                """,
+                (playback_review_id,),
+            )
 
         server = RoutineApiServer(("127.0.0.1", 0), self.settings, self.data_dir)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -449,6 +637,8 @@ class RoutineWebApiTests(unittest.TestCase):
                 picks = json.load(response)
             with urlopen(f"http://127.0.0.1:{port}/api/strategy-evidence?window=5", timeout=5) as response:
                 strategy_evidence = json.load(response)
+            with urlopen(f"http://127.0.0.1:{port}/api/strategy-playback/{playback_review_id}", timeout=5) as response:
+                playback = json.load(response)
         finally:
             server.shutdown()
             server.server_close()
@@ -457,8 +647,10 @@ class RoutineWebApiTests(unittest.TestCase):
         self.assertEqual(health, {"ok": True, "apiPort": port})
         self.assertEqual(picks["dashboard"]["snapshot"]["id"], picks_snapshot_id)
         self.assertEqual([item["ticker"] for item in picks["dashboard"]["picks"]], ["PICK"])
-        self.assertEqual(strategy_evidence["evidence"]["status"], "empty")
+        self.assertEqual(strategy_evidence["evidence"]["status"], "available")
         self.assertEqual(strategy_evidence["evidence"]["window"]["requested"], "5")
+        self.assertEqual(playback["playback"]["review"]["id"], playback_review_id)
+        self.assertEqual(playback["playback"]["basket"]["picks"][0]["ticker"], "PICK")
 
     def test_latest_review_returns_newest_persisted_run_and_outcomes(self) -> None:
         init_db(self.settings)

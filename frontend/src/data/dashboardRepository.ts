@@ -1,8 +1,10 @@
 import type { DashboardData, ReviewHistoryItem, ReviewSummary } from "../domain/dashboard";
+import type { StrategyPlayback } from "../domain/strategyPlayback";
 
 export interface DashboardRepository {
   load(): Promise<DashboardData>;
   loadReview(reviewId: number): Promise<ReviewSummary>;
+  loadPlayback(reviewId: number): Promise<StrategyPlayback>;
 }
 
 interface LatestReviewResponse {
@@ -17,6 +19,11 @@ interface LatestPicksResponse {
 
 interface ReviewHistoryResponse {
   reviews: ReviewHistoryItem[];
+  error?: string;
+}
+
+interface StrategyPlaybackResponse {
+  playback?: StrategyPlayback;
   error?: string;
 }
 
@@ -59,5 +66,17 @@ export const dashboardRepository: DashboardRepository = {
       throw new Error("The selected persisted review is no longer available.");
     }
     return payload.review;
+  },
+
+  async loadPlayback(reviewId) {
+    const response = await fetch(`/api/strategy-playback/${reviewId}`);
+    const payload = await response.json().catch(() => ({})) as StrategyPlaybackResponse;
+    if (!response.ok) {
+      throw new Error(payload.error ?? `Request failed with status ${response.status}.`);
+    }
+    if (!payload.playback) {
+      throw new Error("The selected historical playback is no longer available.");
+    }
+    return payload.playback;
   },
 };

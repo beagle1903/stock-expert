@@ -55,15 +55,15 @@
 
 ## Active Enhancement
 
-- Strategy Evidence Lab is implemented on `codex/strategy-evidence-lab`.
-- The read-only API provides bounded review windows, as-of pilot state, paired
-  strategy comparison, candidate diagnostics, and exact-snapshot breadth.
-- The responsive Strategy Lab preserves incomplete and unavailable evidence
-  states without changing strategy behavior or persistence.
-- PR review hardening keeps pilot start checks signal-date based, discards
-  superseded window responses, and decouples Strategy Lab from latest picks.
+- Historical Strategy Playback is implemented on
+  `codex/historical-strategy-playback`.
+- The read-only API loads one review-owned basket, exact signal snapshot,
+  strategy metadata, stored pilot arms, and eventual outcome without invoking
+  current ranking or selection logic.
+- The Reviews screen preserves partial and unavailable evidence states and keeps
+  its historical basket locally scrollable on narrow screens.
 - The implementation scope and verification record live in
-  `docs/tasks/strategy-evidence-lab.md`.
+  `docs/tasks/historical-strategy-playback.md`.
 - The four-item enhancement queue is recorded in `docs/tasks/backlog.md`.
 - Basic GitHub CI now gates pull requests and `main` with Python tests plus
   frontend tests and a production build; deployment is intentionally deferred.

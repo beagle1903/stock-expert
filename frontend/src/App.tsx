@@ -15,6 +15,7 @@ import {
 } from "@phosphor-icons/react";
 import { dashboardRepository } from "./data/dashboardRepository";
 import { strategyEvidenceRepository } from "./data/strategyEvidenceRepository";
+import { playbackNotices } from "./data/strategyPlaybackViewModel.mjs";
 import {
   appContentMode,
   evidenceDisplayState,
@@ -32,6 +33,7 @@ import type {
   ViewKey,
 } from "./domain/dashboard";
 import type { EvidenceWindow, StrategyEvidence } from "./domain/strategyEvidence";
+import type { StrategyPlayback } from "./domain/strategyPlayback";
 import { useDashboard } from "./hooks/useDashboard";
 import { useStrategyEvidence } from "./hooks/useStrategyEvidence";
 
@@ -273,6 +275,89 @@ function ReviewPanel({ review, expanded = false, title = "Last review", loading 
           </tbody>
         </table>
       )}
+    </section>
+  );
+}
+
+function StrategyPlaybackPanel({ playback, loading }: {
+  playback: StrategyPlayback | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <section className="panel playback-panel playback-loading" aria-live="polite">
+        <SpinnerGap className="spin" size={22} aria-hidden="true" /> Loading point-in-time playback…
+      </section>
+    );
+  }
+  if (!playback) return null;
+
+  const notices = playbackNotices(playback);
+  return (
+    <section className="panel playback-panel" aria-labelledby="playback-title">
+      <div className="playback-heading">
+        <div><p className="eyebrow">Point-in-time evidence</p><h2 id="playback-title">Historical strategy playback</h2></div>
+        <span className={`evidence-status evidence-status-${playback.signal.status}`}>{playback.signal.status}</span>
+      </div>
+      <div className="playback-route" aria-label="Playback dates">
+        <div><span>Signal snapshot</span><strong>{displayDate(playback.signal.signalDate)}</strong><small>{playback.signal.snapshotId ? `#${playback.signal.snapshotId}` : "Not captured"}</small></div>
+        <ArrowRight size={20} aria-hidden="true" />
+        <div><span>Review outcome</span><strong>{displayDate(playback.signal.targetTradeDate)}</strong><small>Review #{playback.review.id}</small></div>
+      </div>
+      <dl className="playback-context">
+        <div><dt>Strategy</dt><dd>{label(playback.strategy.selectedStrategy)}</dd></div>
+        <div><dt>Version</dt><dd>{playback.strategy.version}</dd></div>
+        <div><dt>Universe</dt><dd>{playback.signal.status === "available" ? playback.signal.universeCount : "—"}</dd></div>
+        <div><dt>Advancers</dt><dd>{playback.signal.advancerRatio === null ? "—" : ratioPercent(playback.signal.advancerRatio)}</dd></div>
+        <div>
+          <dt>Signal weights</dt>
+          <dd>
+            {playback.strategy.momentumWeight === null || playback.strategy.volumeWeight === null
+              ? "—"
+              : `${fixed(playback.strategy.momentumWeight)} / ${fixed(playback.strategy.volumeWeight)}`}
+            {playback.strategy.weightDate && <small> effective {displayDate(playback.strategy.weightDate)}</small>}
+          </dd>
+        </div>
+        <div><dt>Source</dt><dd>{playback.signal.source ?? "Unavailable"}</dd></div>
+      </dl>
+      {notices.length > 0 && (
+        <div className="playback-notices" role="status">{notices.map((notice) => <p key={notice}>{notice}</p>)}</div>
+      )}
+      <div className="playback-section-heading">
+        <h3>Preserved operational basket</h3>
+        <span className={`evidence-status evidence-status-${playback.basket.attributionStatus}`}>{playback.basket.attributionStatus} attribution</span>
+      </div>
+      {playback.basket.picks.length === 0 ? (
+        <p className="evidence-empty-inline">No reviewed basket rows were stored.</p>
+      ) : (
+        <div className="table-scroll">
+          <table className="evidence-table playback-table">
+            <thead><tr><th>Pick</th><th>Candidate</th><th>Bucket</th><th>Score</th><th>Outcome</th></tr></thead>
+            <tbody>
+              {playback.basket.picks.map((pick) => (
+                <tr key={pick.ticker}>
+                  <td><strong>{pick.ticker}</strong>{pick.signals && <small>mom {fixed(pick.signals.momentum)} · vol {fixed(pick.signals.volume)} · penalty {fixed(pick.signals.setupPenalty)}</small>}</td>
+                  <td>{pick.candidateRank === null ? "—" : `#${pick.candidateRank}`}</td>
+                  <td>{pick.selectionBucket ? label(pick.selectionBucket) : "—"}</td>
+                  <td>{fixed(pick.score)}</td>
+                  <td className={valueTone(pick.outcome.returnPct)}>{percent(pick.outcome.returnPct)} <small>{pick.outcome.won ? "win" : "loss"}</small></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="playback-section-heading pilot-heading">
+        <h3>Stored pilot comparison</h3>
+        <span className={`evidence-status evidence-status-${playback.pilotComparison.status}`}>{playback.pilotComparison.status}</span>
+      </div>
+      {playback.pilotComparison.arms.length > 0 ? (
+        <div className="playback-arm-grid">
+          {playback.pilotComparison.arms.map((arm) => (
+            <div key={arm.strategy}><span>{label(arm.strategy)}</span><strong className={valueTone(arm.averageReturn)}>{percent(arm.averageReturn)}</strong><small>{arm.wins}/{arm.evaluatedCount} wins · {arm.isComplete ? "complete" : "incomplete"}</small></div>
+          ))}
+        </div>
+      ) : <p className="evidence-empty-inline">This signal snapshot has no stored paired pilot session.</p>}
     </section>
   );
 }
@@ -588,6 +673,7 @@ function OverviewView({ data, onNavigate }: { data: DashboardData; onNavigate: (
 function ReviewsView({
   reviews,
   selectedReview,
+  selectedPlayback,
   selectedReviewId,
   loading,
   error,
@@ -595,6 +681,7 @@ function ReviewsView({
 }: {
   reviews: ReviewHistoryItem[];
   selectedReview: ReviewSummary | null;
+  selectedPlayback: StrategyPlayback | null;
   selectedReviewId: number | null;
   loading: boolean;
   error: string | null;
@@ -602,12 +689,13 @@ function ReviewsView({
 }) {
   return (
     <div className="reviews-view">
-      <div className="view-intro"><p className="eyebrow">Persisted performance</p><h2>Review past picks</h2><p>Move through signal dates, then inspect the recorded return and result for every pick.</p></div>
+      <div className="view-intro"><p className="eyebrow">Persisted performance</p><h2>Review past picks</h2><p>Replay each preserved signal basket, its exact market snapshot, and eventual recorded outcome.</p></div>
       <ReviewNavigator reviews={reviews} selectedId={selectedReviewId} loading={loading} onSelect={onSelect} />
       <div className="review-history-layout">
         <ReviewHistoryList reviews={reviews} selectedId={selectedReviewId} onSelect={onSelect} />
         <div className="review-detail" id="review-detail" aria-live="polite" aria-busy={loading}>
           {error && <p className="review-error" role="alert">{error}</p>}
+          <StrategyPlaybackPanel playback={selectedPlayback} loading={loading} />
           <ReviewPanel
             review={selectedReview}
             title={selectedReview ? `Picks from ${displayDate(selectedReview.signalDate)}` : "Review details"}
@@ -910,16 +998,34 @@ export function App() {
   const [selectedTicker, setSelectedTicker] = useState("AKSEN");
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [selectedReview, setSelectedReview] = useState<ReviewSummary | null>(null);
+  const [selectedPlayback, setSelectedPlayback] = useState<StrategyPlayback | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const reviewRequestId = useRef(0);
 
   useEffect(() => {
-    reviewRequestId.current += 1;
+    const requestId = ++reviewRequestId.current;
     setReviewLoading(false);
     setSelectedReviewId(data?.review?.id ?? null);
     setSelectedReview(data?.review ?? null);
+    setSelectedPlayback(null);
     setReviewError(null);
+    if (activeView === "reviews" && data?.review) {
+      setReviewLoading(true);
+      void dashboardRepository.loadPlayback(data.review.id)
+        .then((playback) => {
+          if (requestId !== reviewRequestId.current) return;
+          setSelectedPlayback(playback);
+          setSelectedReview(playback.review);
+        })
+        .catch((error) => {
+          if (requestId !== reviewRequestId.current) return;
+          setReviewError(error instanceof Error ? error.message : "The selected playback could not be loaded.");
+        })
+        .finally(() => {
+          if (requestId === reviewRequestId.current) setReviewLoading(false);
+        });
+    }
   }, [data]);
 
   const selectedPick = useMemo(
@@ -943,28 +1049,26 @@ export function App() {
   };
 
   const selectReview = async (reviewId: number) => {
-    if (selectedReview?.id === reviewId) {
+    if (selectedPlayback?.review.id === reviewId) {
       revealReviewDetail();
       return;
     }
     const requestId = ++reviewRequestId.current;
     setSelectedReviewId(reviewId);
     setReviewError(null);
-    if (data?.review?.id === reviewId) {
-      setSelectedReview(data.review);
-      setReviewLoading(false);
-      revealReviewDetail();
-      return;
-    }
     setReviewLoading(true);
     revealReviewDetail();
     try {
-      const review = await dashboardRepository.loadReview(reviewId);
-      if (requestId === reviewRequestId.current) setSelectedReview(review);
+      const playback = await dashboardRepository.loadPlayback(reviewId);
+      if (requestId === reviewRequestId.current) {
+        setSelectedPlayback(playback);
+        setSelectedReview(playback.review);
+      }
     } catch (error) {
       if (requestId === reviewRequestId.current) {
+        setSelectedPlayback(null);
         setSelectedReview(null);
-        setReviewError(error instanceof Error ? error.message : "The selected review could not be loaded.");
+        setReviewError(error instanceof Error ? error.message : "The selected playback could not be loaded.");
       }
     } finally {
       if (requestId === reviewRequestId.current) setReviewLoading(false);
@@ -973,6 +1077,9 @@ export function App() {
 
   const navigate = (view: ViewKey) => {
     setActiveView(view);
+    if (view === "reviews" && selectedReviewId !== null && selectedPlayback?.review.id !== selectedReviewId) {
+      void selectReview(selectedReviewId);
+    }
     const url = new URL(window.location.href);
     if (view === "picks") {
       url.searchParams.delete("view");
@@ -1008,6 +1115,7 @@ export function App() {
         <ReviewsView
           reviews={data.reviewHistory}
           selectedReview={selectedReview}
+          selectedPlayback={selectedPlayback}
           selectedReviewId={selectedReviewId}
           loading={reviewLoading}
           error={reviewError}

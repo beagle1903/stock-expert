@@ -194,6 +194,191 @@ def load_review_history(settings: Settings) -> list[dict[str, Any]]:
     ]
 
 
+def load_strategy_playback(settings: Settings, review_id: int) -> dict[str, Any] | None:
+    """Load one review-owned, point-in-time strategy playback without recomputation."""
+    init_db(settings)
+    with connect(settings) as connection:
+        review_row = connection.execute(
+            """
+            SELECT id, as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                   signal_snapshot_id, strategy_version, missed_movers_captured
+            FROM review_runs
+            WHERE id = ?
+            """,
+            (review_id,),
+        ).fetchone()
+        if review_row is None:
+            return None
+
+        review = _load_review_by_id_connection(connection, review_id)
+        snapshot_id = review_row["signal_snapshot_id"]
+        snapshot = None
+        breadth = None
+        if snapshot_id is not None:
+            snapshot = connection.execute(
+                """
+                SELECT id, snapshot_date, imported_at, source_label, source_dir
+                FROM snapshot_runs
+                WHERE id = ?
+                """,
+                (snapshot_id,),
+            ).fetchone()
+            breadth = connection.execute(
+                """
+                SELECT COUNT(*) AS universe_count,
+                       SUM(CASE WHEN close_price > open_price THEN 1 ELSE 0 END) AS advancer_count
+                FROM stocks
+                WHERE snapshot_id = ?
+                """,
+                (snapshot_id,),
+            ).fetchone()
+
+        basket_rows = list(
+            connection.execute(
+                """
+                SELECT result.ticker, result.score, result.open_price, result.close_price,
+                       result.return_pct, result.won, candidate.candidate_rank,
+                       candidate.momentum, candidate.volume, candidate.technical,
+                       candidate.fundamental, candidate.quality, candidate.setup_penalty,
+                       candidate.selected_score_ranked, candidate.selected_bucketed,
+                       candidate.bucketed_bucket, persisted.selection_bucket
+                FROM review_pick_results AS result
+                LEFT JOIN candidate_outcomes AS candidate
+                  ON candidate.review_run_id = result.review_run_id
+                 AND candidate.ticker = result.ticker
+                LEFT JOIN picks AS persisted
+                  ON persisted.snapshot_id = ?
+                 AND persisted.ticker = result.ticker
+                WHERE result.review_run_id = ?
+                ORDER BY result.score DESC, result.ticker
+                """,
+                (snapshot_id, review_id),
+            )
+        )
+        pilot_rows = []
+        if snapshot_id is not None:
+            pilot_rows = list(
+                connection.execute(
+                    """
+                    SELECT strategy, pick_count, evaluated_count, wins, avg_return, is_complete
+                    FROM strategy_pilot_sessions
+                    WHERE pilot_name = ? AND signal_snapshot_id = ?
+                    ORDER BY strategy
+                    """,
+                    (PILOT_NAME, snapshot_id),
+                )
+            )
+        signal_weights = connection.execute(
+            """
+            SELECT date, momentum_weight, volume_weight
+            FROM weights
+            WHERE date <= ?
+            ORDER BY date DESC
+            LIMIT 1
+            """,
+            (str(review_row["as_of_date"]),),
+        ).fetchone()
+
+    attributed_count = sum(1 for row in basket_rows if row["candidate_rank"] is not None)
+    if not basket_rows or not attributed_count:
+        attribution_status = "unavailable"
+    elif attributed_count == len(basket_rows):
+        attribution_status = "available"
+    else:
+        attribution_status = "partial"
+
+    strategy_version = str(review_row["strategy_version"])
+    selected_strategy = "bucketed" if strategy_version.endswith(":bucketed") else "score_ranked"
+    expected_pilot_strategies = {"score_ranked", "bucketed"}
+    pilot_strategies = {str(row["strategy"]) for row in pilot_rows}
+    if not pilot_rows:
+        pilot_status = "unavailable"
+    elif (
+        pilot_strategies == expected_pilot_strategies
+        and len(pilot_rows) == len(expected_pilot_strategies)
+        and all(bool(row["is_complete"]) for row in pilot_rows)
+    ):
+        pilot_status = "available"
+    else:
+        pilot_status = "partial"
+    basket = []
+    for basket_order, row in enumerate(basket_rows, start=1):
+        selection_bucket = row["selection_bucket"]
+        if selection_bucket is None and selected_strategy == "bucketed":
+            selection_bucket = row["bucketed_bucket"]
+        if selection_bucket is None and selected_strategy == "score_ranked":
+            selection_bucket = "score_ranked"
+        has_attribution = row["candidate_rank"] is not None
+        basket.append(
+            {
+                "basketOrder": basket_order,
+                "ticker": str(row["ticker"]),
+                "score": float(row["score"]),
+                "candidateRank": int(row["candidate_rank"]) if has_attribution else None,
+                "selectionBucket": str(selection_bucket) if selection_bucket is not None else None,
+                "signals": {
+                    "momentum": float(row["momentum"]),
+                    "volume": float(row["volume"]),
+                    "technical": float(row["technical"]),
+                    "fundamental": float(row["fundamental"]),
+                    "quality": float(row["quality"]),
+                    "setupPenalty": float(row["setup_penalty"]),
+                } if has_attribution else None,
+                "outcome": {
+                    "openPrice": float(row["open_price"]),
+                    "closePrice": float(row["close_price"]),
+                    "returnPct": float(row["return_pct"]),
+                    "won": bool(row["won"]),
+                },
+            }
+        )
+
+    universe_count = int(breadth["universe_count"]) if breadth is not None else 0
+    advancer_count = int(breadth["advancer_count"] or 0) if breadth is not None else 0
+    snapshot_available = snapshot is not None and universe_count > 0
+    return {
+        "review": review,
+        "signal": {
+            "status": "available" if snapshot_available else "unavailable",
+            "snapshotId": int(snapshot_id) if snapshot_id is not None else None,
+            "signalDate": str(review_row["as_of_date"]),
+            "targetTradeDate": str(review_row["review_date"]),
+            "importedAt": str(snapshot["imported_at"]) if snapshot is not None else None,
+            "source": str(snapshot["source_label"]) if snapshot is not None else None,
+            "universeCount": universe_count,
+            "advancerCount": advancer_count,
+            "advancerRatio": round(advancer_count / universe_count, 4) if universe_count else None,
+        },
+        "strategy": {
+            "version": strategy_version,
+            "selectedStrategy": selected_strategy,
+            "weightsStatus": "available" if signal_weights is not None else "unavailable",
+            "momentumWeight": float(signal_weights["momentum_weight"]) if signal_weights is not None else None,
+            "volumeWeight": float(signal_weights["volume_weight"]) if signal_weights is not None else None,
+            "weightDate": str(signal_weights["date"]) if signal_weights is not None else None,
+        },
+        "basket": {
+            "status": "available" if basket else "unavailable",
+            "attributionStatus": attribution_status,
+            "picks": basket,
+        },
+        "pilotComparison": {
+            "status": pilot_status,
+            "arms": [
+                {
+                    "strategy": str(row["strategy"]),
+                    "pickCount": int(row["pick_count"]),
+                    "evaluatedCount": int(row["evaluated_count"]),
+                    "wins": int(row["wins"]),
+                    "averageReturn": float(row["avg_return"]),
+                    "isComplete": bool(row["is_complete"]),
+                }
+                for row in pilot_rows
+            ],
+        },
+    }
+
+
 def _metric_summary(row: Any) -> dict[str, Any]:
     return {
         "count": int(row["count"]),
@@ -994,6 +1179,19 @@ class RoutineApiHandler(BaseHTTPRequestHandler):
                         )
                     },
                 )
+                return
+            if parsed.path.startswith("/api/strategy-playback/"):
+                review_id_text = parsed.path.removeprefix("/api/strategy-playback/")
+                try:
+                    review_id = int(review_id_text)
+                except ValueError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "Playback not found."})
+                    return
+                playback = load_strategy_playback(self.server.settings, review_id)
+                if playback is None:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "Playback not found."})
+                    return
+                self._send_json(HTTPStatus.OK, {"playback": playback})
                 return
             if parsed.path.startswith("/api/reviews/"):
                 review_id_text = parsed.path.removeprefix("/api/reviews/")
