@@ -56,17 +56,14 @@
 
 ## Active Enhancement
 
-- Historical Strategy Playback is implemented on
-  `codex/historical-strategy-playback`.
-- The read-only API loads one review-owned basket, exact signal snapshot,
-  strategy metadata, stored pilot arms, and eventual outcome without invoking
-  current ranking or selection logic.
-- The Reviews screen preserves partial and unavailable evidence states and keeps
-  its historical basket locally scrollable on narrow screens.
-- The implementation scope and verification record live in
-  `docs/tasks/historical-strategy-playback.md`.
-- The four-item enhancement queue is recorded in `docs/tasks/backlog.md`.
-  GitHub issues remain the requirement tickets; do not start, close, or
-  rewrite them until that work begins.
+- Snapshots API (`/api/snapshots/history`, `/api/snapshots/{id}`) and the
+  read-only Evidence Console Snapshots view shipped on
+  `codex/data-quality-snapshot-history`. GitHub issue #11 stays open until
+  merge. Verification is in `docs/tasks/data-quality-snapshot-history.md`.
+- Spec: `docs/superpowers/specs/2026-09-16-data-quality-snapshot-history-design.md`.
+- Plan: `docs/superpowers/plans/2026-09-16-data-quality-snapshot-history.md`.
+- Implementation notes: `docs/tasks/data-quality-snapshot-history.md`.
+- Do not treat `docs/tasks/` as a replacement for the issue. Keep #11 open
+  until the work ships.
 - Basic GitHub CI now gates pull requests and `main` with Python tests plus
   frontend tests and a production build; deployment is intentionally deferred.

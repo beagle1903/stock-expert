@@ -89,6 +89,8 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-09-16 | Cursor overlay skills and a Cursor `stop` adapter are the operator path; Codex plugin and Codex Stop hook stay in-repo as unused fallback. | Lets the repo run from Cursor without changing strategy, SQLite, or the web launcher, and without deleting Codex files. |
 | 2026-09-16 | GitHub issues remain the requirement tickets; docs record implementation. | Open issues stay the spec until we start them; close, update, or add issues when work ships or the requirement changes. Do not treat `docs/tasks/` as a replacement for the issue. |
 | 2026-09-16 | Project Cursor agents `se-explore`, `se-implement`, `se-strategy-review`, and `se-ui-review` plus always-on routing with a named model cascade. | Keeps delegated work on Stock Expert invariants and reports silent Cursor model swaps instead of assuming the pin ran. |
+| 2026-09-16 | Daily CSV provenance persists atomically on `snapshot_runs` (`not_captured` for old rows); read-only Snapshots API/UI lists lineage, coverage, mapping failures, and prior-id comparison. | Matches missed-mover evidence rules, keeps publication atomic, and does not change ranking or latest-picks selection. |
+| 2026-09-16 | Completed feature work ends with a GitHub pull request. | Operator asked to always open a PR when a task ships, rather than leaving the branch local-only. |
 
 ## Workflows
 
@@ -161,6 +163,7 @@ Live files:
 - Use feature-scoped branches named `codex/<task-name>` for non-trivial work, especially anything strategy-affecting, persistence-affecting, or deployment-related.
 - Keep all related feature changes on the same branch, even when they span model logic, schema, CLI output, tests, docs, memory, and deployment notes.
 - Merge a feature branch back into `main` only after behavior is trusted through tests and any relevant dry-run routine checks.
+- At the end of a completed feature task, commit, push the feature branch, and open a GitHub pull request. Do not wait to be asked.
 - Tiny typo/docs fixes may still go directly to `main` when the scope is obvious.
 - Push `main` after merges so GitHub remains the backup/source of truth.
 - The old long-running `codex/add-indicators` branch has been merged and removed.

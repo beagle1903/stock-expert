@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import shutil
+import sqlite3
 import unittest
 import uuid
 from contextlib import closing
@@ -87,6 +88,26 @@ class DailyCsvImportTests(unittest.TestCase):
             ["İsim", "Ortalama Hacim (3Ay)", "Piyasa değeri", "Gelir", "Fiyat / Kazanç Oranı", "Beta"],
             ["Adel", "4,82M", "12,02Mlr", revenue, pe_ratio, "-0,59"],
         )
+
+    def _snapshot_row(self, snapshot_id: int) -> sqlite3.Row:
+        with closing(sqlite3.connect(self.settings.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM snapshot_runs WHERE id = ?", (snapshot_id,)).fetchone()
+        self.assertIsNotNone(row)
+        return row
+
+    def _mapping_failure_names(self, snapshot_id: int) -> list[str]:
+        with closing(sqlite3.connect(self.settings.db_path)) as conn:
+            rows = conn.execute(
+                """
+                SELECT company_name
+                FROM snapshot_mapping_failures
+                WHERE snapshot_id = ?
+                ORDER BY failure_order
+                """,
+                (snapshot_id,),
+            ).fetchall()
+        return [row[0] for row in rows]
 
     def test_imports_revenue_and_pe_ratio(self) -> None:
         self._write_minimal_csv_set("2,10B", "12,77")
@@ -218,6 +239,51 @@ class DailyCsvImportTests(unittest.TestCase):
         self.assertEqual(payload["rows_read"], 0)
         self.assertEqual(payload["skipped_unmapped_count"], 1)
 
+    def test_daily_import_persists_provenance_metrics(self) -> None:
+        self._write_minimal_csv_set("2,10B", "12,77")
+        self._write_csv_rows(
+            "fiyat.csv",
+            ["İsim", "Son", " Yüksek", " Düşük", "Fark", "Fark %", "Hac.", "Zaman"],
+            [
+                ["Adel", "46,10", "47,78", "44,60", "2,60", "5,98%", "11,48M", "18:09:44"],
+                ["Unknown Co", "10,00", "11,00", "9,00", "1,00", "1,00%", "1,00M", "18:09:44"],
+            ],
+        )
+        for name, extra in (
+            (
+                "performans.csv",
+                ["Unknown Co", "1,00", "1,00", "1,00", "1,00", "1,00", "1,00"],
+            ),
+            (
+                "teknik.csv",
+                ["Unknown Co", "Al", "Al", "Al", "Al"],
+            ),
+            (
+                "temel.csv",
+                ["Unknown Co", "1,00M", "1,00Mlr", "1,00B", "10,00", "1,00"],
+            ),
+        ):
+            path = self.settings.data_dir / name
+            with path.open("a", encoding="utf-8-sig", newline="") as handle:
+                csv.writer(handle).writerow(extra)
+
+        payload = json.loads(import_daily_csv_command(self.settings, "2026-04-21"))
+        row = self._snapshot_row(payload["snapshot_id"])
+
+        self.assertEqual(row["provenance_captured"], 1)
+        self.assertEqual(row["skipped_unmapped_count"], payload["skipped_unmapped_count"])
+        self.assertEqual(row["rows_read"], payload["rows_read"])
+        self.assertEqual(row["mapped_count"], payload["mapped_count"])
+        self.assertEqual(row["distinct_tickers"], payload["distinct_generated_tickers"])
+        self.assertAlmostEqual(row["ticker_coverage"], payload["ticker_coverage"])
+        self.assertEqual(self._mapping_failure_names(payload["snapshot_id"]), ["Unknown Co"])
+
+    def test_legacy_snapshot_rows_are_not_captured(self) -> None:
+        snapshot_id = create_snapshot_run(self.settings, date(2026, 4, 21), "test", "data")
+        row = self._snapshot_row(snapshot_id)
+        self.assertEqual(row["provenance_captured"], 0)
+        self.assertIsNone(row["ticker_coverage"])
+
     def test_malformed_required_price_row_is_skipped(self) -> None:
         self._write_minimal_csv_set("2,10B", "12,77")
         path = self.settings.data_dir / "fiyat.csv"
@@ -256,6 +322,11 @@ class DailyCsvImportTests(unittest.TestCase):
                 import_daily_csv_command(self.settings, "2026-04-21")
 
         self.assertEqual(get_latest_snapshot_id(self.settings, date(2026, 4, 21)), previous_id)
+        with closing(sqlite3.connect(self.settings.db_path)) as conn:
+            run_count = conn.execute("SELECT COUNT(*) FROM snapshot_runs").fetchone()[0]
+            failure_count = conn.execute("SELECT COUNT(*) FROM snapshot_mapping_failures").fetchone()[0]
+        self.assertEqual(run_count, 1)
+        self.assertEqual(failure_count, 0)
 
     def test_folder_import_uses_holiday_aware_previous_session(self) -> None:
         with patch(

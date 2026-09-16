@@ -48,6 +48,7 @@ test("accepts results only from the latest evidence request", () => {
 
 test("routes Strategy Lab independently of dashboard data", () => {
   assert.equal(appContentMode("diagnostics", false), "strategy_lab");
+  assert.equal(appContentMode("snapshots", false), "snapshot_history");
   assert.equal(appContentMode("picks", false), "dashboard_unavailable");
   assert.equal(appContentMode("picks", true), "dashboard");
 });

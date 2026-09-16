@@ -8,10 +8,11 @@ import threading
 import unittest
 from datetime import date, datetime
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import urlopen
 
 from stock_expert.config import Settings
-from stock_expert.database import connect, init_db
+from stock_expert.database import connect, create_snapshot_run, init_db
 from stock_expert.web_api import (
     DEFAULT_PORT,
     REQUIRED_CSV_FILES,
@@ -23,6 +24,8 @@ from stock_expert.web_api import (
     load_review_history,
     load_latest_picks,
     load_latest_review,
+    load_snapshot_detail,
+    load_snapshot_history,
     load_strategy_playback,
     load_strategy_evidence,
 )
@@ -892,6 +895,229 @@ class RoutineWebApiTests(unittest.TestCase):
                 today=date(2026, 7, 18),
                 runner=failing_runner,
             )
+
+    def _insert_captured_snapshot(
+        self,
+        *,
+        snapshot_date: str,
+        imported_at: str,
+        rows_read: int,
+        distinct_tickers: int,
+        skipped_unmapped_count: int,
+        skipped_malformed_count: int,
+        ticker_coverage: float,
+        unmapped_names: list[str],
+        source_files: list[str] | None = None,
+    ) -> int:
+        init_db(self.settings)
+        files = source_files or ["fiyat.csv", "performans.csv"]
+        with connect(self.settings) as connection:
+            snapshot_id = int(
+                connection.execute(
+                    """
+                    INSERT INTO snapshot_runs (
+                        snapshot_date, imported_at, source_label, source_dir,
+                        provenance_captured, rows_read, distinct_tickers, mapped_count,
+                        skipped_non_equity_count, skipped_unmapped_count,
+                        skipped_malformed_count, ticker_coverage, decimal_separator,
+                        price_basis, source_files_json
+                    ) VALUES (?, ?, 'daily_csv', 'data', 1, ?, ?, ?, 0, ?, ?, ?,
+                        'comma', 'previous_close_to_latest', ?)
+                    """,
+                    (
+                        snapshot_date,
+                        imported_at,
+                        rows_read,
+                        distinct_tickers,
+                        distinct_tickers,
+                        skipped_unmapped_count,
+                        skipped_malformed_count,
+                        ticker_coverage,
+                        json.dumps(files),
+                    ),
+                ).lastrowid
+            )
+            for failure_order, company_name in enumerate(unmapped_names):
+                connection.execute(
+                    """
+                    INSERT INTO snapshot_mapping_failures
+                        (snapshot_id, failure_order, company_name)
+                    VALUES (?, ?, ?)
+                    """,
+                    (snapshot_id, failure_order, company_name),
+                )
+        return snapshot_id
+
+    def test_snapshot_detail_compares_captured_metrics_and_labels_regressions(self) -> None:
+        prior_id = self._insert_captured_snapshot(
+            snapshot_date="2026-04-20",
+            imported_at="2026-04-20 18:00:00",
+            rows_read=652,
+            distinct_tickers=652,
+            skipped_unmapped_count=1,
+            skipped_malformed_count=0,
+            ticker_coverage=0.95,
+            unmapped_names=["Old Unmapped"],
+        )
+        current_id = self._insert_captured_snapshot(
+            snapshot_date="2026-04-21",
+            imported_at="2026-04-21 18:00:00",
+            rows_read=640,
+            distinct_tickers=640,
+            skipped_unmapped_count=3,
+            skipped_malformed_count=0,
+            ticker_coverage=0.91,
+            unmapped_names=["Alpha", "Beta", "Gamma"],
+        )
+
+        detail = load_snapshot_detail(self.settings, current_id)
+
+        self.assertEqual(detail["id"], current_id)
+        self.assertEqual(detail["provenanceStatus"], "captured")
+        self.assertEqual(detail["mappingFailures"], ["Alpha", "Beta", "Gamma"])
+        self.assertEqual(detail["decimalSeparator"], "comma")
+        self.assertEqual(detail["priceBasis"], "previous_close_to_latest")
+        self.assertEqual(detail["sourceFiles"], ["fiyat.csv", "performans.csv"])
+        self.assertFalse(detail["unmappedTruncated"])
+        comparison = detail["comparison"]
+        self.assertEqual(comparison["status"], "available")
+        self.assertEqual(comparison["priorSnapshotId"], prior_id)
+        self.assertTrue(comparison["coverageRegression"])
+        self.assertTrue(comparison["mappingFailureIncrease"])
+        self.assertEqual(
+            comparison["deltas"],
+            {
+                "tickerCoverage": -0.04,
+                "rowsRead": -12,
+                "distinctTickers": -12,
+                "skippedUnmappedCount": 2,
+                "skippedMalformedCount": 0,
+            },
+        )
+
+    def test_create_snapshot_run_serializes_not_captured_null_metrics(self) -> None:
+        snapshot_id = create_snapshot_run(self.settings, date(2026, 4, 21), "test", "data")
+
+        detail = load_snapshot_detail(self.settings, snapshot_id)
+        history = load_snapshot_history(self.settings)
+
+        self.assertEqual(detail["provenanceStatus"], "not_captured")
+        self.assertIsNone(detail["rowsRead"])
+        self.assertIsNone(detail["distinctTickers"])
+        self.assertIsNone(detail["skippedUnmappedCount"])
+        self.assertIsNone(detail["skippedMalformedCount"])
+        self.assertIsNone(detail["tickerCoverage"])
+        self.assertIsNone(detail["mappingFailures"])
+        self.assertIsNone(detail["decimalSeparator"])
+        self.assertIsNone(detail["priceBasis"])
+        self.assertIsNone(detail["sourceFiles"])
+        self.assertEqual(history[0]["id"], snapshot_id)
+        self.assertEqual(history[0]["provenanceStatus"], "not_captured")
+        self.assertIsNone(history[0]["rowsRead"])
+
+    def test_first_snapshot_comparison_is_unavailable(self) -> None:
+        snapshot_id = self._insert_captured_snapshot(
+            snapshot_date="2026-04-21",
+            imported_at="2026-04-21 18:00:00",
+            rows_read=640,
+            distinct_tickers=640,
+            skipped_unmapped_count=0,
+            skipped_malformed_count=0,
+            ticker_coverage=0.91,
+            unmapped_names=[],
+        )
+
+        detail = load_snapshot_detail(self.settings, snapshot_id)
+
+        self.assertEqual(detail["comparison"]["status"], "unavailable")
+        self.assertIsNone(detail["comparison"]["priorSnapshotId"])
+        self.assertIsNone(detail["comparison"]["deltas"])
+
+    def test_snapshot_history_includes_pickless_imports_newest_first(self) -> None:
+        older_id = self._insert_captured_snapshot(
+            snapshot_date="2026-04-20",
+            imported_at="2026-04-20 18:00:00",
+            rows_read=10,
+            distinct_tickers=10,
+            skipped_unmapped_count=0,
+            skipped_malformed_count=0,
+            ticker_coverage=1.0,
+            unmapped_names=[],
+        )
+        newer_id = self._insert_captured_snapshot(
+            snapshot_date="2026-04-21",
+            imported_at="2026-04-21 18:00:00",
+            rows_read=11,
+            distinct_tickers=11,
+            skipped_unmapped_count=51,
+            skipped_malformed_count=1,
+            ticker_coverage=0.8,
+            unmapped_names=[f"U{i}" for i in range(50)],
+        )
+        with connect(self.settings) as connection:
+            connection.execute(
+                """
+                INSERT INTO picks (
+                    snapshot_id, date, ticker, score, kap, momentum, volume,
+                    risk, horizon, selection_bucket
+                ) VALUES (?, '2026-04-20', 'PICK', 1.0, 0, 0.9, 0.8,
+                    'high', 'intraday', 'score_ranked')
+                """,
+                (older_id,),
+            )
+
+        history = load_snapshot_history(self.settings)
+
+        self.assertEqual([item["id"] for item in history], [newer_id, older_id])
+        self.assertEqual(history[0]["publicationResult"], "published")
+        self.assertTrue(history[0]["unmappedTruncated"])
+        self.assertFalse(history[1]["unmappedTruncated"])
+
+    def test_unknown_snapshot_id_returns_none_and_http_404(self) -> None:
+        init_db(self.settings)
+        self.assertIsNone(load_snapshot_detail(self.settings, 999))
+
+        server = RoutineApiServer(("127.0.0.1", 0), self.settings, self.data_dir)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = int(server.server_port)
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(f"http://127.0.0.1:{port}/api/snapshots/999", timeout=5)
+            self.assertEqual(raised.exception.code, 404)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+    def test_http_snapshot_history_and_detail_routes(self) -> None:
+        snapshot_id = self._insert_captured_snapshot(
+            snapshot_date="2026-04-21",
+            imported_at="2026-04-21 18:00:00",
+            rows_read=640,
+            distinct_tickers=640,
+            skipped_unmapped_count=0,
+            skipped_malformed_count=0,
+            ticker_coverage=0.91,
+            unmapped_names=[],
+        )
+        server = RoutineApiServer(("127.0.0.1", 0), self.settings, self.data_dir)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = int(server.server_port)
+            with urlopen(f"http://127.0.0.1:{port}/api/snapshots/history", timeout=5) as response:
+                history_payload = json.load(response)
+            with urlopen(f"http://127.0.0.1:{port}/api/snapshots/{snapshot_id}", timeout=5) as response:
+                detail_payload = json.load(response)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+        self.assertEqual([item["id"] for item in history_payload["snapshots"]], [snapshot_id])
+        self.assertEqual(detail_payload["snapshot"]["id"], snapshot_id)
+        self.assertEqual(detail_payload["snapshot"]["comparison"]["status"], "unavailable")
 
 
 if __name__ == "__main__":

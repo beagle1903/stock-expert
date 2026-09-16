@@ -18,6 +18,7 @@ export function createLatestRequestGuard() {
 
 export function appContentMode(activeView, hasDashboardData) {
   if (activeView === "diagnostics") return "strategy_lab";
+  if (activeView === "snapshots") return "snapshot_history";
   return hasDashboardData ? "dashboard" : "dashboard_unavailable";
 }
 

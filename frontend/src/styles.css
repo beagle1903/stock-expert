@@ -450,7 +450,16 @@ button:focus-visible {
 .positive { color: var(--teal); }
 .negative { color: var(--rose); }
 
-.reviews-view { max-width: 1180px; margin: 0 auto; }
+.snapshots-view { max-width: 1180px; margin: 0 auto; display: grid; gap: 8px; }
+.snapshot-detail-panel h2 { margin: 0 0 12px; }
+.snapshot-detail-panel h3 { margin: 20px 0 8px; font-size: 16px; }
+.snapshot-mapping-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  max-height: 240px;
+  overflow-y: auto;
+}
 
 .review-navigator {
   display: grid;
@@ -1224,7 +1233,7 @@ button:focus-visible {
   .run-timeline .timeline-number { top: 12px; left: 0; }
   .run-timeline li strong, .run-timeline li > span:last-child { padding-left: 0; }
   .price-basis { margin-top: 12px; padding: 12px 0; border-left: 0; }
-  .overview-view, .runs-view { grid-template-columns: 1fr; }
+  .overview-view, .runs-view, .snapshots-view { grid-template-columns: 1fr; }
   .overview-view .run-timeline, .runs-view .run-timeline, .routine-launcher { grid-column: auto; }
   .routine-launcher-heading { display: grid; }
   .date-control { min-width: 0; }

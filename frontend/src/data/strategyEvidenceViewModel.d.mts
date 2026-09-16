@@ -11,7 +11,7 @@ export function createLatestRequestGuard(): LatestRequestGuard;
 export function appContentMode(
   activeView: ViewKey,
   hasDashboardData: boolean,
-): "strategy_lab" | "dashboard" | "dashboard_unavailable";
+): "strategy_lab" | "snapshot_history" | "dashboard" | "dashboard_unavailable";
 export function evidenceDisplayState(evidence: StrategyEvidence | null): {
   kind: "empty" | "partial" | "complete";
   notices: string[];

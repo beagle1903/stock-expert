@@ -209,6 +209,7 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
     skipped_non_equity_count = 0
     skipped_unmapped_count = 0
     skipped_malformed_count = 0
+    unmapped_names: list[str] = []
 
     for row in fiyat:
         company_name = row.get("ISIM", "").strip()
@@ -228,6 +229,7 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
         if not ticker:
             fallback_count += 1
             skipped_unmapped_count += 1
+            unmapped_names.append(company_name)
             continue
         mapped_count += 1
 
@@ -278,6 +280,8 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
     distinct_tickers = len({snapshot.ticker for snapshot in snapshots})
     eligible_rows = max(len(fiyat) - skipped_non_equity_count, 0)
     ticker_coverage = _validate_live_ticker_coverage(len(fiyat), eligible_rows, distinct_tickers)
+    source_files = ["fiyat.csv", "performans.csv", "teknik.csv", "temel.csv"]
+    price_basis = "previous_close_to_last_from_daily_change_pct"
 
     snapshot_id = persist_daily_snapshot(
         settings=settings,
@@ -286,6 +290,19 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
         source_dir=data_dir,
         market_rows=snapshots,
         price_rows=price_rows,
+        quality={
+            "rows_read": len(snapshots),
+            "distinct_tickers": distinct_tickers,
+            "mapped_count": mapped_count,
+            "skipped_non_equity_count": skipped_non_equity_count,
+            "skipped_unmapped_count": skipped_unmapped_count,
+            "skipped_malformed_count": skipped_malformed_count,
+            "ticker_coverage": round(ticker_coverage, 4),
+            "decimal_separator": decimal_separator,
+            "price_basis": price_basis,
+            "source_files": source_files,
+            "unmapped_names": unmapped_names,
+        },
     )
     return json.dumps(
         {
@@ -300,8 +317,8 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
             "skipped_malformed_count": skipped_malformed_count,
             "decimal_separator": decimal_separator,
             "ticker_coverage": round(ticker_coverage, 4),
-            "price_basis": "previous_close_to_last_from_daily_change_pct",
-            "source_files": ["fiyat.csv", "performans.csv", "teknik.csv", "temel.csv"],
+            "price_basis": price_basis,
+            "source_files": source_files,
         },
         indent=2,
     )

@@ -11,6 +11,7 @@
 - Strategy Lab labels missing candidate outcomes, unavailable signal snapshots, and incomplete or unpaired pilot sessions. Only complete paired sessions contribute to the strategy comparison.
 - Historical pilot status uses the final selected signal date for the pilot-start boundary, while review dates continue to bound persisted outcomes; pre-pilot baskets cannot be mislabeled active merely because they were reviewed after the start date.
 - Strategy Lab remains reachable when no latest-picks snapshot exists, renders its persisted review evidence independently, and limits the empty state to the latest-pick subsection.
+- Snapshots (`?view=snapshots`) is a read-only Evidence Console view of every published `snapshot_runs` row. It lists lineage, persisted-row counts, ticker coverage, skip counts, mapping-failure names, and comparison with the prior published snapshot by lower id. Legacy rows show that provenance was not captured. The first published snapshot shows that no prior published snapshot exists. Coverage regressions and unmapped-row increases are labeled against that prior snapshot id. Snapshots stays reachable without latest picks, same as Strategy Lab. Data & Runs remains the only mutating web surface.
 - Evidence-window loads use latest-request-wins semantics so a superseded response cannot overwrite the currently selected window.
 - The dashboard repository loads the latest picks, latest review, and review-history endpoints together and reloads them after a successful routine; historical detail selection remains read-only.
 - Data & Runs uses `stock_expert.web_api` to preview and execute the real persisted CLI routine through a loopback-only API.
@@ -19,7 +20,7 @@
 - Execution requires a current preview token, a second confirmation step, and an explicit operator checkbox. Only one routine can run at a time.
 - Successful runs report the persisted snapshot id, pick count, and review id when a prior basket is eligible for review.
 - After a successful run, the dashboard repository reloads so both Today’s Picks and Reviews immediately display the newest persisted results.
-- Navigation covers overview, today's picks, reviews, diagnostics, and data/runs without adding execution, portfolio, live-quote, or forecast capabilities.
+- Navigation covers overview, today's picks, reviews, snapshots, diagnostics, and data/runs without adding execution, portfolio, live-quote, or forecast capabilities.
 - `?view=runs` opens Data & Runs directly so a completed data-refresh command can hand off to routine confirmation without a second navigation step.
 - Dashboard loading and retry states remain available; Data & Runs shows only real routine readiness, confirmation, running, success, and failure states rather than UI-only presentation previews.
 - An unexpectedly empty persisted basket renders an explicit empty state on pick-dependent views instead of collapsing the workspace to its header.

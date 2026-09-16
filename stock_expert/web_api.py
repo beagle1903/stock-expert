@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlparse
 from stock_expert.config import Settings, get_settings
 from stock_expert.constants import MIN_DAILY_WIN_RETURN
 from stock_expert.database import (
+    MAX_SNAPSHOT_MAPPING_FAILURES,
     connect,
     get_latest_snapshot_id,
     get_prices_for_date,
@@ -146,6 +147,163 @@ def _load_review_by_id_connection(connection: Any, review_id: int) -> dict[str, 
         (review_id,),
     ).fetchall()
     return _serialize_review(review, outcomes, missed_movers)
+
+
+_SNAPSHOT_QUALITY_COLUMNS = """
+    id, snapshot_date, imported_at, source_label, source_dir, provenance_captured,
+    rows_read, distinct_tickers, skipped_unmapped_count, skipped_malformed_count,
+    ticker_coverage, decimal_separator, price_basis, source_files_json
+"""
+
+
+def _unmapped_truncated(skipped_unmapped_count: int | None, stored_names: int) -> bool:
+    skipped = int(skipped_unmapped_count or 0)
+    return skipped > stored_names or stored_names > MAX_SNAPSHOT_MAPPING_FAILURES
+
+
+def _serialize_snapshot_summary(row: Any, stored_failure_count: int) -> dict[str, Any]:
+    captured = int(row["provenance_captured"] or 0) == 1
+    return {
+        "id": int(row["id"]),
+        "snapshotDate": str(row["snapshot_date"]),
+        "importedAt": str(row["imported_at"]),
+        "source": str(row["source_label"]),
+        "sourceDir": str(row["source_dir"]),
+        "provenanceStatus": "captured" if captured else "not_captured",
+        "publicationResult": "published",
+        "rowsRead": int(row["rows_read"]) if captured and row["rows_read"] is not None else None,
+        "distinctTickers": (
+            int(row["distinct_tickers"]) if captured and row["distinct_tickers"] is not None else None
+        ),
+        "skippedUnmappedCount": (
+            int(row["skipped_unmapped_count"])
+            if captured and row["skipped_unmapped_count"] is not None
+            else None
+        ),
+        "skippedMalformedCount": (
+            int(row["skipped_malformed_count"])
+            if captured and row["skipped_malformed_count"] is not None
+            else None
+        ),
+        "tickerCoverage": (
+            float(row["ticker_coverage"]) if captured and row["ticker_coverage"] is not None else None
+        ),
+        "unmappedTruncated": (
+            _unmapped_truncated(row["skipped_unmapped_count"], stored_failure_count) if captured else False
+        ),
+    }
+
+
+def _parse_source_files(raw: Any) -> list[str] | None:
+    if raw is None:
+        return None
+    parsed = json.loads(str(raw))
+    if not isinstance(parsed, list):
+        return None
+    return [str(item) for item in parsed]
+
+
+def _comparison_payload(selected: Any, prior: Any | None) -> dict[str, Any]:
+    if prior is None:
+        return {
+            "status": "unavailable",
+            "priorSnapshotId": None,
+            "coverageRegression": False,
+            "mappingFailureIncrease": False,
+            "deltas": None,
+        }
+    prior_id = int(prior["id"])
+    selected_captured = int(selected["provenance_captured"] or 0) == 1
+    prior_captured = int(prior["provenance_captured"] or 0) == 1
+    if not selected_captured or not prior_captured:
+        return {
+            "status": "not_captured",
+            "priorSnapshotId": prior_id,
+            "coverageRegression": False,
+            "mappingFailureIncrease": False,
+            "deltas": None,
+        }
+    coverage_delta = round(float(selected["ticker_coverage"]) - float(prior["ticker_coverage"]), 4)
+    unmapped_delta = int(selected["skipped_unmapped_count"]) - int(prior["skipped_unmapped_count"])
+    return {
+        "status": "available",
+        "priorSnapshotId": prior_id,
+        "coverageRegression": float(selected["ticker_coverage"]) < float(prior["ticker_coverage"]),
+        "mappingFailureIncrease": int(selected["skipped_unmapped_count"])
+        > int(prior["skipped_unmapped_count"]),
+        "deltas": {
+            "tickerCoverage": coverage_delta,
+            "rowsRead": int(selected["rows_read"]) - int(prior["rows_read"]),
+            "distinctTickers": int(selected["distinct_tickers"]) - int(prior["distinct_tickers"]),
+            "skippedUnmappedCount": unmapped_delta,
+            "skippedMalformedCount": int(selected["skipped_malformed_count"])
+            - int(prior["skipped_malformed_count"]),
+        },
+    }
+
+
+def load_snapshot_history(settings: Settings) -> list[dict[str, Any]]:
+    init_db(settings)
+    with connect(settings) as connection:
+        rows = connection.execute(
+            f"""
+            SELECT {_SNAPSHOT_QUALITY_COLUMNS},
+                   (
+                       SELECT COUNT(*)
+                       FROM snapshot_mapping_failures AS smf
+                       WHERE smf.snapshot_id = snapshot_runs.id
+                   ) AS mapping_failure_count
+            FROM snapshot_runs
+            ORDER BY id DESC
+            """
+        ).fetchall()
+    return [
+        _serialize_snapshot_summary(row, int(row["mapping_failure_count"] or 0))
+        for row in rows
+    ]
+
+
+def load_snapshot_detail(settings: Settings, snapshot_id: int) -> dict[str, Any] | None:
+    init_db(settings)
+    with connect(settings) as connection:
+        selected = connection.execute(
+            f"""
+            SELECT {_SNAPSHOT_QUALITY_COLUMNS}
+            FROM snapshot_runs
+            WHERE id = ?
+            """,
+            (snapshot_id,),
+        ).fetchone()
+        if selected is None:
+            return None
+        prior = connection.execute(
+            f"""
+            SELECT {_SNAPSHOT_QUALITY_COLUMNS}
+            FROM snapshot_runs
+            WHERE id < ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (snapshot_id,),
+        ).fetchone()
+        failures = connection.execute(
+            """
+            SELECT company_name
+            FROM snapshot_mapping_failures
+            WHERE snapshot_id = ?
+            ORDER BY failure_order
+            """,
+            (snapshot_id,),
+        ).fetchall()
+    names = [str(row["company_name"]) for row in failures]
+    captured = int(selected["provenance_captured"] or 0) == 1
+    payload = _serialize_snapshot_summary(selected, len(names))
+    payload["mappingFailures"] = names if captured else None
+    payload["decimalSeparator"] = str(selected["decimal_separator"]) if captured else None
+    payload["priceBasis"] = str(selected["price_basis"]) if captured else None
+    payload["sourceFiles"] = _parse_source_files(selected["source_files_json"]) if captured else None
+    payload["comparison"] = _comparison_payload(selected, prior)
+    return payload
 
 
 def load_review_by_id(settings: Settings, review_id: int) -> dict[str, Any] | None:
@@ -1205,6 +1363,25 @@ class RoutineApiHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "Review not found."})
                     return
                 self._send_json(HTTPStatus.OK, {"review": review})
+                return
+            if parsed.path == "/api/snapshots/history":
+                self._send_json(
+                    HTTPStatus.OK,
+                    {"snapshots": load_snapshot_history(self.server.settings)},
+                )
+                return
+            if parsed.path.startswith("/api/snapshots/"):
+                snapshot_id_text = parsed.path.removeprefix("/api/snapshots/")
+                try:
+                    snapshot_id = int(snapshot_id_text)
+                except ValueError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "Snapshot not found."})
+                    return
+                snapshot = load_snapshot_detail(self.server.settings, snapshot_id)
+                if snapshot is None:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "Snapshot not found."})
+                    return
+                self._send_json(HTTPStatus.OK, {"snapshot": snapshot})
                 return
             if parsed.path == "/api/picks/latest":
                 self._send_json(HTTPStatus.OK, {"dashboard": load_latest_picks(self.server.settings)})
