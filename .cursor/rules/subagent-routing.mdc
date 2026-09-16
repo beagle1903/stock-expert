@@ -1,0 +1,34 @@
+---
+description: Stock Expert project subagent roster, model pins, cascade, and reporting
+alwaysApply: true
+---
+
+# Project Subagent Routing
+
+Use these project agents instead of Cursor's built-in `explore` type. Do not nest subagents. Do not start GitHub issue #11 from this overlay. bugbot and security-review run only when the user asks.
+
+## Roster
+
+- `se-explore` — read-only search before a change when the layout is unknown. Preferred model: composer-2.5-fast
+- `se-implement` — one scoped change. Preferred model: inherit
+- `se-strategy-review` — after persistence, ranking, review, import, or snapshot work. Preferred model: claude-opus-5-thinking-high
+- `se-ui-review` — after Evidence Console changes. Preferred model: claude-4-sonnet
+
+`inherit` means the parent chat model.
+
+## Cascade
+
+If the Task call fails because the slug is missing or rejected:
+
+- se-explore: composer-2.5-fast → inherit
+- se-implement: inherit only
+- se-strategy-review: claude-opus-5-thinking-high → claude-4-sonnet → inherit
+- se-ui-review: claude-4-sonnet → inherit
+
+Do not invent a fifth model. If inherit also fails, stop and ask the user.
+
+## Reporting
+
+After each subagent, report the actual model: requested slug, model that ran if known, and whether that was a downgrade. Cursor may silently swap on plan, quota, admin block, or Max Mode. A swapped se-strategy-review remains a valid review unless the user says otherwise. Do not silently re-run it on a stronger model.
+
+The parent owns issues, branches, and commits. se-implement does not commit unless the user already asked.
