@@ -33,6 +33,12 @@ The adapter runs the existing validator and maps Codex
 `{"decision":"block","reason":"..."}` to Cursor stop output
 `{"followup_message":"..."}`. Empty validator output stays `{}`.
 
+A real Cursor `stop` payload includes `transcript_path`, not the final
+assistant text. The adapter reads the last assistant entry from that
+JSONL transcript (and still accepts `last_assistant_message` when present)
+so `DOCS_NOT_NEEDED:` in the final reply reaches the shared validator.
+The marker in `docs/tasks/current.md` remains valid.
+
 `.cursor/` JSON, Python, and other development files are gated the same way as
 `.codex/` files. Accepted documentation locations are unchanged:
 `docs/features/`, `docs/context/`, `docs/tasks/`, and `memory.md`.
@@ -56,8 +62,9 @@ Remaining Cursor UI checks are one-time operator setup, not CI:
 1. Open **Settings > Hooks** and trust the project `stop` command
    (`D:\miniconda3\python.exe .cursor/hooks/validate_docs_update.py`).
 2. After that, the next real code-only agent turn should get a
-   `followup_message`. A docs update or `DOCS_NOT_NEEDED:` should allow stop.
-   Skip inventing a dummy edit just to prove this.
+   `followup_message`. A docs update or `DOCS_NOT_NEEDED:` in
+   `docs/tasks/current.md` or the last assistant transcript entry should
+   allow stop. Skip inventing a dummy edit just to prove this.
 3. Re-trust after any hook definition change. `failClosed` stays off until
    that live follow-up has been seen once.
 

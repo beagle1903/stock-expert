@@ -11,6 +11,31 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / ".codex" / "hooks" / "validate_docs_update.py"
 CURSOR_ADAPTER = REPO_ROOT / ".cursor" / "hooks" / "validate_docs_update.py"
+TEST_TMP = REPO_ROOT / ".test_tmp"
+
+
+def write_transcript(name: str, *entries: dict[str, object]) -> Path:
+    TEST_TMP.mkdir(exist_ok=True)
+    path = TEST_TMP / name
+    path.write_text("".join(json.dumps(entry) + "\n" for entry in entries), encoding="utf-8")
+    return path
+
+
+def run_cursor_adapter(
+    *changed_files: str,
+    hook_input: dict[str, object] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    command = [sys.executable, str(CURSOR_ADAPTER)]
+    for path in changed_files:
+        command.extend(["--changed-file", path])
+    return subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        input=json.dumps(hook_input or {}),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def run_validator(
@@ -124,19 +149,7 @@ class DocsStopHookTests(unittest.TestCase):
         self.assertIn(".cursor/hooks.json", payload["reason"])
 
     def test_cursor_adapter_maps_block_to_followup_message(self) -> None:
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(CURSOR_ADAPTER),
-                "--changed-file",
-                "stock_expert/services.py",
-            ],
-            cwd=REPO_ROOT,
-            input=json.dumps({}),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = run_cursor_adapter("stock_expert/services.py")
 
         payload = json.loads(result.stdout)
         self.assertEqual(result.returncode, 0)
@@ -145,24 +158,59 @@ class DocsStopHookTests(unittest.TestCase):
         self.assertNotIn("decision", payload)
 
     def test_cursor_adapter_allows_documented_change(self) -> None:
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(CURSOR_ADAPTER),
-                "--changed-file",
-                "stock_expert/services.py",
-                "--changed-file",
-                "docs/context/cursor-operator.md",
-            ],
-            cwd=REPO_ROOT,
-            input=json.dumps({}),
-            capture_output=True,
-            text=True,
-            check=False,
+        result = run_cursor_adapter(
+            "stock_expert/services.py",
+            "docs/context/cursor-operator.md",
         )
 
         self.assertEqual(result.returncode, 0)
         self.assertEqual(json.loads(result.stdout), {})
+
+    def test_cursor_adapter_reads_docs_marker_from_transcript_path(self) -> None:
+        transcript = write_transcript(
+            "docs_marker.jsonl",
+            {"role": "user", "content": "change services"},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "DOCS_NOT_NEEDED: stop stdin has no message keys",
+                    }
+                ],
+            },
+        )
+
+        result = run_cursor_adapter(
+            "stock_expert/services.py",
+            hook_input={
+                "hook_event_name": "stop",
+                "status": "completed",
+                "loop_count": 0,
+                "transcript_path": str(transcript),
+            },
+        )
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout), {})
+
+    def test_cursor_adapter_blocks_when_transcript_has_no_marker(self) -> None:
+        transcript = write_transcript(
+            "no_docs_marker.jsonl",
+            {
+                "type": "assistant",
+                "message": {"content": [{"type": "text", "text": "Updated services.py"}]},
+            },
+        )
+
+        result = run_cursor_adapter(
+            "stock_expert/services.py",
+            hook_input={"transcript_path": str(transcript)},
+        )
+
+        payload = json.loads(result.stdout)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("stock_expert/services.py", payload["followup_message"])
 
 
 if __name__ == "__main__":
