@@ -48,6 +48,7 @@
 - Live evidence-panel API integration remains deferred; Python strategy and SQLite behavior are unchanged.
 - Data & Runs now has a loopback-only persisted routine launcher with holiday/missed-day routing, CSV readiness checks, confirmation, progress, and result IDs.
 - The repo-local `/stock-expert:run` command starts or reuses the web app and opens it in Codex's built-in browser.
+- Cursor overlay skills in `.cursor/skills/` are the current operator path for `routine`, `run`, and `refresh-data`; the Codex plugin remains unused fallback. See `docs/context/cursor-operator.md`.
 - Reviews now load persisted history and selectable historical outcomes from SQLite and refresh after a successful routine; compact date navigation, older/newer controls, and a detail-first narrow layout keep the history usable. Other evidence panels remain typed sample data.
 - Data & Runs no longer includes the UI-only Presentation states preview controls.
 - The repo-local plugin exposes `refresh-data` for validated BIST CSV publication and hands successful refreshes to the direct `?view=runs` web entry point.

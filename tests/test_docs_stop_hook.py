@@ -10,6 +10,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / ".codex" / "hooks" / "validate_docs_update.py"
+CURSOR_ADAPTER = REPO_ROOT / ".cursor" / "hooks" / "validate_docs_update.py"
 
 
 def run_validator(
@@ -114,6 +115,54 @@ class DocsStopHookTests(unittest.TestCase):
         self.assertIn("Likely dead code", payload["reason"])
         self.assertIn("unused import 'json'", payload["reason"])
         self.assertIn("unused private function '_unused_helper'", payload["reason"])
+
+    def test_cursor_overlay_change_requires_documentation(self) -> None:
+        result = run_validator(".cursor/hooks.json")
+
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["decision"], "block")
+        self.assertIn(".cursor/hooks.json", payload["reason"])
+
+    def test_cursor_adapter_maps_block_to_followup_message(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(CURSOR_ADAPTER),
+                "--changed-file",
+                "stock_expert/services.py",
+            ],
+            cwd=REPO_ROOT,
+            input=json.dumps({}),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        payload = json.loads(result.stdout)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("followup_message", payload)
+        self.assertIn("stock_expert/services.py", payload["followup_message"])
+        self.assertNotIn("decision", payload)
+
+    def test_cursor_adapter_allows_documented_change(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(CURSOR_ADAPTER),
+                "--changed-file",
+                "stock_expert/services.py",
+                "--changed-file",
+                "docs/context/cursor-operator.md",
+            ],
+            cwd=REPO_ROOT,
+            input=json.dumps({}),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout), {})
 
 
 if __name__ == "__main__":

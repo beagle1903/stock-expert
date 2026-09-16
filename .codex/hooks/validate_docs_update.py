@@ -10,7 +10,7 @@ from pathlib import Path
 
 MARKER = "DOCS_NOT_NEEDED"
 ACCEPTED_DOC_PREFIXES = ("docs/features/", "docs/context/", "docs/tasks/")
-DEVELOPMENT_PREFIXES = ("stock_expert/", "tests/", ".codex/")
+DEVELOPMENT_PREFIXES = ("stock_expert/", "tests/", ".codex/", ".cursor/")
 DEVELOPMENT_FILENAMES = {
     "pyproject.toml",
     "setup.py",
@@ -19,7 +19,7 @@ DEVELOPMENT_FILENAMES = {
     "tox.ini",
 }
 DEVELOPMENT_SUFFIXES = {".py", ".sql", ".toml", ".json", ".yaml", ".yml", ".ini", ".cfg"}
-DEAD_CODE_CHECK_PREFIXES = ("stock_expert/", ".codex/hooks/")
+DEAD_CODE_CHECK_PREFIXES = ("stock_expert/", ".codex/hooks/", ".cursor/hooks/")
 DEAD_CODE_IGNORE_IMPORT_MODULES = {"__future__"}
 
 
