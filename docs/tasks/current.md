@@ -66,5 +66,7 @@
 - The implementation scope and verification record live in
   `docs/tasks/historical-strategy-playback.md`.
 - The four-item enhancement queue is recorded in `docs/tasks/backlog.md`.
+  GitHub issues remain the requirement tickets; do not start, close, or
+  rewrite them until that work begins.
 - Basic GitHub CI now gates pull requests and `main` with Python tests plus
   frontend tests and a production build; deployment is intentionally deferred.

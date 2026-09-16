@@ -37,24 +37,40 @@ The adapter runs the existing validator and maps Codex
 `.codex/` files. Accepted documentation locations are unchanged:
 `docs/features/`, `docs/context/`, `docs/tasks/`, and `memory.md`.
 
-`failClosed` is not enabled yet. After the hook is trusted and Hooks output
-shows the mapped JSON, set `"failClosed": true` on the `stop` entry.
+`failClosed` is not enabled yet. Set it only after the live follow-up in
+the merge-vs-operator checks below has been seen once.
 
-## Trust And Verify
+## Merge vs operator checks
 
-1. Open Cursor **Settings > Hooks** and review the project `stop` command.
-2. Trust `.cursor/hooks.json` and `.cursor/hooks/validate_docs_update.py`.
-3. Re-trust after any hook definition change.
-4. Confirm a code-only edit produces a `followup_message` that lists the
-   development files and accepted doc locations.
-5. Confirm a matching docs update, or `DOCS_NOT_NEEDED:` in
-   `docs/tasks/current.md` or the final assistant message, allows stop.
-
-Run the tests with:
+The automated merge check is only:
 
 ```powershell
 D:\miniconda3\python.exe -m unittest tests.test_docs_stop_hook -v
 ```
+
+That already covers validator gating and adapter mapping. You do not need to
+run `routine`, `/run`, or a data refresh to merge this overlay.
+
+Remaining Cursor UI checks are one-time operator setup, not CI:
+
+1. Open **Settings > Hooks** and trust the project `stop` command
+   (`D:\miniconda3\python.exe .cursor/hooks/validate_docs_update.py`).
+2. After that, the next real code-only agent turn should get a
+   `followup_message`. A docs update or `DOCS_NOT_NEEDED:` should allow stop.
+   Skip inventing a dummy edit just to prove this.
+3. Re-trust after any hook definition change. `failClosed` stays off until
+   that live follow-up has been seen once.
+
+`/routine`, `/run`, and refresh-data still call the same CLI and
+`frontend/scripts/dev.mjs`. Confirm by reading the skills; do not treat a
+full 5-minute watchdog or live Investing.com scrape as part of this PR.
+
+## Requirement tickets
+
+GitHub issues are the requirement tickets (currently #10–#14 open; #9 closed).
+Leave them until that work starts. When a feature begins or ships, update the
+matching issue or open a new one. `docs/tasks/` is the implementation record,
+not a replacement for the issue.
 
 ## Conventions That Stay
 
