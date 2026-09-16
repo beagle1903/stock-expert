@@ -86,6 +86,8 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-08-30 | Basic GitHub CI runs Python tests plus frontend tests and a production build on pull requests and `main`. | Establishes lightweight merge gates without coupling the repository to a deployment target that has not been selected. |
 | 2026-08-31 | Strategy Evidence Lab reads bounded review-owned candidate outcomes, immutable pilot sessions, and exact signal snapshots through a read-only API. | Prevents later reviews or snapshots from leaking into historical windows; incomplete pilot pairs remain visible but are excluded from fair strategy comparisons. |
 | 2026-09-01 | Historical Strategy Playback reads one immutable review bundle and its exact recorded signal snapshot through a read-only API. | Keeps preserved baskets, outcomes, strategy metadata, and pilot arms inspectable without recomputing legacy evidence or borrowing newer snapshots. |
+| 2026-09-16 | Cursor overlay skills and a Cursor `stop` adapter are the operator path; Codex plugin and Codex Stop hook stay in-repo as unused fallback. | Lets the repo run from Cursor without changing strategy, SQLite, or the web launcher, and without deleting Codex files. |
+| 2026-09-16 | GitHub issues remain the requirement tickets; docs record implementation. | Open issues stay the spec until we start them; close, update, or add issues when work ships or the requirement changes. Do not treat `docs/tasks/` as a replacement for the issue. |
 
 ## Workflows
 
@@ -106,6 +108,7 @@ Document repeatable ways of doing things in this repo.
 - `D:\miniconda3\python.exe -m stock_expert picks --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m unittest discover -s tests -v`
+- Cursor operator skills: `.cursor/skills/routine`, `.cursor/skills/run`, `.cursor/skills/refresh-data`
 
 ### Daily CSV Routine
 
@@ -173,7 +176,8 @@ Live files:
 - Root guidance lives in `AGENTS.md`.
 - Feature docs live in `docs/features/`.
 - Review and trust project-local Codex hooks through `/hooks`; hook trust must be renewed after hook definition changes.
-- The local Codex plugin is sourced from `.agents/plugins/marketplace.json` and `plugins/stock-expert`; reinstall it with `codex plugin add stock-expert@stock-expert-local` after changing plugin metadata.
+- Cursor is the current operator path. Project skills live in `.cursor/skills/`; the Cursor docs `stop` hook is `.cursor/hooks.json` wrapping `.codex/hooks/validate_docs_update.py`. Trust it in Cursor Settings > Hooks.
+- The local Codex plugin is leftover fallback sourced from `.agents/plugins/marketplace.json` and `plugins/stock-expert`; reinstall it with `codex plugin add stock-expert@stock-expert-local` only if Codex is used again.
 
 ## Gotchas
 
@@ -222,3 +226,4 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-04-09 | Created initial durable-memory file and seeded it with repo-specific context. |
 | 2026-08-15 | Recorded the configurable safe web API port after Windows reserved the old `8765` default. |
 | 2026-08-16 | Implemented and documented the launcher-owned five-minute post-boot watchdog. |
+| 2026-09-16 | Recorded the Cursor operator overlay: project skills, stop-hook adapter, Codex leftover fallback. |

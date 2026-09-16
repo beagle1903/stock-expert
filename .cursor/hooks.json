@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": "D:\\miniconda3\\python.exe .cursor/hooks/validate_docs_update.py",
+        "timeout": 30
+      }
+    ]
+  }
+}
