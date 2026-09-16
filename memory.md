@@ -88,6 +88,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-09-01 | Historical Strategy Playback reads one immutable review bundle and its exact recorded signal snapshot through a read-only API. | Keeps preserved baskets, outcomes, strategy metadata, and pilot arms inspectable without recomputing legacy evidence or borrowing newer snapshots. |
 | 2026-09-16 | Cursor overlay skills and a Cursor `stop` adapter are the operator path; Codex plugin and Codex Stop hook stay in-repo as unused fallback. | Lets the repo run from Cursor without changing strategy, SQLite, or the web launcher, and without deleting Codex files. |
 | 2026-09-16 | GitHub issues remain the requirement tickets; docs record implementation. | Open issues stay the spec until we start them; close, update, or add issues when work ships or the requirement changes. Do not treat `docs/tasks/` as a replacement for the issue. |
+| 2026-09-16 | Project Cursor agents `se-explore`, `se-implement`, `se-strategy-review`, and `se-ui-review` plus always-on routing with a named model cascade. | Keeps delegated work on Stock Expert invariants and reports silent Cursor model swaps instead of assuming the pin ran. |
 
 ## Workflows
 
@@ -109,6 +110,7 @@ Document repeatable ways of doing things in this repo.
 - `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m unittest discover -s tests -v`
 - Cursor operator skills: `.cursor/skills/routine`, `.cursor/skills/run`, `.cursor/skills/refresh-data`
+- Project subagents: `.cursor/agents/se-*.md` routed by `.cursor/rules/subagent-routing.mdc`
 
 ### Daily CSV Routine
 
@@ -227,3 +229,4 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-08-15 | Recorded the configurable safe web API port after Windows reserved the old `8765` default. |
 | 2026-08-16 | Implemented and documented the launcher-owned five-minute post-boot watchdog. |
 | 2026-09-16 | Recorded the Cursor operator overlay: project skills, stop-hook adapter, Codex leftover fallback. |
+| 2026-09-16 | Recorded project subagents, preferred models, and fallback cascade. |

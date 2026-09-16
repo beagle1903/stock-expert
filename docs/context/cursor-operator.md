@@ -72,6 +72,26 @@ Remaining Cursor UI checks are one-time operator setup, not CI:
 `frontend/scripts/dev.mjs`. Confirm by reading the skills; do not treat a
 full 5-minute watchdog or live Investing.com scrape as part of this PR.
 
+## Project Subagents
+
+Project agents live under `.cursor/agents/` and are routed by
+`.cursor/rules/subagent-routing.mdc` (`alwaysApply: true`).
+
+| Agent | Job | Preferred model |
+| --- | --- | --- |
+| `se-explore` | Read-only codebase search | `composer-2.5-fast` |
+| `se-implement` | One scoped change | `inherit` (parent chat) |
+| `se-strategy-review` | Persistence/ranking/review review | `claude-opus-5-thinking-high` |
+| `se-ui-review` | Evidence Console review | `claude-4-sonnet` |
+
+If a Task slug is rejected: `se-explore` falls back
+`composer-2.5-fast → inherit`; `se-implement` stays `inherit`;
+`se-strategy-review` falls back
+`claude-opus-5-thinking-high → claude-4-sonnet → inherit`;
+`se-ui-review` falls back `claude-4-sonnet → inherit`. Do not invent a
+fifth model. After each launch, report the actual model. Do not nest
+subagents. Contract tests: `tests/test_project_subagents.py`.
+
 ## Requirement tickets
 
 GitHub issues are the requirement tickets (currently #10–#14 open; #9 closed).
