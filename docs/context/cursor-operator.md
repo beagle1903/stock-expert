@@ -101,7 +101,7 @@ not a replacement for the issue.
 
 ## Conventions That Stay
 
-- Feature branches remain `codex/<task-name>`
+- Feature branches use a short topic name, not `codex/<task-name>`
 - `main` uses `data/stock_expert.db`; other branches stay isolated
 - Codex docs in `docs/context/codex-commands.md` and
   `docs/context/codex-hooks.md` remain historical

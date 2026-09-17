@@ -54,7 +54,8 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-04-22 | `routine` includes persisted picks and persisted review after the live CSV import. | Keeps the main operator workflow focused on the actual recorded strategy result. |
 | 2026-04-23 | Daily CSV imports now skip unmapped company names, report malformed required rows, and label derived CSV prices as previous-close-to-latest rather than true open-to-close. | Prevents fabricated tickers and makes review/daily outputs honest about the available feed semantics. |
 | 2026-04-23 | Persisted `review` is idempotent per signal/review date and weight changes now depend on return, win rate, and actionable misses. | Avoids repeated review drift while keeping the feedback loop tied to observed outcomes. |
-| 2026-04-23 | Non-trivial work should use feature-scoped branches named `codex/<task-name>`, then merge to `main` only after behavior is trusted. | Features often span model, schema, docs, tests, and deployment notes, so branch by feature instead of technical layer. |
+| 2026-04-23 | Non-trivial work uses a feature branch, then merge to `main` only after behavior is trusted. | Features often span model, schema, docs, tests, and deployment notes. |
+| 2026-09-17 | Stop Codex-style work structure: no `codex/` branch prefix, no Superpowers spec/plan ceremony, no Codex plugin workflow. GitHub issue + a short topic branch + implement. | Operator asked to drop the leftover Codex overlay as the way work is organized. |
 | 2026-04-30 | Trading-date helpers skip the user-confirmed full-day market holiday `2026-05-01`. | Keeps April 30 picks and May 4 review aligned across the Friday holiday. |
 | 2026-05-04 | Picks now subtract a capped `setup_penalty` for weak or stretched snapshot context before ranking. | Penalizes bearish technical alignment, missing/weak fundamentals, abnormal volume context, and crowded weekly/monthly momentum without replacing the base momentum/volume model. |
 | 2026-05-05 | Review win classification now requires at least 4% daily return. | Raises the strategy standard so small positive returns count as losses in win rate, persisted wins, and pick-level `won` rows. |
@@ -99,7 +100,7 @@ Document repeatable ways of doing things in this repo.
 
 ### Common Commands
 
-- `git checkout -b codex/<topic>`
+- `git checkout -b <topic>`
 - `git checkout main`
 - `git merge <feature-branch>`
 - `git push -u origin main`
@@ -161,7 +162,7 @@ Live files:
 ### Git Workflow
 
 - `main` is the stable branch and should match `origin/main`.
-- Use feature-scoped branches named `codex/<task-name>` for non-trivial work, especially anything strategy-affecting, persistence-affecting, or deployment-related.
+- Use a short topic branch for non-trivial work. Do not prefix with `codex/`. Do not add `docs/superpowers/` spec or plan files unless the user asks.
 - Keep all related feature changes on the same branch, even when they span model logic, schema, CLI output, tests, docs, memory, and deployment notes.
 - Merge a feature branch back into `main` only after behavior is trusted through tests and any relevant dry-run routine checks.
 - At the end of a completed feature task, commit, push the feature branch, and open a GitHub pull request. Do not wait to be asked.
@@ -235,3 +236,4 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-09-16 | Recorded the Cursor operator overlay: project skills, stop-hook adapter, Codex leftover fallback. |
 | 2026-09-16 | Recorded project subagents, preferred models, and fallback cascade. |
 | 2026-09-17 | Recorded fade-then-rechase ranking penalty and split miss tags (#21). |
+| 2026-09-17 | Dropped Codex-style branch names and spec/plan ceremony for new work. |
