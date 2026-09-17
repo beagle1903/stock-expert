@@ -41,6 +41,7 @@ from stock_expert.services import (
     rolling_candidate_diagnostics,
     rolling_review_weights,
     strategy_pilot_payload,
+    weak_market_breadth,
 )
 from stock_expert.signals import (
     compute_fundamental_adjustment,
@@ -221,6 +222,19 @@ class EnrichmentSignalTests(unittest.TestCase):
             reduced_breadth=True,
         )
         self.assertLess(reduced, score)
+
+    def test_fade_then_rechase_extra_uses_live_breadth_not_rolling_cap(self) -> None:
+        settings = self._settings_stub()
+        strong = [
+            PriceBar(ticker=f"A{i}", date=date(2026, 4, 21), open_price=10.0, close_price=11.0, volume=1_000_000)
+            for i in range(10)
+        ]
+        weak = [
+            PriceBar(ticker=f"B{i}", date=date(2026, 4, 21), open_price=11.0, close_price=10.0, volume=1_000_000)
+            for i in range(10)
+        ]
+        self.assertFalse(weak_market_breadth(settings, strong))
+        self.assertTrue(weak_market_breadth(settings, weak))
 
     def test_setup_penalized_limit_up_is_not_an_actionable_miss(self) -> None:
         settings = self._settings_stub()

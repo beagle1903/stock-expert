@@ -16,7 +16,7 @@
 - `midday-routine` imports the same live CSVs, then runs `daily`, `picks`, and a dry-run `review`
 - Candidate scores still center on momentum and volume, with bounded technical/basic-analysis soft boosts from `teknik.csv` and `temel.csv`
 - Candidate scores subtract a capped setup penalty for weak or stretched snapshot context before ranking.
-- Ranking also subtracts a fade-then-rechase penalty when a ~+10% prior close is being chased after it is no longer the immediately previous session.
+- Ranking also subtracts a fade-then-rechase penalty when a ~+10% prior close is being chased after it is no longer the immediately previous session. Extra penalty uses live weak breadth, not a rolling top-3 pick-cap reduction.
 - Bucketed selection is the persisted default during the controlled `bucketed-default-v1` pilot; score-ranked remains the breadth-matched control and the automatic fallback after rollback/failure.
 - The bucketed basket composes 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`, with score fill when needed.
 - Persisted and comparison picks include `selection_bucket` so later reviews can evaluate selection behavior.

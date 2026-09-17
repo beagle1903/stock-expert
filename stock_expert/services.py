@@ -308,6 +308,10 @@ def apply_fade_then_rechase_penalty(
     return max(raw_score - penalty, 0.0)
 
 
+def weak_market_breadth(settings: Settings, prices: object) -> bool:
+    return int(market_breadth_exposure(settings, prices)["pick_count_cap"]) < settings.default_pick_count
+
+
 def cap_setup_penalty_for_strong_momentum(signal: SignalRow, setup_penalty: float) -> float:
     if signal.momentum >= 0.9 and signal.technical >= 0.06 and signal.liquidity >= 1.0:
         return min(setup_penalty, 0.03)
@@ -429,12 +433,7 @@ def _compute_ranked_candidate_rows(
     latest_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, as_of)}
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
     history_by_ticker = group_bars_by_ticker(get_recent_price_history(settings, as_of, bars=4))
-    exposure = adaptive_pick_exposure(
-        settings,
-        list(latest_prices.values()),
-        before_review_date=as_of,
-    )
-    reduced_breadth = int(exposure["pick_count_cap"]) < settings.default_pick_count
+    reduced_breadth = weak_market_breadth(settings, list(latest_prices.values()))
     ranked: list[PickRow] = []
     for base_signal in signals:
         snapshot = snapshots.get(base_signal.ticker)
