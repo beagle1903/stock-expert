@@ -42,12 +42,13 @@ Use this section for architecture or workflow decisions that affect future chang
 
 | Date | Decision | Why It Matters |
 | --- | --- | --- |
-| 2026-09-17 | Fade-then-rechase score penalty uses prior two close returns; immediate +10% continuation stays allowed. Setup-penalized limit-up misses are non-actionable; near-cutoff notes no longer get overwritten. | Issue #21; reviewed baskets stay immutable. |
+| 2026-09-17 | Yahoo OHLCV stays optional and secondary: source-owned `yahoo_ohlcv` snapshots, no live-CSV overwrite, no daily-CSV mutation. `midday-routine` removed; use `review --dry-run`. | Issue #14. |
+| 2026-09-17 | Removed `openwiki/`; operator docs stay in `memory.md` and `docs/`. | Duplicate generated wiki drifted from the canonical tree. |
 | 2026-04-09 | Added `memory.md` as a durable repo memory file for human and agent collaboration. | Preserves hard-won context across sessions without relying on chat history. |
 | 2026-04-10 | Non-`main` git branches now default to branch-specific SQLite files like `data/stock_expert_codex_add_indicators.db`; `main` keeps `data/stock_expert.db`. | Prevents branch experiments from contaminating the primary database and makes branch-to-branch comparisons safer. |
 | 2026-04-20 | Live root CSVs are the default input; imports create timestamped SQLite snapshot runs instead of relying on dated archive folders. | Supports running the routine more than once during the same BIST session without overwriting earlier action snapshots. |
 | 2026-04-20 | Daily CSV import skips obvious non-equity portfolio-management/fund rows unless explicitly allowlisted. | Prevents fund/portfolio entities from becoming synthetic stock picks while allowing trusted aliases such as `HEDEFPORTFOYYONETIMIAS -> HEDEF`. |
-| 2026-04-21 | `routine` is the full end-to-end flow with actual persisted review; `midday-routine` is the import + daily + picks + dry-run review flow. | Keeps the midday dry-run review flow separate from the full review command path and matches the intended operator language. |
+| 2026-04-21 | `routine` is the full end-to-end flow with actual persisted review; `midday-routine` is the import + daily + picks + dry-run review flow. | Superseded 2026-09-17: `midday-routine` removed; use `review --dry-run`. |
 | 2026-04-21 | Repo test coverage now uses `unittest` in `tests/` for routine wiring, weekday date helpers, and dry-run review persistence boundaries. | Adds regression protection without introducing a new test dependency. |
 | 2026-04-21 | Picks now keep momentum/volume as the base score but add capped technical, quality, and fundamental soft boosts from imported snapshot data. | Brings `teknik.csv` and `temel.csv` into live ranking without replacing the core anti-chase momentum workflow. |
 | 2026-04-21 | GitHub remote backup is now active at `https://github.com/beagle1903/stock-expert`, with `main` as the default/stable branch. | Makes the repo recoverable off-laptop and establishes `main` as the source of truth after feature branches are merged. |
@@ -105,7 +106,7 @@ Document repeatable ways of doing things in this repo.
 - `git merge <feature-branch>`
 - `git push -u origin main`
 - `D:\miniconda3\python.exe -m stock_expert routine`
-- `D:\miniconda3\python.exe -m stock_expert midday-routine`
+- `D:\miniconda3\python.exe -m stock_expert download-ohlcv --tickers ADEL --days 30`
 - `D:\miniconda3\python.exe -m stock_expert import-daily-csv --date 2026-04-05`
 - `D:\miniconda3\python.exe -m stock_expert refresh-investing-csvs`
 - `D:\miniconda3\python.exe -m stock_expert import-daily-folder --folder data\YYYYMMDD`
@@ -120,7 +121,7 @@ Document repeatable ways of doing things in this repo.
 
 When the user says "do the routine", use the four live root CSVs in `data\`, import a new snapshot run, initialize/read the bucketed-default pilot, compute the daily ranking, persist the prior-session review before the current picks, then report the existing picks-first display, score-ranked vs bucketed comparison, and downside-risk diagnostics.
 
-When the user says "do the midday routine", use the same live CSV import flow, then run `daily`, normal `picks`, and `review --dry-run`.
+When the user says "do the midday routine", explain that `midday-routine` was removed and run `review --dry-run` if they still want a non-mutating review check.
 
 When the user requests any type of routine, assume the live root CSVs have already been refreshed up to the minute; do not ask whether the CSVs are current before running the requested routine.
 
@@ -134,10 +135,10 @@ Live files:
 - `data\temel.csv`
 
 1. Replace the four live CSV files with current exports.
-2. Run `D:\miniconda3\python.exe -m stock_expert routine` for the full flow or `D:\miniconda3\python.exe -m stock_expert midday-routine` for the midday dry-run review flow.
-3. The routine imports a new `snapshot_runs` row for today's date and uses the latest snapshot for output.
-4. `routine` persists the prior review before current picks so pilot rollback is immediate, atomically stores operational picks plus both breadth-matched pilot baskets, and prints comparison/downside diagnostics; `midday-routine` neither initializes nor mutates the pilot and keeps review non-mutating via `--dry-run`.
-5. Use `midday-routine` when the user wants the midday dry-run review behavior from yesterday.
+2. Run `D:\miniconda3\python.exe -m stock_expert routine` for the full flow.
+3. The routine imports a new `snapshot_runs` row for today's date and uses the latest operational snapshot for output.
+4. `routine` persists the prior review before current picks so pilot rollback is immediate, atomically stores operational picks plus both breadth-matched pilot baskets, and prints comparison/downside diagnostics.
+5. Use `review --dry-run` for non-mutating review checks.
 6. Run CLI commands from the repo root unless the package is installed in the active environment.
 
 ### Investing.com CSV Refresh
@@ -150,13 +151,13 @@ Live files:
 ### Strategy Comparison
 
 - Use `--dry-run` for comparison runs; it must not write picks, signals, weights, or review rows.
-- Use `midday-routine` for midday dry-run review checks without mutating review state.
+- Use `review --dry-run` for non-mutating review checks.
 - Use `routine` for the actual persisted review flow plus reporting-only diagnostics.
 
 ### Testing
 
 - Run `D:\miniconda3\python.exe -m unittest discover -s tests -v` from the repo root.
-- Current tests cover `routine` vs `midday-routine` CLI wiring, weekday date helpers, review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, bounded technical/fundamental/setup-penalty scoring behavior, score-ranked default picks, and bucketed comparison reporting.
+- Current tests cover `routine` CLI wiring, weekday date helpers, review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, bounded technical/fundamental/setup-penalty scoring behavior, score-ranked default picks, bucketed comparison reporting, and Yahoo isolation.
 - Ranking diagnostics depend on persisted `candidate_outcomes`; complete pilot evidence lives separately in `strategy_pilot_state`, `strategy_pilot_picks`, and `strategy_pilot_sessions`, where reviewed membership is immutable and incomplete price evidence remains visible.
 
 ### Git Workflow
@@ -237,3 +238,5 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-09-16 | Recorded project subagents, preferred models, and fallback cascade. |
 | 2026-09-17 | Recorded fade-then-rechase ranking penalty and split miss tags (#21). |
 | 2026-09-17 | Dropped Codex-style branch names and spec/plan ceremony for new work. |
+| 2026-09-17 | Recorded Yahoo secondary-path isolation and removal of `midday-routine` (#14). |
+| 2026-09-17 | Removed redundant `openwiki/` generated wiki. |

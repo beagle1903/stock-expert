@@ -9,8 +9,10 @@ from unittest.mock import patch
 
 from stock_expert.config import Settings
 from stock_expert.database import (
+    YAHOO_OHLCV_SOURCE,
     connect,
     create_snapshot_run,
+    get_latest_snapshot_id,
     get_latest_weights,
     get_persisted_pick_count,
     get_pick_results,
@@ -22,6 +24,7 @@ from stock_expert.database import (
     init_db,
     insert_review_run,
     insert_weights,
+    persist_yahoo_prices,
     replace_picks_for_date,
     upsert_prices,
     upsert_signals,
@@ -88,6 +91,46 @@ class PricePersistenceTests(unittest.TestCase):
         self.assertEqual(movers[0]["ticker"], "AAA")
         self.assertEqual(get_prices_for_date(self.settings, date(2026, 4, 19)), [])
         self.assertEqual(get_recent_price_history(self.settings, date(2026, 4, 22), bars=2), [])
+
+    def test_yahoo_prices_do_not_mutate_daily_csv_or_become_latest(self) -> None:
+        daily_id = create_snapshot_run(self.settings, date(2026, 4, 20), "daily_csv", "data")
+        upsert_prices(
+            self.settings,
+            [(daily_id, "AAA", date(2026, 4, 20), 10.0, 11.0, 100.0)],
+        )
+        snapshot_ids = persist_yahoo_prices(
+            self.settings,
+            [("AAA", date(2026, 4, 20), 10.0, 99.0, 999.0)],
+            source_dir="data/yahoo_ohlcv.csv",
+        )
+
+        daily = get_prices_for_date(self.settings, date(2026, 4, 20))
+        yahoo_id = snapshot_ids[date(2026, 4, 20)]
+        with connect(self.settings) as conn:
+            yahoo_close = conn.execute(
+                "SELECT close_price FROM stocks WHERE snapshot_id = ? AND ticker = ?",
+                (yahoo_id, "AAA"),
+            ).fetchone()["close_price"]
+            yahoo_label = conn.execute(
+                "SELECT source_label FROM snapshot_runs WHERE id = ?",
+                (yahoo_id,),
+            ).fetchone()["source_label"]
+
+        self.assertEqual([(row.ticker, row.close_price) for row in daily], [("AAA", 11.0)])
+        self.assertEqual(get_latest_snapshot_id(self.settings, date(2026, 4, 20)), daily_id)
+        self.assertNotEqual(yahoo_id, daily_id)
+        self.assertEqual(yahoo_close, 99.0)
+        self.assertEqual(yahoo_label, YAHOO_OHLCV_SOURCE)
+        persist_yahoo_prices(
+            self.settings,
+            [("AAA", date(2026, 4, 21), 12.0, 13.0, 50.0)],
+            source_dir="data/yahoo_ohlcv.csv",
+        )
+        self.assertIsNone(get_latest_snapshot_id(self.settings, date(2026, 4, 21)))
+        history = get_recent_price_history(self.settings, date(2026, 4, 20), bars=5)
+        self.assertEqual({row.date for row in history}, {date(2026, 4, 20)})
+        self.assertEqual(history[0].close_price, 11.0)
+        self.assertEqual(get_recent_price_history(self.settings, date(2026, 4, 21), bars=5), [])
 
     def test_signal_pick_weight_and_review_helpers_round_trip(self) -> None:
         signal_date = date(2026, 4, 20)

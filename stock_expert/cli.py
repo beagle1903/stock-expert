@@ -56,7 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     download_parser.add_argument(
         "--output",
         default="data/yahoo_ohlcv.csv",
-        help="CSV output path relative to the project root",
+        help="CSV output path under data/, not a live Investing.com CSV",
     )
     download_parser.add_argument(
         "--import-db",
@@ -123,17 +123,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Snapshot date in YYYY-MM-DD format, default is today",
     )
     routine_parser.add_argument("--data-dir", default="data", help="Directory containing the four live csv files")
-    midday_parser = subparsers.add_parser(
-        "midday-routine",
-        help="Import live CSV files, summarize market, generate picks, and run dry-run review",
-    )
-    midday_parser.add_argument(
-        "--date",
-        dest="as_of",
-        default=date.today().isoformat(),
-        help="Snapshot date in YYYY-MM-DD format, default is today",
-    )
-    midday_parser.add_argument("--data-dir", default="data", help="Directory containing the four live csv files")
     return parser
 
 
@@ -226,7 +215,7 @@ def main() -> int:
             print(f"import-daily-folder: {exc}", file=sys.stderr)
             return 1
         return 0
-    if args.command in {"routine", "midday-routine"}:
+    if args.command == "routine":
         as_of = date.fromisoformat(args.as_of)
         ranking_context = RankingContext()
         try:
@@ -246,61 +235,41 @@ def main() -> int:
         print("Market Context:")
         print(market_context_output(as_of))
         print()
-        if args.command == "routine":
-            ensure_bucketed_default_pilot(settings, as_of)
+        ensure_bucketed_default_pilot(settings, as_of)
         daily_output = daily_summary(
             settings,
             as_of,
             ranking_context=ranking_context,
         )
-        if args.command == "midday-routine":
-            pick_list_output = picks_output(
-                settings,
-                as_of,
-                ranking_context=ranking_context,
-            )
-            persisted_review_output = None
-            dry_run_review_output = review_output(
-                settings,
-                as_of,
-                dry_run=True,
-                ranking_context=ranking_context,
-            )
-        else:
-            persisted_review_output = review_output(
-                settings,
-                as_of,
-                ranking_context=ranking_context,
-            )
-            pick_list_output = picks_output(
-                settings,
-                as_of,
-                ranking_context=ranking_context,
-            )
-            dry_run_review_output = None
+        persisted_review_output = review_output(
+            settings,
+            as_of,
+            ranking_context=ranking_context,
+        )
+        pick_list_output = picks_output(
+            settings,
+            as_of,
+            ranking_context=ranking_context,
+        )
         print(daily_output)
         print()
         print("Pick List:")
         print(pick_list_output)
         print()
-        if args.command == "midday-routine":
-            print("Dry-Run Review:")
-            print(dry_run_review_output)
-        else:
-            print("Review:")
-            print(persisted_review_output)
-            print()
-            print("Score-Ranked vs Bucketed Review Comparison:")
-            print(
-                bucketed_strategy_comparison_output(
-                    settings,
-                    as_of,
-                    ranking_context=ranking_context,
-                )
+        print("Review:")
+        print(persisted_review_output)
+        print()
+        print("Score-Ranked vs Bucketed Review Comparison:")
+        print(
+            bucketed_strategy_comparison_output(
+                settings,
+                as_of,
+                ranking_context=ranking_context,
             )
-            print()
-            print("Downside Risk Diagnostic:")
-            print(downside_risk_output(settings, as_of, ranking_context=ranking_context))
+        )
+        print()
+        print("Downside Risk Diagnostic:")
+        print(downside_risk_output(settings, as_of, ranking_context=ranking_context))
         return 0
 
     parser.error(f"Unsupported command: {args.command}")

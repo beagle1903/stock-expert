@@ -7,13 +7,15 @@ import shutil
 import unittest
 import uuid
 import zipfile
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlparse
 
 from stock_expert.config import Settings
 from stock_expert.yahoo import (
+    YahooChartError,
     download_ohlcv_command,
     fetch_yahoo_ohlcv,
     fetch_yahoo_ohlcv_with_retry,
@@ -74,6 +76,8 @@ class YahooTests(unittest.TestCase):
     def test_normalize_yahoo_symbol_handles_local_and_qualified_codes(self) -> None:
         self.assertEqual(normalize_yahoo_symbol(" adel "), ("ADEL.IS", "ADEL"))
         self.assertEqual(normalize_yahoo_symbol("adel.is"), ("ADEL.IS", "ADEL"))
+        with self.assertRaises(ValueError):
+            normalize_yahoo_symbol("../etc")
 
     def test_fetch_yahoo_ohlcv_parses_rows_and_skips_null_quotes(self) -> None:
         timestamps = [
@@ -120,6 +124,35 @@ class YahooTests(unittest.TestCase):
         self.assertIn("ADEL.IS", urlopen.call_args.args[0])
         self.assertEqual(urlopen.call_args.kwargs["timeout"], 20)
 
+    def test_fetch_yahoo_ohlcv_uses_requested_start_and_end_epochs(self) -> None:
+        payload = {"chart": {"result": [{"timestamp": [], "indicators": {"quote": [{}]}}]}}
+        with patch("stock_expert.yahoo.urlopen", return_value=_FakeResponse(payload)) as urlopen:
+            with self.assertRaises(YahooChartError):
+                fetch_yahoo_ohlcv("ADEL.IS", start_date=date(2026, 3, 1), end_date=date(2026, 3, 31))
+
+        query = parse_qs(urlparse(urlopen.call_args.args[0]).query)
+        period1 = datetime.fromtimestamp(int(query["period1"][0]), UTC).date()
+        period2 = datetime.fromtimestamp(int(query["period2"][0]), UTC).date()
+        self.assertEqual(period1, date(2026, 2, 24))
+        self.assertEqual(period2, date(2026, 4, 1))
+
+    def test_fetch_yahoo_ohlcv_rejects_empty_and_error_chart_payloads(self) -> None:
+        with patch("stock_expert.yahoo.urlopen", return_value=_FakeResponse({"chart": {"result": None}})):
+            with self.assertRaises(YahooChartError):
+                fetch_yahoo_ohlcv("ADEL.IS", days=5)
+        with patch(
+            "stock_expert.yahoo.urlopen",
+            return_value=_FakeResponse({"chart": {"result": None, "error": {"description": "Not found"}}}),
+        ):
+            with self.assertRaises(YahooChartError):
+                fetch_yahoo_ohlcv("ADEL.IS", days=5)
+        with patch(
+            "stock_expert.yahoo.urlopen",
+            return_value=_FakeResponse({"chart": {"result": [{"timestamp": [], "indicators": {"quote": [{}]}}]}}),
+        ):
+            with self.assertRaises(YahooChartError):
+                fetch_yahoo_ohlcv("ADEL.IS", days=5)
+
     def test_retry_uses_retry_after_for_http_429(self) -> None:
         error = HTTPError("https://example.test", 429, "rate limited", {"Retry-After": "2"}, io.BytesIO())
         with (
@@ -147,6 +180,20 @@ class YahooTests(unittest.TestCase):
         with patch("stock_expert.yahoo.fetch_yahoo_ohlcv", side_effect=error):
             with self.assertRaises(URLError):
                 fetch_yahoo_ohlcv_with_retry("ADEL.IS", 5, max_retries=0, pause_seconds=0.25)
+
+    def test_retry_handles_malformed_json_then_succeeds(self) -> None:
+        with (
+            patch(
+                "stock_expert.yahoo.fetch_yahoo_ohlcv",
+                side_effect=[json.JSONDecodeError("bad", "doc", 0), self._history()],
+            ),
+            patch("stock_expert.yahoo.random.uniform", return_value=0.0),
+            patch("stock_expert.yahoo.time.sleep") as sleep,
+        ):
+            rows = fetch_yahoo_ohlcv_with_retry("ADEL.IS", 5, max_retries=1, pause_seconds=0.5)
+
+        self.assertEqual(rows, self._history())
+        sleep.assert_called_once_with(0.5)
 
     def test_load_tickers_from_minimal_excel_deduplicates_and_filters(self) -> None:
         workbook = self.settings.base_dir / "tickers.xlsx"
@@ -190,7 +237,7 @@ class YahooTests(unittest.TestCase):
             ),
             patch("stock_expert.yahoo.time.sleep") as sleep,
             patch("stock_expert.yahoo.init_db") as init_db,
-            patch("stock_expert.yahoo.upsert_prices") as upsert_prices,
+            patch("stock_expert.yahoo.persist_yahoo_prices") as persist_yahoo_prices,
         ):
             payload = json.loads(
                 download_ohlcv_command(
@@ -210,14 +257,84 @@ class YahooTests(unittest.TestCase):
         self.assertEqual(payload["failures"][0]["ticker"], "FAIL")
         self.assertTrue((self.settings.data_dir / "download.csv").exists())
         init_db.assert_called_once_with(self.settings)
-        self.assertEqual(len(upsert_prices.call_args.args[1]), 2)
+        self.assertEqual(len(persist_yahoo_prices.call_args.args[1]), 2)
         sleep.assert_called_once_with(0.1)
+
+    def test_download_command_preserves_existing_csv_when_all_tickers_fail(self) -> None:
+        output = self.settings.data_dir / "yahoo_ohlcv.csv"
+        output.write_text("trusted\n", encoding="utf-8")
+        with (
+            patch("stock_expert.yahoo.fetch_yahoo_ohlcv_with_retry", side_effect=URLError("offline")),
+            patch("stock_expert.yahoo.init_db") as init_db,
+            patch("stock_expert.yahoo.persist_yahoo_prices") as persist_yahoo_prices,
+        ):
+            payload = json.loads(
+                download_ohlcv_command(
+                    self.settings,
+                    tickers=["FAIL"],
+                    days=5,
+                    output_path="data/yahoo_ohlcv.csv",
+                    import_db=True,
+                    pause_seconds=0.0,
+                    max_retries=0,
+                )
+            )
+
+        self.assertEqual(payload["rows_written"], 0)
+        self.assertTrue(payload["preserved_existing_output"])
+        self.assertEqual(output.read_text(encoding="utf-8"), "trusted\n")
+        init_db.assert_not_called()
+        persist_yahoo_prices.assert_not_called()
+
+    def test_download_command_preserves_existing_csv_on_partial_failure(self) -> None:
+        output = self.settings.data_dir / "yahoo_ohlcv.csv"
+        output.write_text("trusted\n", encoding="utf-8")
+        failure = URLError("offline")
+        with (
+            patch(
+                "stock_expert.yahoo.fetch_yahoo_ohlcv_with_retry",
+                side_effect=[self._history(), failure],
+            ),
+            patch("stock_expert.yahoo.time.sleep"),
+            patch("stock_expert.yahoo.init_db") as init_db,
+            patch("stock_expert.yahoo.persist_yahoo_prices") as persist_yahoo_prices,
+        ):
+            payload = json.loads(
+                download_ohlcv_command(
+                    self.settings,
+                    tickers=["ADEL", "FAIL"],
+                    days=5,
+                    output_path="data/yahoo_ohlcv.csv",
+                    import_db=True,
+                    pause_seconds=0.0,
+                    max_retries=0,
+                )
+            )
+
+        self.assertEqual(payload["rows_written"], 0)
+        self.assertTrue(payload["preserved_existing_output"])
+        self.assertEqual(payload["rows_imported"], 0)
+        self.assertEqual(output.read_text(encoding="utf-8"), "trusted\n")
+        init_db.assert_not_called()
+        persist_yahoo_prices.assert_not_called()
+
+    def test_download_command_rejects_live_csv_output_path(self) -> None:
+        with self.assertRaises(ValueError):
+            download_ohlcv_command(
+                self.settings,
+                tickers=["ADEL"],
+                days=5,
+                output_path="data/fiyat.csv",
+                import_db=False,
+                pause_seconds=0.0,
+                max_retries=0,
+            )
 
     def test_download_command_can_export_without_database_import(self) -> None:
         with (
             patch("stock_expert.yahoo.fetch_yahoo_ohlcv_with_retry", return_value=self._history()),
             patch("stock_expert.yahoo.init_db") as init_db,
-            patch("stock_expert.yahoo.upsert_prices") as upsert_prices,
+            patch("stock_expert.yahoo.persist_yahoo_prices") as persist_yahoo_prices,
         ):
             payload = json.loads(
                 download_ohlcv_command(
@@ -233,7 +350,7 @@ class YahooTests(unittest.TestCase):
 
         self.assertEqual(payload["rows_imported"], 0)
         init_db.assert_not_called()
-        upsert_prices.assert_not_called()
+        persist_yahoo_prices.assert_not_called()
 
     def test_excel_import_filters_range_batches_and_reports_failures(self) -> None:
         failure = HTTPError("https://example.test", 500, "bad", {}, io.BytesIO())
@@ -243,7 +360,7 @@ class YahooTests(unittest.TestCase):
             patch("stock_expert.yahoo.fetch_yahoo_ohlcv_with_retry", side_effect=histories),
             patch("stock_expert.yahoo.time.sleep") as sleep,
             patch("stock_expert.yahoo.init_db") as init_db,
-            patch("stock_expert.yahoo.upsert_prices") as upsert_prices,
+            patch("stock_expert.yahoo.persist_yahoo_prices") as persist_yahoo_prices,
         ):
             payload = json.loads(
                 import_ohlcv_excel_command(
@@ -264,7 +381,7 @@ class YahooTests(unittest.TestCase):
         self.assertEqual(payload["failure_count"], 1)
         self.assertEqual(payload["sample_failures"][0]["ticker"], "FAIL")
         init_db.assert_called_once_with(self.settings)
-        self.assertEqual(len(upsert_prices.call_args.args[1]), 2)
+        self.assertEqual(len(persist_yahoo_prices.call_args.args[1]), 2)
         self.assertEqual(sleep.call_count, 3)
 
 

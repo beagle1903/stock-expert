@@ -13,7 +13,7 @@
 
 - Daily CSV imports are the main runtime market-data source
 - `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily`, persisted `picks`, actual `review`, score-ranked vs bucketed review comparison, and downside-risk diagnostics
-- `midday-routine` imports the same live CSVs, then runs `daily`, `picks`, and a dry-run `review`
+- Yahoo import remains an optional secondary path (`download-ohlcv`, `import-ohlcv-excel`). It never joins `routine`. Imports publish `yahoo_ohlcv` snapshots that cannot replace daily-CSV prices or the four live CSVs. Use `review --dry-run` for non-mutating review checks; `midday-routine` was removed.
 - Candidate scores still center on momentum and volume, with bounded technical/basic-analysis soft boosts from `teknik.csv` and `temel.csv`
 - Candidate scores subtract a capped setup penalty for weak or stretched snapshot context before ranking.
 - Ranking also subtracts a fade-then-rechase penalty when a ~+10% prior close is being chased after it is no longer the immediately previous session. Extra penalty uses live weak breadth, not a rolling top-3 pick-cap reduction.
@@ -31,7 +31,6 @@
 - `review` labels missing prior picks as `no_prior_picks` and includes attribution for reviewed picks and missed movers.
 - Automated tests use the standard-library `unittest` runner to avoid adding extra dependencies for basic CLI/service coverage
 - `data/ticker_map.csv` is used to persist company-name to ticker mappings across imports
-- Yahoo import remains available as a secondary path
 - `main` uses `data/stock_expert.db`; non-`main` branches default to branch-specific SQLite files unless `STOCK_EXPERT_DB_PATH` is set
 - `review --date YYYY-MM-DD` evaluates the previous trading-day signal picks against the requested review date and reports missed movers for that review date
 - Missed movers are grouped into `missed_top_movers`, `missed_actionable`, and `missed_non_actionable`

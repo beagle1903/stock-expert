@@ -12,7 +12,7 @@
 - `stock_expert/models.py`: domain models
 - `stock_expert/config.py`: paths and thresholds
 - `stock_expert/web_api.py`: loopback-only routine preview/execution adapter around the existing CLI
-- `stock_expert/yahoo.py`: Yahoo OHLCV downloader with CSV export and optional SQLite import
+- `stock_expert/yahoo.py`: optional Yahoo OHLCV downloader; CSV export under `data/` except live CSVs; SQLite import publishes `yahoo_ohlcv` snapshots
 - `.codex/hooks/validate_docs_update.py`: shared docs-update validator used by the leftover Codex Stop hook and the Cursor overlay adapter
 - `.cursor/hooks/validate_docs_update.py`: Cursor `stop` adapter that maps validator block output to `followup_message`
 - `.cursor/skills/`: Cursor operator skills for `routine`, `run`, and `refresh-data`
@@ -40,7 +40,7 @@
 
 - SQLite tables: `snapshot_runs`, `snapshot_mapping_failures`, `stocks`, `signals`, `picks`, `weights`, `market_snapshots`, `review_runs`, `review_pick_results`, `review_missed_mover_results`, `candidate_outcomes`, `strategy_pilot_state`, `strategy_pilot_picks`, `strategy_pilot_sessions`
 - `snapshot_runs` stores each live CSV import; market rows, signals, and picks reference a snapshot id
-- Date-based reads use the latest snapshot for each date
+- Date-based operational reads ignore `yahoo_ohlcv` snapshots so Yahoo backfill cannot enter ranking or review price windows
 - Daily snapshot publication is one transaction covering the run, market rows, price rows, and optional captured provenance (`provenance_captured=1` plus up to 50 mapping-failure names). `create_snapshot_run` and other non-CSV paths leave provenance uncaptured.
 - Review runs, resulting weights, pick results, and candidate outcomes are persisted as one idempotent transaction
 - Captured missed movers join that review transaction; their ordered classification and attribution are immutable on rerun, while a review-level flag keeps legacy and captured-empty states distinct
