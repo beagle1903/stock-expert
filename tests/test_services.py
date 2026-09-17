@@ -22,8 +22,10 @@ from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, We
 from stock_expert.services import (
     RankingContext,
     _attribution_for_pick,
+    apply_fade_then_rechase_penalty,
     bucketed_strategy_comparison_output,
     cap_setup_penalty_for_strong_momentum,
+    classify_missed_mover,
     daily_summary,
     downside_risk_output,
     generate_bucketed_picks,
@@ -192,6 +194,90 @@ class EnrichmentSignalTests(unittest.TestCase):
         enriched_score = 1.08
         penalized = apply_same_day_chase_penalty(self._settings_stub(), enriched_score, 10.0)
         self.assertLess(penalized, enriched_score)
+
+    def test_fade_then_rechase_skips_immediate_limit_up_continuation(self) -> None:
+        settings = self._settings_stub()
+        score = apply_fade_then_rechase_penalty(
+            settings,
+            1.2,
+            prior_returns_pct=[1.0, 9.9],
+            reduced_breadth=True,
+        )
+        self.assertEqual(score, 1.2)
+
+    def test_fade_then_rechase_penalizes_older_limit_up_then_reselect(self) -> None:
+        settings = self._settings_stub()
+        score = apply_fade_then_rechase_penalty(
+            settings,
+            1.2,
+            prior_returns_pct=[9.9, -5.6],
+            reduced_breadth=False,
+        )
+        self.assertLess(score, 1.2)
+        reduced = apply_fade_then_rechase_penalty(
+            settings,
+            1.2,
+            prior_returns_pct=[10.0, 5.2],
+            reduced_breadth=True,
+        )
+        self.assertLess(reduced, score)
+
+    def test_setup_penalized_limit_up_is_not_an_actionable_miss(self) -> None:
+        settings = self._settings_stub()
+        mover = {
+            "ticker": "UNLU",
+            "close_change_return": 0.10,
+            "close_price": 10.0,
+            "volume": settings.low_liquidity_threshold,
+        }
+        pick = PickRow(
+            date=date(2026, 4, 20),
+            ticker="UNLU",
+            score=0.2,
+            momentum=0.4,
+            volume=0.4,
+            risk="medium",
+            setup_penalty=0.095,
+        )
+        classification, reason = classify_missed_mover(
+            settings,
+            mover,
+            candidate=(237, pick),
+        )
+        self.assertEqual(classification, "non_actionable")
+        self.assertEqual(reason, "setup_penalized_limit_up")
+
+    def test_near_cutoff_note_wins_over_setup_overwrite(self) -> None:
+        settings = self._settings_stub()
+        pick = PickRow(
+            date=date(2026, 4, 20),
+            ticker="TKFEN",
+            score=0.8,
+            momentum=0.8,
+            volume=0.8,
+            risk="high",
+            setup_penalty=0.02,
+        )
+        attribution = _attribution_for_pick(
+            settings,
+            (8, pick),
+            effective_pick_count=5,
+            mover_return=0.0204,
+        )
+        self.assertEqual(attribution["selection_note"], "near_cutoff")
+
+    def test_selected_pick_rank_outside_top_five_is_not_near_cutoff(self) -> None:
+        settings = self._settings_stub()
+        pick = PickRow(
+            date=date(2026, 4, 20),
+            ticker="COV",
+            score=0.7,
+            momentum=0.7,
+            volume=0.7,
+            risk="medium",
+        )
+        attribution = _attribution_for_pick(settings, (8, pick), effective_pick_count=5)
+        self.assertEqual(attribution["selection_note"], "below_top_pick_cutoff")
 
     def test_market_context_score_penalty_flags_shock_downside(self) -> None:
         weak = self.snapshot.__class__(

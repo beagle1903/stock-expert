@@ -9,6 +9,8 @@
 - Reports `no_prior_picks` when there are no persisted signal-date picks to review, so zero performance is not mistaken for strategy evidence
 - Reports `missing_price_outcomes` when any persisted pick lacks a target price, including explicit incomplete, persisted-pick, evaluated-pick, and missing-price counts
 - Includes reviewed-pick and missed-mover attribution from recomputed signal-date ranks, signal components, boosts, and setup penalty context
+- Setup-penalized limit-up-like misses (`>=9%`, setup penalty `>=0.05`, rank `>50`) persist as `non_actionable` / `setup_penalized_limit_up`
+- Near-cutoff misses (rank 6–20) use `selection_note=near_cutoff` only on missed movers, not on selected basket members
 - Reviewed persisted picks can include `selection_bucket`, allowing later bucket-level performance checks
 - Counts a pick as a win only when return is at least 4%; smaller gains are treated as losses
 - Persists each review run, resulting weights, pick-level returns, and candidate outcomes in one transaction

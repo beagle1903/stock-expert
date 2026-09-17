@@ -7,6 +7,8 @@
 - Base score uses momentum and volume
 - Adds bounded soft boosts from daily/weekly technical labels and basic-analysis quality fields
 - Subtracts a capped setup penalty for bearish technical alignment, missing/weak fundamentals, abnormal volume context, and stretched weekly/monthly momentum
+- Subtracts a fade-then-rechase penalty when a ~+10% close return occurred in the prior two sessions but is no longer immediate next-day continuation; the penalty is larger when breadth already reduced the pick cap
+- Immediate next-day continuation after a ~+10% session is not banned by this rule
 - Caps setup penalty for strong momentum, full-liquidity, strong-technical candidates so stretched context does not fully suppress breakout setups
 - `bucketed-default-v1` makes bucketed selection the persisted default while its controlled pilot is active; score-ranked remains the complete control basket
 - The pilot uses the existing cap of 5 picks unless breadth or rolling candidate evidence favors a tighter cutoff

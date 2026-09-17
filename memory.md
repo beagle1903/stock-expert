@@ -42,6 +42,7 @@ Use this section for architecture or workflow decisions that affect future chang
 
 | Date | Decision | Why It Matters |
 | --- | --- | --- |
+| 2026-09-17 | Fade-then-rechase score penalty uses prior two close returns; immediate +10% continuation stays allowed. Setup-penalized limit-up misses are non-actionable; near-cutoff notes no longer get overwritten. | Issue #21; reviewed baskets stay immutable. |
 | 2026-04-09 | Added `memory.md` as a durable repo memory file for human and agent collaboration. | Preserves hard-won context across sessions without relying on chat history. |
 | 2026-04-10 | Non-`main` git branches now default to branch-specific SQLite files like `data/stock_expert_codex_add_indicators.db`; `main` keeps `data/stock_expert.db`. | Prevents branch experiments from contaminating the primary database and makes branch-to-branch comparisons safer. |
 | 2026-04-20 | Live root CSVs are the default input; imports create timestamped SQLite snapshot runs instead of relying on dated archive folders. | Supports running the routine more than once during the same BIST session without overwriting earlier action snapshots. |
@@ -233,3 +234,4 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-08-16 | Implemented and documented the launcher-owned five-minute post-boot watchdog. |
 | 2026-09-16 | Recorded the Cursor operator overlay: project skills, stop-hook adapter, Codex leftover fallback. |
 | 2026-09-16 | Recorded project subagents, preferred models, and fallback cascade. |
+| 2026-09-17 | Recorded fade-then-rechase ranking penalty and split miss tags (#21). |
