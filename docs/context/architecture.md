@@ -31,16 +31,17 @@
 - The latest review, pick outcomes, and captured missed movers are read from SQLite through `GET /api/reviews/latest`; historical summaries use `GET /api/reviews/history`, and selected immutable detail uses `GET /api/reviews/{id}`. Picks, diagnostics, exposure, snapshot, and timeline panels remain persisted evidence from the picks endpoint.
 - `GET /api/strategy-evidence` provides bounded read-only Strategy Lab aggregates from review-owned candidate outcomes, immutable pilot sessions, and exact signal snapshots. It accepts 5/10/20/all windows plus an optional end review date and does not invoke ranking or selection logic.
 - `GET /api/strategy-playback/{review_id}` returns one review-owned operational basket, exact signal snapshot context, stored strategy metadata, paired pilot arms, and eventual outcome without recomputation or latest-snapshot fallback.
+- `GET /api/snapshots/history` lists every published `snapshot_runs` row newest-first (including pick-less imports). `GET /api/snapshots/{id}` returns captured provenance, mapping-failure names, and prior-snapshot comparison by `id < selected`. These routes do not invoke ranking; `/api/picks/latest` still selects the newest snapshot that owns picks.
 - A successful web routine reloads the dashboard adapter so the Reviews screen reflects the newly persisted review without a page refresh.
 - Data & Runs is the only mutating web surface. Its local API invokes `python -m stock_expert routine` without changing strategy or SQLite semantics.
 - The dashboard does not expose order execution, live quotes, portfolios, forecasts, or target prices.
 
 ## Persistence
 
-- SQLite tables: `snapshot_runs`, `stocks`, `signals`, `picks`, `weights`, `market_snapshots`, `review_runs`, `review_pick_results`, `review_missed_mover_results`, `candidate_outcomes`, `strategy_pilot_state`, `strategy_pilot_picks`, `strategy_pilot_sessions`
+- SQLite tables: `snapshot_runs`, `snapshot_mapping_failures`, `stocks`, `signals`, `picks`, `weights`, `market_snapshots`, `review_runs`, `review_pick_results`, `review_missed_mover_results`, `candidate_outcomes`, `strategy_pilot_state`, `strategy_pilot_picks`, `strategy_pilot_sessions`
 - `snapshot_runs` stores each live CSV import; market rows, signals, and picks reference a snapshot id
 - Date-based reads use the latest snapshot for each date
-- Daily snapshot publication is one transaction covering the run, market rows, and price rows
+- Daily snapshot publication is one transaction covering the run, market rows, price rows, and optional captured provenance (`provenance_captured=1` plus up to 50 mapping-failure names). `create_snapshot_run` and other non-CSV paths leave provenance uncaptured.
 - Review runs, resulting weights, pick results, and candidate outcomes are persisted as one idempotent transaction
 - Captured missed movers join that review transaction; their ordered classification and attribution are immutable on rerun, while a review-level flag keeps legacy and captured-empty states distinct
 - Operational picks and both pilot baskets share one signal-publication transaction

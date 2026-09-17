@@ -10,12 +10,19 @@ import {
   Database,
   Gauge,
   Pulse,
+  Stack,
   SpinnerGap,
   Star,
 } from "@phosphor-icons/react";
 import { dashboardRepository } from "./data/dashboardRepository";
+import { snapshotHistoryRepository } from "./data/snapshotHistoryRepository";
 import { strategyEvidenceRepository } from "./data/strategyEvidenceRepository";
 import { playbackNotices } from "./data/strategyPlaybackViewModel.mjs";
+import {
+  persistedRowsLabel,
+  snapshotDetailForSelection,
+  snapshotNotices,
+} from "./data/snapshotHistoryViewModel.mjs";
 import {
   appContentMode,
   evidenceDisplayState,
@@ -34,13 +41,16 @@ import type {
 } from "./domain/dashboard";
 import type { EvidenceWindow, StrategyEvidence } from "./domain/strategyEvidence";
 import type { StrategyPlayback } from "./domain/strategyPlayback";
+import type { SnapshotDetail, SnapshotHistoryItem } from "./domain/snapshotHistory";
 import { useDashboard } from "./hooks/useDashboard";
+import { useSnapshotHistory } from "./hooks/useSnapshotHistory";
 import { useStrategyEvidence } from "./hooks/useStrategyEvidence";
 
 const navigation = [
   { key: "overview", label: "Overview", icon: Gauge },
   { key: "picks", label: "Today's Picks", icon: Star },
   { key: "reviews", label: "Reviews", icon: ClipboardText },
+  { key: "snapshots", label: "Snapshots", icon: Stack },
   { key: "diagnostics", label: "Strategy Lab", icon: Pulse },
   { key: "runs", label: "Data & Runs", icon: Database },
 ] as const;
@@ -711,6 +721,301 @@ function ReviewsView({
   );
 }
 
+function snapshotCoverage(value: number | null) {
+  return value === null ? "—" : `${(value * 100).toFixed(1)}%`;
+}
+
+function snapshotCount(value: number | null) {
+  return value === null ? "—" : String(value);
+}
+
+function SnapshotNavigator({ snapshots, selectedId, loading, onSelect }: {
+  snapshots: SnapshotHistoryItem[];
+  selectedId: number | null;
+  loading: boolean;
+  onSelect: (snapshotId: number) => void;
+}) {
+  const selectedIndex = snapshots.findIndex((snapshot) => snapshot.id === selectedId);
+  const newerSnapshot = selectedIndex > 0 ? snapshots[selectedIndex - 1] : null;
+  const olderSnapshot = selectedIndex >= 0 && selectedIndex < snapshots.length - 1 ? snapshots[selectedIndex + 1] : null;
+  const position = selectedIndex >= 0 ? selectedIndex + 1 : 0;
+
+  return (
+    <section className="panel review-navigator" aria-labelledby="snapshot-navigator-title">
+      <div className="review-navigator-copy">
+        <p className="eyebrow">Browse published snapshots</p>
+        <h2 id="snapshot-navigator-title">Choose a snapshot</h2>
+        <p>{snapshots.length === 0 ? "No published snapshots" : `${position} of ${snapshots.length} · newest first`}</p>
+      </div>
+      <div className="review-navigator-controls">
+        <button
+          type="button"
+          className="review-step-button"
+          disabled={loading || !newerSnapshot}
+          onClick={() => newerSnapshot && onSelect(newerSnapshot.id)}
+          aria-label={newerSnapshot ? `Newer snapshot #${newerSnapshot.id}` : "No newer snapshot"}
+        >
+          <CaretLeft size={18} aria-hidden="true" /> Newer
+        </button>
+        <label className="review-date-control">
+          <span>Snapshot date</span>
+          <select
+            value={selectedId ?? ""}
+            disabled={loading || snapshots.length === 0}
+            onChange={(event) => onSelect(Number(event.target.value))}
+          >
+            {snapshots.map((snapshot) => (
+              <option value={snapshot.id} key={snapshot.id}>
+                {displayDate(snapshot.snapshotDate)} · #{snapshot.id} · {snapshot.provenanceStatus.replace("_", " ")}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="review-step-button"
+          disabled={loading || !olderSnapshot}
+          onClick={() => olderSnapshot && onSelect(olderSnapshot.id)}
+          aria-label={olderSnapshot ? `Older snapshot #${olderSnapshot.id}` : "No older snapshot"}
+        >
+          Older <CaretRight size={18} aria-hidden="true" />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function SnapshotHistoryList({ snapshots, selectedId, onSelect }: {
+  snapshots: SnapshotHistoryItem[];
+  selectedId: number | null;
+  onSelect: (snapshotId: number) => void;
+}) {
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const selectedRowRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const list = listRef.current;
+    const row = selectedRowRef.current;
+    if (!list || !row) return;
+    const listRect = list.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    if (rowRect.top < listRect.top || rowRect.bottom > listRect.bottom) {
+      list.scrollTop += rowRect.top - listRect.top - (listRect.height - rowRect.height) / 2;
+    }
+  }, [selectedId]);
+
+  return (
+    <section className="panel review-history-panel" aria-labelledby="snapshot-history-title">
+      <h2 id="snapshot-history-title">Snapshot history <span>• {snapshots.length}</span></h2>
+      <div className="review-history-columns" aria-hidden="true"><span>Snapshot</span><span>Coverage</span><span>Status</span></div>
+      {snapshots.length === 0 ? (
+        <p className="review-history-empty">No published snapshots are available yet.</p>
+      ) : (
+        <div className="review-history-list" ref={listRef} aria-label="Published snapshots">
+          {snapshots.map((snapshot) => (
+            <button
+              type="button"
+              className={`review-history-row ${selectedId === snapshot.id ? "is-selected" : ""}`}
+              key={snapshot.id}
+              ref={selectedId === snapshot.id ? selectedRowRef : undefined}
+              onClick={() => onSelect(snapshot.id)}
+              aria-current={selectedId === snapshot.id ? "true" : undefined}
+              aria-label={`Snapshot ${snapshot.id}, ${snapshot.snapshotDate}, ${snapshot.provenanceStatus.replace("_", " ")}`}
+            >
+              <span className="history-row-date">
+                <strong>{displayDate(snapshot.snapshotDate)}</strong>
+                <small>#{snapshot.id} · {snapshot.source}</small>
+              </span>
+              <span className="history-return">{snapshotCoverage(snapshot.tickerCoverage)}</span>
+              <span className="history-wins">{snapshot.provenanceStatus.replace("_", " ")}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SnapshotDetailPanel({
+  detail,
+  selectedId,
+  loading,
+  error,
+}: {
+  detail: SnapshotDetail | null;
+  selectedId: number | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  const shown = snapshotDetailForSelection(detail, selectedId);
+  if (loading && !shown) {
+    return (
+      <section className="panel snapshot-detail-panel" aria-live="polite">
+        <h2>Snapshot details</h2>
+        <p className="review-loading">Loading published snapshot details…</p>
+      </section>
+    );
+  }
+  if (error) {
+    return (
+      <section className="panel snapshot-detail-panel" role="alert">
+        <h2>Snapshot details</h2>
+        <p>{error}</p>
+      </section>
+    );
+  }
+  if (!shown) {
+    return (
+      <section className="panel snapshot-detail-panel">
+        <h2>Snapshot details</h2>
+        <p>No published snapshot is selected.</p>
+      </section>
+    );
+  }
+
+  const notices = snapshotNotices(shown);
+  const captured = shown.provenanceStatus === "captured";
+  const comparison = shown.comparison;
+
+  return (
+    <section className="panel snapshot-detail-panel" aria-labelledby="snapshot-detail-title">
+      <p className="eyebrow">Published lineage</p>
+      <h2 id="snapshot-detail-title">Snapshot #{shown.id}</h2>
+      <dl className="compact-list">
+        <div><dt>Snapshot date</dt><dd>{displayDate(shown.snapshotDate)}</dd></div>
+        <div><dt>Imported</dt><dd>{shown.importedAt}</dd></div>
+        <div><dt>Source</dt><dd>{shown.source}</dd></div>
+        <div><dt>Source dir</dt><dd>{shown.sourceDir}</dd></div>
+        <div><dt>Publication</dt><dd>{shown.publicationResult}</dd></div>
+        <div><dt>Provenance</dt><dd>{shown.provenanceStatus.replace("_", " ")}</dd></div>
+      </dl>
+      {notices.length > 0 && (
+        <div className="evidence-notices" role="status">{notices.map((notice) => <p key={notice}>{notice}</p>)}</div>
+      )}
+      {captured && (
+        <>
+          <h3>Import health</h3>
+          <dl className="lab-kpi-grid">
+            <div><dt>{persistedRowsLabel()}</dt><dd>{snapshotCount(shown.rowsRead)}</dd></div>
+            <div><dt>Distinct tickers</dt><dd>{snapshotCount(shown.distinctTickers)}</dd></div>
+            <div><dt>Ticker coverage</dt><dd>{snapshotCoverage(shown.tickerCoverage)}</dd></div>
+            <div><dt>Unmapped rows</dt><dd>{snapshotCount(shown.skippedUnmappedCount)}</dd></div>
+            <div><dt>Malformed rows</dt><dd>{snapshotCount(shown.skippedMalformedCount)}</dd></div>
+            <div><dt>Decimal separator</dt><dd>{shown.decimalSeparator ?? "—"}</dd></div>
+          </dl>
+          <dl className="compact-list">
+            <div><dt>Price basis</dt><dd>{shown.priceBasis ? label(shown.priceBasis) : "—"}</dd></div>
+            <div><dt>Source files</dt><dd>{shown.sourceFiles?.length ? shown.sourceFiles.join(", ") : "—"}</dd></div>
+            <div><dt>Unmapped list truncated</dt><dd>{shown.unmappedTruncated ? "Yes" : "No"}</dd></div>
+          </dl>
+          <h3>Mapping failures</h3>
+          {shown.mappingFailures && shown.mappingFailures.length > 0 ? (
+            <ul className="snapshot-mapping-list">
+              {shown.mappingFailures.map((name) => <li key={name}>{name}</li>)}
+            </ul>
+          ) : (
+            <p className="evidence-empty-inline">No unmapped company names were stored for this snapshot.</p>
+          )}
+        </>
+      )}
+      <h3>Prior published snapshot</h3>
+      <p>
+        {comparison.status === "unavailable"
+          ? "No prior published snapshot."
+          : comparison.priorSnapshotId === null
+            ? "Comparison uses the prior published snapshot by lower id."
+            : `Compared with snapshot #${comparison.priorSnapshotId} (${comparison.status.replace("_", " ")}).`}
+      </p>
+      {comparison.status === "available" && comparison.deltas && (
+        <dl className="compact-list">
+          <div><dt>Coverage delta</dt><dd>{comparison.deltas.tickerCoverage === null ? "—" : signedFixed(comparison.deltas.tickerCoverage)}</dd></div>
+          <div><dt>{persistedRowsLabel()} delta</dt><dd>{snapshotCount(comparison.deltas.rowsRead)}</dd></div>
+          <div><dt>Distinct tickers delta</dt><dd>{snapshotCount(comparison.deltas.distinctTickers)}</dd></div>
+          <div><dt>Unmapped rows delta</dt><dd>{snapshotCount(comparison.deltas.skippedUnmappedCount)}</dd></div>
+          <div><dt>Malformed rows delta</dt><dd>{snapshotCount(comparison.deltas.skippedMalformedCount)}</dd></div>
+        </dl>
+      )}
+    </section>
+  );
+}
+
+function SnapshotsView({
+  snapshots,
+  selectedDetail,
+  selectedId,
+  historyStatus,
+  detailStatus,
+  historyError,
+  detailError,
+  onSelect,
+  onRetry,
+}: {
+  snapshots: SnapshotHistoryItem[];
+  selectedDetail: SnapshotDetail | null;
+  selectedId: number | null;
+  historyStatus: "idle" | "loading" | "loaded" | "error";
+  detailStatus: "idle" | "loading" | "loaded" | "error";
+  historyError: string | null;
+  detailError: string | null;
+  onSelect: (snapshotId: number) => void;
+  onRetry: () => void;
+}) {
+  const revealDetail = () => {
+    if (!window.matchMedia("(max-width: 820px)").matches) return;
+    window.setTimeout(() => document.getElementById("snapshot-detail")?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    }), 0);
+  };
+
+  const selectSnapshot = (snapshotId: number) => {
+    onSelect(snapshotId);
+    revealDetail();
+  };
+
+  return (
+    <div className="snapshots-view">
+      <div className="view-intro">
+        <p className="eyebrow">Published snapshot lineage</p>
+        <h2>Snapshots</h2>
+        <p>Inspect persisted import health, mapping failures, and comparison with the prior published snapshot. This view does not change strategy or launch routines.</p>
+      </div>
+      {historyStatus === "loading" && snapshots.length === 0 && (
+        <section className="panel evidence-loading" aria-live="polite">
+          <SpinnerGap className="spin" size={24} /> Loading published snapshots…
+        </section>
+      )}
+      {historyStatus === "error" && (
+        <section className="panel evidence-error" role="alert">
+          <p>{historyError}</p>
+          <button type="button" className="secondary-action" onClick={onRetry}>Retry</button>
+        </section>
+      )}
+      {historyStatus !== "error" && (
+        <>
+          <SnapshotNavigator
+            snapshots={snapshots}
+            selectedId={selectedId}
+            loading={historyStatus === "loading" || detailStatus === "loading"}
+            onSelect={selectSnapshot}
+          />
+          <div className="review-history-layout">
+            <SnapshotHistoryList snapshots={snapshots} selectedId={selectedId} onSelect={selectSnapshot} />
+            <div className="review-detail" id="snapshot-detail" aria-live="polite" aria-busy={detailStatus === "loading"}>
+              <SnapshotDetailPanel
+                detail={selectedDetail}
+                selectedId={selectedId}
+                loading={detailStatus === "loading"}
+                error={detailError}
+              />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function EvidenceWindowControl({ value, onChange }: {
   value: EvidenceWindow;
   onChange: (value: EvidenceWindow) => void;
@@ -995,6 +1300,10 @@ export function App() {
     strategyEvidenceRepository,
     activeView === "diagnostics",
   );
+  const snapshotHistory = useSnapshotHistory(
+    snapshotHistoryRepository,
+    activeView === "snapshots",
+  );
   const [selectedTicker, setSelectedTicker] = useState("AKSEN");
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [selectedReview, setSelectedReview] = useState<ReviewSummary | null>(null);
@@ -1091,6 +1400,21 @@ export function App() {
 
   const contentMode = appContentMode(activeView, data !== null);
   const renderView = () => {
+    if (contentMode === "snapshot_history") {
+      return (
+        <SnapshotsView
+          snapshots={snapshotHistory.history}
+          selectedDetail={snapshotHistory.detail}
+          selectedId={snapshotHistory.selectedId}
+          historyStatus={snapshotHistory.status}
+          detailStatus={snapshotHistory.detailStatus}
+          historyError={snapshotHistory.error}
+          detailError={snapshotHistory.detailError}
+          onSelect={snapshotHistory.selectSnapshot}
+          onRetry={() => void snapshotHistory.reload()}
+        />
+      );
+    }
     if (contentMode === "strategy_lab") {
       return (
         <DiagnosticsView

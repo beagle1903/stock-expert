@@ -1,4 +1,4 @@
-export type ViewKey = "overview" | "picks" | "reviews" | "diagnostics" | "runs";
+export type ViewKey = "overview" | "picks" | "reviews" | "snapshots" | "diagnostics" | "runs";
 export type RiskLevel = "high" | "medium" | "low";
 
 export interface PickSignals {

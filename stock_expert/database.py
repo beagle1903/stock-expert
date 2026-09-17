@@ -1,14 +1,32 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, timedelta
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, TypedDict
 
 from stock_expert.config import Settings
 from stock_expert.constants import MIN_DAILY_WIN_RETURN
 from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, Weights
 from stock_expert.pilot import PILOT_NAME, evaluate_pilot_sessions
+
+
+MAX_SNAPSHOT_MAPPING_FAILURES = 50
+
+
+class SnapshotQuality(TypedDict):
+    rows_read: int
+    distinct_tickers: int
+    mapped_count: int
+    skipped_non_equity_count: int
+    skipped_unmapped_count: int
+    skipped_malformed_count: int
+    ticker_coverage: float
+    decimal_separator: str
+    price_basis: str
+    source_files: list[str]
+    unmapped_names: list[str]
 
 
 SCHEMA = """
@@ -17,7 +35,26 @@ CREATE TABLE IF NOT EXISTS snapshot_runs (
     snapshot_date TEXT NOT NULL,
     imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     source_label TEXT NOT NULL,
-    source_dir TEXT NOT NULL
+    source_dir TEXT NOT NULL,
+    provenance_captured INTEGER NOT NULL DEFAULT 0,
+    rows_read INTEGER,
+    distinct_tickers INTEGER,
+    mapped_count INTEGER,
+    skipped_non_equity_count INTEGER,
+    skipped_unmapped_count INTEGER,
+    skipped_malformed_count INTEGER,
+    ticker_coverage REAL,
+    decimal_separator TEXT,
+    price_basis TEXT,
+    source_files_json TEXT
+);
+
+CREATE TABLE IF NOT EXISTS snapshot_mapping_failures (
+    snapshot_id INTEGER NOT NULL,
+    failure_order INTEGER NOT NULL,
+    company_name TEXT NOT NULL,
+    PRIMARY KEY (snapshot_id, failure_order),
+    FOREIGN KEY (snapshot_id) REFERENCES snapshot_runs(id)
 );
 
 CREATE TABLE IF NOT EXISTS stocks (
@@ -248,6 +285,7 @@ def init_db(settings: Settings) -> None:
         _ensure_market_snapshot_enrichment_columns(conn)
         _ensure_picks_selection_bucket_column(conn)
         _ensure_review_integrity(conn)
+        _ensure_snapshot_provenance(conn)
 
 
 def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -410,6 +448,38 @@ def _ensure_review_integrity(conn: sqlite3.Connection) -> None:
     )
 
 
+def _ensure_snapshot_provenance(conn: sqlite3.Connection) -> None:
+    if not conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'snapshot_runs'").fetchone():
+        return
+    columns = {
+        "provenance_captured": "INTEGER NOT NULL DEFAULT 0",
+        "rows_read": "INTEGER",
+        "distinct_tickers": "INTEGER",
+        "mapped_count": "INTEGER",
+        "skipped_non_equity_count": "INTEGER",
+        "skipped_unmapped_count": "INTEGER",
+        "skipped_malformed_count": "INTEGER",
+        "ticker_coverage": "REAL",
+        "decimal_separator": "TEXT",
+        "price_basis": "TEXT",
+        "source_files_json": "TEXT",
+    }
+    for name, definition in columns.items():
+        if not _has_column(conn, "snapshot_runs", name):
+            conn.execute(f"ALTER TABLE snapshot_runs ADD COLUMN {name} {definition}")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS snapshot_mapping_failures (
+            snapshot_id INTEGER NOT NULL,
+            failure_order INTEGER NOT NULL,
+            company_name TEXT NOT NULL,
+            PRIMARY KEY (snapshot_id, failure_order),
+            FOREIGN KEY (snapshot_id) REFERENCES snapshot_runs(id)
+        )
+        """
+    )
+
+
 def create_snapshot_run(settings: Settings, snapshot_date: date, source_label: str, source_dir: str) -> int:
     init_db(settings)
     with connect(settings) as conn:
@@ -430,6 +500,7 @@ def persist_daily_snapshot(
     source_dir: str,
     market_rows: Iterable[MarketSnapshot],
     price_rows: Iterable[tuple[str, date, float, float, float]],
+    quality: SnapshotQuality | None = None,
 ) -> int:
     init_db(settings)
     with connect(settings) as conn:
@@ -446,6 +517,45 @@ def persist_daily_snapshot(
             conn,
             [(snapshot_id, ticker, day.isoformat(), open_p, close_p, volume) for ticker, day, open_p, close_p, volume in price_rows],
         )
+        if quality is not None:
+            conn.execute(
+                """
+                UPDATE snapshot_runs
+                SET provenance_captured = 1,
+                    rows_read = ?,
+                    distinct_tickers = ?,
+                    mapped_count = ?,
+                    skipped_non_equity_count = ?,
+                    skipped_unmapped_count = ?,
+                    skipped_malformed_count = ?,
+                    ticker_coverage = ?,
+                    decimal_separator = ?,
+                    price_basis = ?,
+                    source_files_json = ?
+                WHERE id = ?
+                """,
+                (
+                    quality["rows_read"],
+                    quality["distinct_tickers"],
+                    quality["mapped_count"],
+                    quality["skipped_non_equity_count"],
+                    quality["skipped_unmapped_count"],
+                    quality["skipped_malformed_count"],
+                    quality["ticker_coverage"],
+                    quality["decimal_separator"],
+                    quality["price_basis"],
+                    json.dumps(quality["source_files"]),
+                    snapshot_id,
+                ),
+            )
+            for failure_order, company_name in enumerate(quality["unmapped_names"][:MAX_SNAPSHOT_MAPPING_FAILURES]):
+                conn.execute(
+                    """
+                    INSERT INTO snapshot_mapping_failures (snapshot_id, failure_order, company_name)
+                    VALUES (?, ?, ?)
+                    """,
+                    (snapshot_id, failure_order, company_name),
+                )
         return snapshot_id
 
 
