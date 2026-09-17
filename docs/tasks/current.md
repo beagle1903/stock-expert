@@ -4,7 +4,6 @@
   - `import-daily-csv`
   - `refresh-investing-csvs`
   - `routine`
-  - `midday-routine`
   - `daily`
   - `picks`
   - `review`
@@ -23,7 +22,7 @@
 - Daily CSV import flow is available
 - Live root CSV routine supports repeated same-day imports
 - Rendered Investing.com tables can refresh all four live CSVs with cross-table coverage validation and rollback-safe publication
-- Routine and midday dry-run behavior are covered by tests
+- Routine and `review --dry-run` behavior are covered by tests
 - Snapshot and review persistence are atomic and idempotent
 - Historical review evidence is point-in-time and immutable
 - Standard-library trace coverage remains at or above 90% across production modules
@@ -69,3 +68,7 @@
 - Implementation notes: `docs/tasks/data-quality-snapshot-history.md`.
 - Basic GitHub CI now gates pull requests and `main` with Python tests plus
   frontend tests and a production build; deployment is intentionally deferred.
+- GitHub [#14](https://github.com/beagle1903/stock-expert/issues/14): harden
+  the optional Yahoo path and remove `midday-routine`. See
+  `docs/features/download-ohlcv.md`.
+- Removed redundant `openwiki/` generated wiki; `docs/` is the source of truth.

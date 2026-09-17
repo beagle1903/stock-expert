@@ -16,11 +16,11 @@ class CliRoutineTests(unittest.TestCase):
     def setUp(self) -> None:
         self.settings = Settings(base_dir=".", data_dir="data", db_path="data/test.db")
 
-    def test_parser_accepts_midday_routine(self) -> None:
+    def test_parser_rejects_midday_routine(self) -> None:
         parser = cli.build_parser()
-        args = parser.parse_args(["midday-routine", "--date", "2026-04-21"])
-        self.assertEqual(args.command, "midday-routine")
-        self.assertEqual(args.as_of, "2026-04-21")
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args(["midday-routine", "--date", "2026-04-21"])
 
     def test_direct_daily_picks_and_review_commands_route_arguments(self) -> None:
         cases = [
@@ -221,37 +221,6 @@ class CliRoutineTests(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertIn("ticker coverage is too low", stderr.getvalue())
         daily_summary.assert_not_called()
-
-    def test_midday_routine_uses_dry_run_review(self) -> None:
-        with (
-            patch("stock_expert.cli.get_settings", return_value=self.settings),
-            patch(
-                "stock_expert.cli.ensure_bucketed_default_pilot",
-                create=True,
-            ) as ensure_bucketed_default_pilot,
-            patch("stock_expert.cli.import_daily_csv_command", return_value=json.dumps({"ok": True})),
-            patch("stock_expert.cli.daily_summary", return_value="daily"),
-            patch("stock_expert.cli.market_context_output", return_value="market"),
-            patch("stock_expert.cli.picks_output", return_value="picks"),
-            patch("stock_expert.cli.review_output", return_value="review") as review_output,
-            patch("sys.argv", ["stocks", "midday-routine", "--date", "2026-04-21"]),
-            redirect_stdout(io.StringIO()) as stdout,
-        ):
-            exit_code = cli.main()
-
-        self.assertEqual(exit_code, 0)
-        review_output.assert_called_once_with(
-            self.settings,
-            cli.date(2026, 4, 21),
-            dry_run=True,
-            ranking_context=ANY,
-        )
-        output = stdout.getvalue()
-        self.assertIn('"routine": "midday-routine"', output)
-        self.assertIn("Market Context:", output)
-        self.assertIn("Pick List:", output)
-        self.assertIn("Dry-Run Review:", output)
-        ensure_bucketed_default_pilot.assert_not_called()
 
     def test_routine_reviews_before_persisting_current_picks(self) -> None:
         calls: list[str] = []

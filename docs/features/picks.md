@@ -29,5 +29,4 @@
 - Pick JSON exposes breadth/rolling-evidence `exposure`, `setup_penalty`, `net_adjustment`, and `selection_bucket` so reduced exposure and candidate ranking are visible
 - Pick JSON exposes the selected strategy plus pilot status, completed sessions, session wins, compounded edge, fixed weights, thresholds, and decision reason
 - `routine` reviews the prior pilot session before persisting current picks, so a triggered rollback applies without an extra session
-- `midday-routine` reports normal picks after the live CSV import
 - Routine outputs share a request-scoped ranking cache so each signal date is ranked once

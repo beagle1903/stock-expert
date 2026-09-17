@@ -30,7 +30,6 @@
 - CSV-imported review returns use previous-close-to-latest price basis until a real open column/source is available
 - Supports `--dry-run` for non-mutating strategy comparisons
 - `routine` mutates the prior-session review before current picks but retains the operator-facing picks-then-review display order
-- `midday-routine` reports the dry-run review after picks without writing review rows
 - The dashboard exposes a persisted review history ordered by review id, and selecting a prior signal date loads that review's immutable pick outcomes by id; compact date navigation and a bounded list avoid pushing selected outcomes below a long history
 - New persisted reviews atomically store their ordered missed movers in `review_missed_mover_results`, including actionability, classification reason, realized return, candidate rank, selection note, signal components, boosts, and setup penalty.
 - `review_runs.missed_movers_captured` distinguishes a captured empty result from historical reviews created before missed-mover persistence; old reviews are never silently recomputed with newer rules or snapshots.

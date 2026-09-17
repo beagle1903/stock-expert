@@ -13,6 +13,8 @@ from stock_expert.pilot import PILOT_NAME, evaluate_pilot_sessions
 
 
 MAX_SNAPSHOT_MAPPING_FAILURES = 50
+YAHOO_OHLCV_SOURCE = "yahoo_ohlcv"
+_OPERATIONAL_SNAPSHOT_SQL = f"source_label != '{YAHOO_OHLCV_SOURCE}'"
 
 
 class SnapshotQuality(TypedDict):
@@ -563,10 +565,11 @@ def get_latest_snapshot_id(settings: Settings, target_date: date) -> int | None:
     init_db(settings)
     with connect(settings) as conn:
         row = conn.execute(
-            """
+            f"""
             SELECT id
             FROM snapshot_runs
             WHERE snapshot_date = ?
+              AND {_OPERATIONAL_SNAPSHOT_SQL}
             ORDER BY id DESC
             LIMIT 1
             """,
@@ -577,10 +580,11 @@ def get_latest_snapshot_id(settings: Settings, target_date: date) -> int | None:
 
 def _latest_snapshot_ids_between(conn: sqlite3.Connection, start_date: date, end_date: date) -> list[int]:
     rows = conn.execute(
-        """
+            f"""
         SELECT id, snapshot_date
         FROM snapshot_runs
         WHERE snapshot_date BETWEEN ? AND ?
+          AND {_OPERATIONAL_SNAPSHOT_SQL}
         ORDER BY snapshot_date DESC, id DESC
         """,
         (start_date.isoformat(), end_date.isoformat()),
@@ -608,6 +612,7 @@ def upsert_prices(settings: Settings, rows: Iterable[tuple]) -> None:
                 SELECT id, snapshot_date
                 FROM snapshot_runs
                 WHERE snapshot_date IN ({placeholders})
+                  AND {_OPERATIONAL_SNAPSHOT_SQL}
                 ORDER BY id DESC
                 """,
                 [day.isoformat() for day in legacy_dates],
@@ -634,6 +639,33 @@ def upsert_prices(settings: Settings, rows: Iterable[tuple]) -> None:
                 snapshot_id = snapshot_ids[day]
             normalized.append((snapshot_id, ticker, day.isoformat(), open_p, close_p, volume))
         _upsert_prices_conn(conn, normalized)
+
+
+def persist_yahoo_prices(
+    settings: Settings,
+    rows: Iterable[tuple[str, date, float, float, float]],
+    source_dir: str = "data/yahoo_ohlcv.csv",
+) -> dict[date, int]:
+    raw_rows = list(rows)
+    if not raw_rows:
+        return {}
+    init_db(settings)
+    snapshot_ids: dict[date, int] = {}
+    normalized: list[tuple[int, str, str, float, float, float]] = []
+    with connect(settings) as conn:
+        for ticker, day, open_p, close_p, volume in raw_rows:
+            if day not in snapshot_ids:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO snapshot_runs (snapshot_date, source_label, source_dir)
+                    VALUES (?, ?, ?)
+                    """,
+                    (day.isoformat(), YAHOO_OHLCV_SOURCE, source_dir),
+                )
+                snapshot_ids[day] = int(cursor.lastrowid)
+            normalized.append((snapshot_ids[day], ticker, day.isoformat(), open_p, close_p, volume))
+        _upsert_prices_conn(conn, normalized)
+    return snapshot_ids
 
 
 def _upsert_prices_conn(conn: sqlite3.Connection, rows: Iterable[tuple]) -> None:
@@ -1626,10 +1658,11 @@ def get_recent_price_history(settings: Settings, as_of: date, bars: int) -> list
                 SELECT DISTINCT snapshot_date AS date
                 FROM snapshot_runs
                 WHERE snapshot_date <= ?
+                  AND source_label != ?
                 ORDER BY snapshot_date DESC
                 LIMIT ?
                 """,
-                (as_of.isoformat(), bars),
+                (as_of.isoformat(), YAHOO_OHLCV_SOURCE, bars),
             )
         )
     if not date_rows:
