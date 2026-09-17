@@ -1,6 +1,7 @@
 # Fade-Then-Rechase Penalty
 
-GitHub issue: [#21](https://github.com/beagle1903/stock-expert/issues/21)
+GitHub issue: [#21](https://github.com/beagle1903/stock-expert/issues/21) (closed).
+Shipped: [PR #23](https://github.com/beagle1903/stock-expert/pull/23) on 2026-09-17.
 
 ## Behavior
 

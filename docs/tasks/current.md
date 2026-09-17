@@ -56,9 +56,9 @@
 
 ## Active Enhancement
 
-- GitHub [#21](https://github.com/beagle1903/stock-expert/issues/21): fade-then-rechase
-  penalty plus `setup_penalized_limit_up` / `near_cutoff` miss tags on
-  `codex/fade-then-rechase-penalty`.
+- Fade-then-rechase penalty and miss tags shipped on `main` via
+  [PR #23](https://github.com/beagle1903/stock-expert/pull/23). GitHub issue
+  #21 is closed. See `docs/tasks/fade-then-rechase.md`.
 - Snapshots API (`/api/snapshots/history`, `/api/snapshots/{id}`) and the
   read-only Evidence Console Snapshots view shipped on `main` via
   [PR #19](https://github.com/beagle1903/stock-expert/pull/19). GitHub issue
