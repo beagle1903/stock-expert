@@ -10,6 +10,11 @@ export function mappingFailureIncreaseNotice(priorSnapshotId) {
   return `Unmapped rows increased versus snapshot #${priorSnapshotId}.`;
 }
 
+export function snapshotDetailForSelection(detail, selectedId) {
+  if (detail == null || selectedId == null || detail.id !== selectedId) return null;
+  return detail;
+}
+
 export function snapshotNotices(detail) {
   if (!detail) return [];
   const notices = [];

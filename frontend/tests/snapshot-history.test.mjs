@@ -5,6 +5,7 @@ import { appContentMode } from "../src/data/strategyEvidenceViewModel.mjs";
 import {
   mappingFailureIncreaseNotice,
   persistedRowsLabel,
+  snapshotDetailForSelection,
   snapshotNotices,
 } from "../src/data/snapshotHistoryViewModel.mjs";
 
@@ -87,6 +88,12 @@ test("labels mapping-failure increases against the prior published snapshot id",
     },
   }));
   assert.equal(notices.includes("Unmapped rows increased versus snapshot #11."), true);
+});
+
+test("does not display a previous snapshot while another is selected", () => {
+  assert.equal(snapshotDetailForSelection(detail({ id: 149 }), 1), null);
+  assert.equal(snapshotDetailForSelection(detail({ id: 1 }), 1)?.id, 1);
+  assert.equal(snapshotDetailForSelection(null, 1), null);
 });
 
 test("labels persisted market-row counts as persisted rows", () => {

@@ -450,7 +450,8 @@ button:focus-visible {
 .positive { color: var(--teal); }
 .negative { color: var(--rose); }
 
-.snapshots-view { max-width: 1180px; margin: 0 auto; display: grid; gap: 8px; }
+.reviews-view, .snapshots-view { max-width: 1180px; margin: 0 auto; }
+.snapshots-view { display: grid; gap: 8px; }
 .snapshot-detail-panel h2 { margin: 0 0 12px; }
 .snapshot-detail-panel h3 { margin: 20px 0 8px; font-size: 16px; }
 .snapshot-mapping-list {

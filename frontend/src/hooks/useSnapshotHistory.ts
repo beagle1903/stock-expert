@@ -53,6 +53,7 @@ export function useSnapshotHistory(
     const requestId = detailGuard.current.begin();
     setDetailStatus("loading");
     setDetailError(null);
+    setDetail((current) => (current?.id === selectedId ? current : null));
     void repository.loadDetail(selectedId)
       .then((nextDetail) => {
         if (!detailGuard.current.isLatest(requestId)) return;

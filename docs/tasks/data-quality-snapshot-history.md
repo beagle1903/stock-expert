@@ -15,6 +15,8 @@ Requirement ticket: [GitHub issue #11](https://github.com/beagle1903/stock-exper
   next daily CSV import.
 - Watchdog: passed 300 seconds / 15 polls; UI PID 11620, API PID 20476,
   snapshot #149; no endpoint or runtime-log failures.
+- PR review follow-up: switching snapshots no longer keeps the previous
+  detail visible while loading; `.reviews-view` max-width is restored.
 
 Design: `docs/superpowers/specs/2026-09-16-data-quality-snapshot-history-design.md`.
 Plan: `docs/superpowers/plans/2026-09-16-data-quality-snapshot-history.md`.

@@ -20,6 +20,7 @@ import { strategyEvidenceRepository } from "./data/strategyEvidenceRepository";
 import { playbackNotices } from "./data/strategyPlaybackViewModel.mjs";
 import {
   persistedRowsLabel,
+  snapshotDetailForSelection,
   snapshotNotices,
 } from "./data/snapshotHistoryViewModel.mjs";
 import {
@@ -837,14 +838,17 @@ function SnapshotHistoryList({ snapshots, selectedId, onSelect }: {
 
 function SnapshotDetailPanel({
   detail,
+  selectedId,
   loading,
   error,
 }: {
   detail: SnapshotDetail | null;
+  selectedId: number | null;
   loading: boolean;
   error: string | null;
 }) {
-  if (loading && !detail) {
+  const shown = snapshotDetailForSelection(detail, selectedId);
+  if (loading && !shown) {
     return (
       <section className="panel snapshot-detail-panel" aria-live="polite">
         <h2>Snapshot details</h2>
@@ -860,7 +864,7 @@ function SnapshotDetailPanel({
       </section>
     );
   }
-  if (!detail) {
+  if (!shown) {
     return (
       <section className="panel snapshot-detail-panel">
         <h2>Snapshot details</h2>
@@ -869,21 +873,21 @@ function SnapshotDetailPanel({
     );
   }
 
-  const notices = snapshotNotices(detail);
-  const captured = detail.provenanceStatus === "captured";
-  const comparison = detail.comparison;
+  const notices = snapshotNotices(shown);
+  const captured = shown.provenanceStatus === "captured";
+  const comparison = shown.comparison;
 
   return (
     <section className="panel snapshot-detail-panel" aria-labelledby="snapshot-detail-title">
       <p className="eyebrow">Published lineage</p>
-      <h2 id="snapshot-detail-title">Snapshot #{detail.id}</h2>
+      <h2 id="snapshot-detail-title">Snapshot #{shown.id}</h2>
       <dl className="compact-list">
-        <div><dt>Snapshot date</dt><dd>{displayDate(detail.snapshotDate)}</dd></div>
-        <div><dt>Imported</dt><dd>{detail.importedAt}</dd></div>
-        <div><dt>Source</dt><dd>{detail.source}</dd></div>
-        <div><dt>Source dir</dt><dd>{detail.sourceDir}</dd></div>
-        <div><dt>Publication</dt><dd>{detail.publicationResult}</dd></div>
-        <div><dt>Provenance</dt><dd>{detail.provenanceStatus.replace("_", " ")}</dd></div>
+        <div><dt>Snapshot date</dt><dd>{displayDate(shown.snapshotDate)}</dd></div>
+        <div><dt>Imported</dt><dd>{shown.importedAt}</dd></div>
+        <div><dt>Source</dt><dd>{shown.source}</dd></div>
+        <div><dt>Source dir</dt><dd>{shown.sourceDir}</dd></div>
+        <div><dt>Publication</dt><dd>{shown.publicationResult}</dd></div>
+        <div><dt>Provenance</dt><dd>{shown.provenanceStatus.replace("_", " ")}</dd></div>
       </dl>
       {notices.length > 0 && (
         <div className="evidence-notices" role="status">{notices.map((notice) => <p key={notice}>{notice}</p>)}</div>
@@ -892,22 +896,22 @@ function SnapshotDetailPanel({
         <>
           <h3>Import health</h3>
           <dl className="lab-kpi-grid">
-            <div><dt>{persistedRowsLabel()}</dt><dd>{snapshotCount(detail.rowsRead)}</dd></div>
-            <div><dt>Distinct tickers</dt><dd>{snapshotCount(detail.distinctTickers)}</dd></div>
-            <div><dt>Ticker coverage</dt><dd>{snapshotCoverage(detail.tickerCoverage)}</dd></div>
-            <div><dt>Unmapped rows</dt><dd>{snapshotCount(detail.skippedUnmappedCount)}</dd></div>
-            <div><dt>Malformed rows</dt><dd>{snapshotCount(detail.skippedMalformedCount)}</dd></div>
-            <div><dt>Decimal separator</dt><dd>{detail.decimalSeparator ?? "—"}</dd></div>
+            <div><dt>{persistedRowsLabel()}</dt><dd>{snapshotCount(shown.rowsRead)}</dd></div>
+            <div><dt>Distinct tickers</dt><dd>{snapshotCount(shown.distinctTickers)}</dd></div>
+            <div><dt>Ticker coverage</dt><dd>{snapshotCoverage(shown.tickerCoverage)}</dd></div>
+            <div><dt>Unmapped rows</dt><dd>{snapshotCount(shown.skippedUnmappedCount)}</dd></div>
+            <div><dt>Malformed rows</dt><dd>{snapshotCount(shown.skippedMalformedCount)}</dd></div>
+            <div><dt>Decimal separator</dt><dd>{shown.decimalSeparator ?? "—"}</dd></div>
           </dl>
           <dl className="compact-list">
-            <div><dt>Price basis</dt><dd>{detail.priceBasis ? label(detail.priceBasis) : "—"}</dd></div>
-            <div><dt>Source files</dt><dd>{detail.sourceFiles?.length ? detail.sourceFiles.join(", ") : "—"}</dd></div>
-            <div><dt>Unmapped list truncated</dt><dd>{detail.unmappedTruncated ? "Yes" : "No"}</dd></div>
+            <div><dt>Price basis</dt><dd>{shown.priceBasis ? label(shown.priceBasis) : "—"}</dd></div>
+            <div><dt>Source files</dt><dd>{shown.sourceFiles?.length ? shown.sourceFiles.join(", ") : "—"}</dd></div>
+            <div><dt>Unmapped list truncated</dt><dd>{shown.unmappedTruncated ? "Yes" : "No"}</dd></div>
           </dl>
           <h3>Mapping failures</h3>
-          {detail.mappingFailures && detail.mappingFailures.length > 0 ? (
+          {shown.mappingFailures && shown.mappingFailures.length > 0 ? (
             <ul className="snapshot-mapping-list">
-              {detail.mappingFailures.map((name) => <li key={name}>{name}</li>)}
+              {shown.mappingFailures.map((name) => <li key={name}>{name}</li>)}
             </ul>
           ) : (
             <p className="evidence-empty-inline">No unmapped company names were stored for this snapshot.</p>
@@ -1000,6 +1004,7 @@ function SnapshotsView({
             <div className="review-detail" id="snapshot-detail" aria-live="polite" aria-busy={detailStatus === "loading"}>
               <SnapshotDetailPanel
                 detail={selectedDetail}
+                selectedId={selectedId}
                 loading={detailStatus === "loading"}
                 error={detailError}
               />
