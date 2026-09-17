@@ -17,7 +17,7 @@ starts with item 2.
 - [x] **2. Missed-Mover Explorer** — persist and display actionable and non-actionable missed movers, exclusion reasons, candidate rank, signal attribution, and realized return. See `docs/tasks/missed-mover-explorer.md`.
 - [x] **1. Strategy Evidence Lab** — expose score-ranked versus bucketed results, pilot thresholds, cutoff analysis, rank bands, breadth, and setup-penalty evidence. See `docs/tasks/strategy-evidence-lab.md`.
 - [x] **4. Historical Strategy Playback** — provide a read-only signal-date view of the preserved basket, evidence, market context, and eventual review outcome. See `docs/tasks/historical-strategy-playback.md`.
-- [ ] **3. Data Quality & Snapshot History** — persist snapshot provenance and validation metrics, then expose import health, coverage, mapping failures, lineage, and prior-snapshot comparison. Implementation is on `codex/data-quality-snapshot-history`; keep unchecked until GitHub issue #11 closes.
+- [x] **3. Data Quality & Snapshot History** — persist snapshot provenance and validation metrics, then expose import health, coverage, mapping failures, lineage, and prior-snapshot comparison. Shipped on `main` via [PR #19](https://github.com/beagle1903/stock-expert/pull/19); GitHub issue #11 is closed. See `docs/tasks/data-quality-snapshot-history.md`.
 
 Implementation order after Missed-Mover Explorer remains a deliberate user
 choice; roadmap order above reflects estimated implementation cost, not

@@ -1,7 +1,7 @@
 # Data Quality & Snapshot History
 
-Status: implemented on `codex/data-quality-snapshot-history` on 2026-09-16.
-Requirement ticket: [GitHub issue #11](https://github.com/beagle1903/stock-expert/issues/11) — still open until merge.
+Status: shipped on `main` via [PR #19](https://github.com/beagle1903/stock-expert/pull/19) on 2026-09-17.
+Requirement ticket: [GitHub issue #11](https://github.com/beagle1903/stock-expert/issues/11) — closed.
 
 ## Verification Record
 
