@@ -127,7 +127,8 @@ class YahooTests(unittest.TestCase):
     def test_fetch_yahoo_ohlcv_uses_requested_start_and_end_epochs(self) -> None:
         payload = {"chart": {"result": [{"timestamp": [], "indicators": {"quote": [{}]}}]}}
         with patch("stock_expert.yahoo.urlopen", return_value=_FakeResponse(payload)) as urlopen:
-            fetch_yahoo_ohlcv("ADEL.IS", start_date=date(2026, 3, 1), end_date=date(2026, 3, 31))
+            with self.assertRaises(YahooChartError):
+                fetch_yahoo_ohlcv("ADEL.IS", start_date=date(2026, 3, 1), end_date=date(2026, 3, 31))
 
         query = parse_qs(urlparse(urlopen.call_args.args[0]).query)
         period1 = datetime.fromtimestamp(int(query["period1"][0]), UTC).date()
@@ -142,6 +143,12 @@ class YahooTests(unittest.TestCase):
         with patch(
             "stock_expert.yahoo.urlopen",
             return_value=_FakeResponse({"chart": {"result": None, "error": {"description": "Not found"}}}),
+        ):
+            with self.assertRaises(YahooChartError):
+                fetch_yahoo_ohlcv("ADEL.IS", days=5)
+        with patch(
+            "stock_expert.yahoo.urlopen",
+            return_value=_FakeResponse({"chart": {"result": [{"timestamp": [], "indicators": {"quote": [{}]}}]}}),
         ):
             with self.assertRaises(YahooChartError):
                 fetch_yahoo_ohlcv("ADEL.IS", days=5)
@@ -304,7 +311,7 @@ class YahooTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(payload["rows_written"], 2)
+        self.assertEqual(payload["rows_written"], 0)
         self.assertTrue(payload["preserved_existing_output"])
         self.assertEqual(payload["rows_imported"], 0)
         self.assertEqual(output.read_text(encoding="utf-8"), "trusted\n")

@@ -110,6 +110,8 @@ def _parse_yahoo_chart(payload: object) -> list[dict[str, object]]:
                 "volume": int(volume),
             }
         )
+    if not rows:
+        raise YahooChartError("empty Yahoo chart result")
     return rows
 
 
@@ -248,11 +250,13 @@ def _publish_yahoo_results(
     db_rows: list[tuple[str, date, float, float, float]],
     failures: list[dict[str, str]],
     import_db: bool,
-) -> tuple[bool, int]:
+) -> tuple[bool, int, int]:
     preserved_existing_output = False
     incomplete = bool(failures)
+    rows_written = 0
     if csv_rows and not (incomplete and output_file.exists()):
         write_ohlcv_csv(output_file, csv_rows)
+        rows_written = len(csv_rows)
     elif output_file.exists() and (incomplete or not csv_rows):
         preserved_existing_output = True
     imported_rows = 0
@@ -260,7 +264,7 @@ def _publish_yahoo_results(
         init_db(settings)
         persist_yahoo_prices(settings, db_rows, source_dir=_yahoo_source_dir(settings, output_file))
         imported_rows = len(db_rows)
-    return preserved_existing_output, imported_rows
+    return preserved_existing_output, rows_written, imported_rows
 
 
 def download_ohlcv_command(
@@ -304,7 +308,7 @@ def download_ohlcv_command(
             time.sleep(pause_seconds)
 
     csv_rows.sort(key=lambda item: (str(item["ticker"]), str(item["date"])))
-    preserved_existing_output, imported_rows = _publish_yahoo_results(
+    preserved_existing_output, rows_written, imported_rows = _publish_yahoo_results(
         settings, output_file, csv_rows, db_rows, failures, import_db=import_db
     )
 
@@ -313,7 +317,7 @@ def download_ohlcv_command(
             "output_file": str(output_file),
             "requested_tickers": tickers,
             "downloaded_tickers": sorted({str(row["ticker"]) for row in csv_rows}),
-            "rows_written": len(csv_rows),
+            "rows_written": rows_written,
             "rows_imported": imported_rows,
             "preserved_existing_output": preserved_existing_output,
             "pause_seconds": pause_seconds,
@@ -368,7 +372,7 @@ def import_ohlcv_excel_command(
             time.sleep(batch_pause_seconds)
 
     csv_rows.sort(key=lambda item: (str(item["ticker"]), str(item["date"])))
-    preserved_existing_output, imported_rows = _publish_yahoo_results(
+    preserved_existing_output, rows_written, imported_rows = _publish_yahoo_results(
         settings, output_file, csv_rows, db_rows, failures, import_db=True
     )
     return json.dumps(
@@ -376,7 +380,7 @@ def import_ohlcv_excel_command(
             "input_file": str(workbook_path),
             "output_file": str(output_file),
             "parsed_tickers": len(tickers),
-            "rows_written": len(csv_rows),
+            "rows_written": rows_written,
             "rows_imported": imported_rows,
             "preserved_existing_output": preserved_existing_output,
             "range": {"start": start_date, "end": end_date},
