@@ -278,6 +278,40 @@ def apply_same_day_chase_penalty(settings: Settings, raw_score: float, daily_cha
     return max(raw_score - penalty, 0.0)
 
 
+def prior_close_returns_pct(bars: list, as_of: date, lookback: int = 2) -> list[float]:
+    prior = [bar for bar in bars if bar.date < as_of]
+    if len(prior) < 2:
+        return []
+    returns: list[float] = []
+    for previous, current in zip(prior[:-1], prior[1:]):
+        if previous.close_price <= 0:
+            continue
+        returns.append((current.close_price - previous.close_price) / previous.close_price * 100.0)
+    return returns[-lookback:]
+
+
+def apply_fade_then_rechase_penalty(
+    settings: Settings,
+    raw_score: float,
+    prior_returns_pct: list[float],
+    reduced_breadth: bool,
+) -> float:
+    if len(prior_returns_pct) < 2:
+        return raw_score
+    if prior_returns_pct[-1] >= settings.limit_up_like_return_pct:
+        return raw_score
+    if not any(value >= settings.limit_up_like_return_pct for value in prior_returns_pct[:-1]):
+        return raw_score
+    penalty = settings.fade_then_rechase_penalty
+    if reduced_breadth:
+        penalty += settings.fade_then_rechase_breadth_extra
+    return max(raw_score - penalty, 0.0)
+
+
+def weak_market_breadth(settings: Settings, prices: object) -> bool:
+    return int(market_breadth_exposure(settings, prices)["pick_count_cap"]) < settings.default_pick_count
+
+
 def cap_setup_penalty_for_strong_momentum(signal: SignalRow, setup_penalty: float) -> float:
     if signal.momentum >= 0.9 and signal.technical >= 0.06 and signal.liquidity >= 1.0:
         return min(setup_penalty, 0.03)
@@ -398,6 +432,8 @@ def _compute_ranked_candidate_rows(
         weights = get_weights_as_of(settings, as_of) or default_weights(as_of)
     latest_prices = {bar.ticker: bar for bar in get_prices_for_date(settings, as_of)}
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
+    history_by_ticker = group_bars_by_ticker(get_recent_price_history(settings, as_of, bars=4))
+    reduced_breadth = weak_market_breadth(settings, list(latest_prices.values()))
     ranked: list[PickRow] = []
     for base_signal in signals:
         snapshot = snapshots.get(base_signal.ticker)
@@ -435,6 +471,12 @@ def _compute_ranked_candidate_rows(
         daily_change_pct = snapshot.daily_change_pct if snapshot else None
         score = score_signal(signal, weights) + signal.technical + signal.fundamental + signal.quality - signal.setup_penalty
         score = apply_same_day_chase_penalty(settings, score, daily_change_pct)
+        score = apply_fade_then_rechase_penalty(
+            settings,
+            score,
+            prior_close_returns_pct(history_by_ticker.get(base_signal.ticker, []), as_of),
+            reduced_breadth,
+        )
         score = max(score - market_context_score_penalty(as_of, snapshot), 0.0)
         ranked.append(
             PickRow(
@@ -1040,13 +1082,26 @@ def bucketed_strategy_comparison_output(
     return json.dumps(payload, indent=2)
 
 
-def classify_missed_mover(settings: Settings, mover: dict[str, object]) -> tuple[str, str]:
-    close_change_return = abs(float(mover["close_change_return"]))
+def classify_missed_mover(
+    settings: Settings,
+    mover: dict[str, object],
+    candidate: tuple[int, PickRow] | None = None,
+) -> tuple[str, str]:
+    signed_return = float(mover["close_change_return"])
+    close_change_return = abs(signed_return)
     traded_value = float(mover["close_price"]) * float(mover["volume"])
     if traded_value < settings.low_liquidity_threshold:
         return "non_actionable", "low_liquidity"
     if close_change_return > settings.max_abs_momentum:
         return "non_actionable", "extreme_volatility"
+    if candidate is not None:
+        rank, pick = candidate
+        if (
+            signed_return >= settings.limit_up_like_return_pct / 100.0
+            and pick.setup_penalty >= settings.setup_penalized_limit_up_min_penalty
+            and rank > settings.setup_penalized_limit_up_min_rank
+        ):
+            return "non_actionable", "setup_penalized_limit_up"
     return "actionable", "not_selected_by_score"
 
 
@@ -1091,6 +1146,7 @@ def _attribution_for_pick(
     settings: Settings,
     candidate: tuple[int, PickRow] | None,
     effective_pick_count: int | None = None,
+    mover_return: float | None = None,
 ) -> dict[str, object]:
     if candidate is None:
         return {
@@ -1101,11 +1157,25 @@ def _attribution_for_pick(
 
     rank, pick = candidate
     active_cutoff = effective_pick_count or settings.default_pick_count
-    note = "inside_top_pick_cutoff" if rank <= active_cutoff else "below_top_pick_cutoff"
-    if active_cutoff < rank <= settings.default_pick_count:
+    is_miss = mover_return is not None
+    limit_up_like = is_miss and mover_return >= settings.limit_up_like_return_pct / 100.0
+    if (
+        is_miss
+        and limit_up_like
+        and pick.setup_penalty >= settings.setup_penalized_limit_up_min_penalty
+        and rank > settings.setup_penalized_limit_up_min_rank
+    ):
+        note = "setup_penalized_limit_up"
+    elif is_miss and settings.default_pick_count < rank <= settings.near_cutoff_max_rank:
+        note = "near_cutoff"
+    elif active_cutoff < rank <= settings.default_pick_count:
         note = "excluded_by_breadth_cap"
-    if pick.setup_penalty > 0:
+    elif rank <= active_cutoff:
+        note = "penalized_by_setup_context" if pick.setup_penalty > 0 else "inside_top_pick_cutoff"
+    elif pick.setup_penalty > 0:
         note = "penalized_by_setup_context"
+    else:
+        note = "below_top_pick_cutoff"
     return {
         "data_status": "ranked_candidate",
         "candidate_rank": rank,
@@ -1248,7 +1318,8 @@ def review_output(
             "close_price": round(mover["close_price"], 4),
             "volume": mover["volume"],
         }
-        bucket, reason = classify_missed_mover(settings, entry)
+        candidate = candidate_rankings.get(entry["ticker"])
+        bucket, reason = classify_missed_mover(settings, entry, candidate=candidate)
         review_entry = {
             "ticker": entry["ticker"],
             "date": entry["date"],
@@ -1257,8 +1328,9 @@ def review_output(
             "reason": reason,
             "attribution": _attribution_for_pick(
                 settings,
-                candidate_rankings.get(entry["ticker"]),
+                candidate,
                 effective_pick_count,
+                mover_return=entry["close_change_return"],
             ),
         }
         missed_top_movers.append(review_entry)

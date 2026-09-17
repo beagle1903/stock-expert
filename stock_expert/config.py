@@ -17,6 +17,12 @@ class Settings:
     same_day_chase_threshold_pct: float = 8.0
     same_day_chase_penalty_per_pct: float = 0.03
     max_same_day_chase_penalty: float = 0.12
+    limit_up_like_return_pct: float = 9.0
+    fade_then_rechase_penalty: float = 0.08
+    fade_then_rechase_breadth_extra: float = 0.04
+    setup_penalized_limit_up_min_penalty: float = 0.05
+    setup_penalized_limit_up_min_rank: int = 50
+    near_cutoff_max_rank: int = 20
 
 
 def _sanitize_branch_name(branch_name: str) -> str:

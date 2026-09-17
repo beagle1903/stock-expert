@@ -379,6 +379,7 @@ function missedReason(reason: string) {
     not_selected_by_score: "Passed the stored liquidity and volatility gates but was not selected by score.",
     low_liquidity: "Did not pass the stored traded-value liquidity gate.",
     extreme_volatility: "Moved beyond the stored momentum safety range.",
+    setup_penalized_limit_up: "Limit-up-like move with a large setup penalty far from the cutoff; not treated as a selection failure.",
   };
   return labels[reason] ?? reason.replaceAll("_", " ");
 }
@@ -389,6 +390,8 @@ function selectionNote(note: string) {
     below_top_pick_cutoff: "Ranked below the active pick cutoff.",
     excluded_by_breadth_cap: "Excluded because weak breadth reduced the basket size.",
     penalized_by_setup_context: "Setup context reduced the candidate's final score.",
+    setup_penalized_limit_up: "Setup-penalized limit-up-like name ranked far below the cutoff.",
+    near_cutoff: "Ranked near the active cutoff but not selected.",
   };
   return labels[note] ?? note.replaceAll("_", " ");
 }
