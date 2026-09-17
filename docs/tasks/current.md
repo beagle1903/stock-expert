@@ -57,13 +57,12 @@
 ## Active Enhancement
 
 - Snapshots API (`/api/snapshots/history`, `/api/snapshots/{id}`) and the
-  read-only Evidence Console Snapshots view shipped on
-  `codex/data-quality-snapshot-history`. GitHub issue #11 stays open until
-  merge. Verification is in `docs/tasks/data-quality-snapshot-history.md`.
+  read-only Evidence Console Snapshots view shipped on `main` via
+  [PR #19](https://github.com/beagle1903/stock-expert/pull/19). GitHub issue
+  #11 is closed. Verification is in
+  `docs/tasks/data-quality-snapshot-history.md`.
 - Spec: `docs/superpowers/specs/2026-09-16-data-quality-snapshot-history-design.md`.
 - Plan: `docs/superpowers/plans/2026-09-16-data-quality-snapshot-history.md`.
 - Implementation notes: `docs/tasks/data-quality-snapshot-history.md`.
-- Do not treat `docs/tasks/` as a replacement for the issue. Keep #11 open
-  until the work ships.
 - Basic GitHub CI now gates pull requests and `main` with Python tests plus
   frontend tests and a production build; deployment is intentionally deferred.
