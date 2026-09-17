@@ -68,7 +68,7 @@
 - Implementation notes: `docs/tasks/data-quality-snapshot-history.md`.
 - Basic GitHub CI now gates pull requests and `main` with Python tests plus
   frontend tests and a production build; deployment is intentionally deferred.
-- GitHub [#14](https://github.com/beagle1903/stock-expert/issues/14): harden
-  the optional Yahoo path and remove `midday-routine`. See
-  `docs/features/download-ohlcv.md`.
+- Optional Yahoo path and `midday-routine` removal shipped on `main` via
+  [PR #25](https://github.com/beagle1903/stock-expert/pull/25). GitHub issue
+  #14 is closed. See `docs/features/download-ohlcv.md`.
 - Removed redundant `openwiki/` generated wiki; `docs/` is the source of truth.
