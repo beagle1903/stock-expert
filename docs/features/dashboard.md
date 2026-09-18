@@ -22,8 +22,9 @@
 - After a successful run, the dashboard repository reloads so both Today’s Picks and Reviews immediately display the newest persisted results.
 - Navigation covers overview, today's picks, reviews, snapshots, diagnostics, and data/runs without adding execution, portfolio, live-quote, or forecast capabilities.
 - `?view=runs` opens Data & Runs directly so a completed data-refresh command can hand off to routine confirmation without a second navigation step.
-- Dashboard loading and retry states remain available; Data & Runs shows only real routine readiness, confirmation, running, success, and failure states rather than UI-only presentation previews.
-- An unexpectedly empty persisted basket renders an explicit empty state on pick-dependent views instead of collapsing the workspace to its header.
+- No production Evidence Console panel uses sample data. Today's Picks, Reviews, Snapshots, Strategy Lab, and Data & Runs all read persisted loopback APIs.
+- Dashboard loading, retry, and boot-error states remain available. A failed dashboard load uses distinct error copy plus Retry; it does not reuse the empty-basket message. Data & Runs shows only real routine readiness, confirmation, running, success, and failure states rather than UI-only presentation previews.
+- An unexpectedly empty persisted basket (successful load, no selected pick) renders an explicit empty state on pick-dependent views instead of collapsing the workspace to its header.
 - Desktop, tablet, and mobile layouts preserve keyboard focus and explicit date/freshness labels.
 - Strategy Lab keeps wide evidence tables inside local horizontal scrollers and bounds long breadth histories so the page itself does not overflow at narrow widths.
 - Historical playback keeps its wide basket table inside a local horizontal scroller and retains a single-column signal/review route at mobile widths.

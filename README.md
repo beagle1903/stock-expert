@@ -2,7 +2,7 @@
 
 ## Frontend Prototype
 
-The approved dark Evidence Console lives in `frontend/`. Its evidence panels use clearly labeled typed sample data, while Data & Runs can execute the real persisted routine through a loopback-only Python API.
+The approved dark Evidence Console lives in `frontend/`. Evidence panels read persisted loopback APIs (`/api/picks/latest`, reviews, strategy evidence, snapshots). Data & Runs executes the real persisted routine through the same loopback-only Python API.
 
 ```powershell
 cd frontend

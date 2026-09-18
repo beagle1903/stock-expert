@@ -11,6 +11,7 @@
 
 ## Current Notes
 
+- Evidence Console production panels are live loopback reads. Boot API errors use a distinct StatusView from an empty basket. Issue #13.
 - After every completed development task, commit on a topic branch, push, and open a GitHub pull request. Do not wait to be asked. Tiny typo-only edits may still go directly to `main` when the scope is a single obvious typo. See `docs/rules/workflow.md`.
 - Always dispatch project subagents (`se-explore`, `se-implement`, `se-strategy-review`, `se-ui-review`). Do not skip them because a task looks small. Do not use Cursor built-in `explore`. Do not nest subagents. See `docs/rules/workflow.md`.
 - Daily CSV imports are the main runtime market-data source
