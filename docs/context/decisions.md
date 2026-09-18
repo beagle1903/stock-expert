@@ -27,6 +27,7 @@
 - July 15, Democracy and National Unity Day, is modeled as a recurring annual BIST closure.
 - The 2026 holiday-week routing treats 2026-05-26 as a half-holiday/low-liquidity context, skips 2026-05-27 through 2026-05-29, and leaves 2026-06-01 open.
 - Daily CSV imports skip unmapped company names instead of fabricating ticker symbols from company-name prefixes.
+- Daily CSV mapping prefers a validated source symbol/code over `ticker_map.csv`; the map remains the collision-free company-name fallback, invalid/empty source codes never become prefix tickers, and source-vs-map disagreements are counted in import diagnostics without changing the source ticker.
 - Daily CSV imports accept Turkish or English numeric punctuation, resolve only collision-free company aliases, and reject live-size snapshots below 75% distinct ticker coverage before persistence.
 - Daily CSV `open_price` stores a previous-close reference derived from daily percentage change; outputs label this as previous-close-to-latest price basis instead of true intraday open-to-close.
 - `review` is idempotent for the same signal/review date and adjusts weights from performance plus actionable misses instead of a fixed drift.

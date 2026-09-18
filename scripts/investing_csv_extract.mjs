@@ -40,6 +40,8 @@ const TABLES = [
   },
 ];
 
+const SYMBOL_HEADERS = new Set(["KOD", "SEMBOL", "SYMBOL", "CODE", "TICKER", "HISSEKODU"]);
+
 function parseArgs(argv) {
   const result = {
     url: DEFAULTS.url,
@@ -405,7 +407,15 @@ async function selectTab(client, tabName, expectedHeaders, timeoutMs) {
       const headers = [...table.querySelectorAll("thead th")]
         .map((cell) => normalize(cell.innerText).replace(/[^A-Z0-9]/g, ""))
         .filter(Boolean);
-      return JSON.stringify(headers) === JSON.stringify(${JSON.stringify(normalizedExpected)});
+      const expected = ${JSON.stringify(normalizedExpected)};
+      const symbols = new Set(${JSON.stringify([...SYMBOL_HEADERS])});
+      if (JSON.stringify(headers) === JSON.stringify(expected)) return true;
+      if (headers.length === expected.length + 1 && symbols.has(headers[0]) &&
+          JSON.stringify(headers.slice(1)) === JSON.stringify(expected)) return true;
+      if (headers.length === expected.length + 1 && symbols.has(headers[1]) &&
+          headers[0] === expected[0] &&
+          JSON.stringify(headers.slice(2)) === JSON.stringify(expected.slice(1))) return true;
+      return false;
     `),
     Math.min(timeoutMs, 30_000),
     `${tabName} table headers`,
@@ -486,7 +496,18 @@ async function expandAllRows(client, maxClicks, timeoutMs) {
   return { clicks, rows };
 }
 
-async function extractTable(client, expectedColumnCount) {
+async function extractTable(client, expectedHeaders) {
+  const normalizedExpected = expectedHeaders.map((header) =>
+    header
+      .replace(/[İı]/g, "I")
+      .replace(/[Şş]/g, "S")
+      .replace(/[Ğğ]/g, "G")
+      .replace(/[Üü]/g, "U")
+      .replace(/[Öö]/g, "O")
+      .replace(/[Çç]/g, "C")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .toUpperCase(),
+  );
   return evaluate(
     client,
     pageExpression(`
@@ -495,10 +516,22 @@ async function extractTable(client, expectedColumnCount) {
       const headers = [...table.querySelectorAll("thead th")]
         .map((cell) => clean(cell.innerText))
         .filter(Boolean);
+      const normalizedHeaders = headers.map((header) => normalize(header).replace(/[^A-Z0-9]/g, ""));
+      const expected = ${JSON.stringify(normalizedExpected)};
+      const symbols = new Set(${JSON.stringify([...SYMBOL_HEADERS])});
+      const matchesExpected = JSON.stringify(normalizedHeaders) === JSON.stringify(expected);
+      const extraBefore = normalizedHeaders.length === expected.length + 1 &&
+        symbols.has(normalizedHeaders[0]) &&
+        JSON.stringify(normalizedHeaders.slice(1)) === JSON.stringify(expected);
+      const extraAfter = normalizedHeaders.length === expected.length + 1 &&
+        symbols.has(normalizedHeaders[1]) &&
+        normalizedHeaders[0] === expected[0] &&
+        JSON.stringify(normalizedHeaders.slice(2)) === JSON.stringify(expected.slice(1));
+      const columnCount = matchesExpected || extraBefore || extraAfter ? headers.length : ${expectedHeaders.length};
       const rows = [...table.querySelectorAll("tbody tr")].map((row) => {
         const cells = [...row.querySelectorAll("td")].map((cell) => clean(cell.innerText));
-        return cells.length > ${expectedColumnCount}
-          ? cells.slice(cells.length - ${expectedColumnCount})
+        return cells.length > columnCount
+          ? cells.slice(cells.length - columnCount)
           : cells;
       });
       return { headers, rows };
@@ -576,7 +609,7 @@ async function run() {
           `${tableConfig.tab} stopped at ${expanded.rows} rows; expected at least ${options.minRows}`,
         );
       }
-      const extracted = await extractTable(client, tableConfig.headers.length);
+      const extracted = await extractTable(client, tableConfig.headers);
       if (!extracted) throw new Error(`Could not extract the ${tableConfig.tab} table`);
       tables[tableConfig.filename] = extracted;
       moreClicks[tableConfig.filename] = expanded.clicks;

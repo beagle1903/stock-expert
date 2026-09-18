@@ -55,6 +55,7 @@
 
 ## Active Enhancement
 
+- GitHub issue #12 (import canonical source symbol/code, keep `ticker_map.csv` as fallback) is implemented on branch `import-source-symbols`. Ranking, picks, review, and latest-picks selection stay unchanged.
 - Workflow docs for mandatory PRs and always-dispatch project subagents
   shipped on `main` via
   [PR #27](https://github.com/beagle1903/stock-expert/pull/27). GitHub issue

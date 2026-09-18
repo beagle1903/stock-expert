@@ -20,7 +20,8 @@ Use the automation only with the permissions required by the data provider's ter
 
 - Every table must contain at least 500 rows by default.
 - `Daha Fazla` is state-driven and limited to 12 clicks per tab.
-- Source headers must match the existing four CSV schemas.
+- Source headers must match the existing four CSV schemas, or those schemas plus one optional recognized symbol/code column immediately before or after `İsim`. A Kod column is not required; current live tables without a symbol still validate and publish
+- If an optional symbol column is present, publication keeps it so daily import can use it, and the bundle is rejected when the same company name maps to different valid symbols across tables
 - All four tables must have identical company-name coverage, including duplicates.
 - Files are quoted UTF-8 CSVs with a BOM.
 - Existing live CSVs are replaced only after the complete bundle validates; failures restore the prior files.

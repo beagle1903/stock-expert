@@ -6,7 +6,7 @@
 - `stock_expert/investing_csv.py`: validates and rollback-safe publishes the four rendered Investing.com table extracts
 - `scripts/investing_csv_extract.mjs`: drives a dedicated Edge/Chrome session through the browser debugging protocol without a third-party browser dependency
 - `stock_expert/trading_calendar.py`: shared BIST session and exact-closure routing
-- `data/ticker_map.csv`: persistent company-name to ticker overrides used during import
+- `data/ticker_map.csv`: collision-free company-name to ticker fallback used during import when a source symbol/code is missing or invalid
 - `stock_expert/signals.py`: momentum, volume spike, risk classification
 - `stock_expert/database.py`: SQLite schema and persistence
 - `stock_expert/models.py`: domain models

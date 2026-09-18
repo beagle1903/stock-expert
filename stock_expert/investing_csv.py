@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from stock_expert.config import Settings
+from stock_expert.daily_csv import SOURCE_SYMBOL_HEADERS, _normalize_source_symbol
 
 
 SOURCE_URL = "https://tr.investing.com/equities/turkey"
@@ -55,6 +56,41 @@ def _normalize_header(value: str) -> str:
     return "".join(character for character in translated if character.isalnum())
 
 
+def _header_mismatch_error(filename: str, expected_headers: list[str], source_headers: list[str]) -> InvestingCsvError:
+    return InvestingCsvError(
+        f"{filename} header mismatch: expected {expected_headers}, received {source_headers}"
+    )
+
+
+def _match_table_headers(
+    filename: str, source_headers: list[str], expected_headers: list[str]
+) -> tuple[int, int | None]:
+    normalized_source = [_normalize_header(value) for value in source_headers]
+    normalized_expected = [_normalize_header(value) for value in expected_headers]
+    if normalized_source == normalized_expected:
+        return 0, None
+    if len(normalized_source) == len(normalized_expected) + 1:
+        if normalized_source[0] in SOURCE_SYMBOL_HEADERS and normalized_source[1:] == normalized_expected:
+            return 1, 0
+        if (
+            normalized_source[0] == normalized_expected[0]
+            and normalized_source[1] in SOURCE_SYMBOL_HEADERS
+            and normalized_source[2:] == normalized_expected[1:]
+        ):
+            return 0, 1
+    raise _header_mismatch_error(filename, expected_headers, source_headers)
+
+
+def _published_headers(
+    source_headers: list[str], expected_headers: list[str], symbol_index: int | None
+) -> list[str]:
+    if symbol_index is None:
+        return expected_headers
+    published = list(expected_headers)
+    published.insert(symbol_index, source_headers[symbol_index])
+    return published
+
+
 def validate_extracted_tables(payload: dict[str, Any], min_rows: int) -> dict[str, int]:
     if min_rows < 1:
         raise ValueError("min_rows must be at least 1")
@@ -65,6 +101,7 @@ def validate_extracted_tables(payload: dict[str, Any], min_rows: int) -> dict[st
 
     row_counts: dict[str, int] = {}
     company_sets: dict[str, Counter[str]] = {}
+    company_symbols: dict[str, set[str]] = {}
 
     for filename, expected_headers in CSV_HEADERS.items():
         table = tables.get(filename)
@@ -78,12 +115,7 @@ def validate_extracted_tables(payload: dict[str, Any], min_rows: int) -> dict[st
         if not isinstance(rows, list):
             raise InvestingCsvError(f"{filename} rows are invalid")
 
-        normalized_source = [_normalize_header(value) for value in source_headers]
-        normalized_expected = [_normalize_header(value) for value in expected_headers]
-        if normalized_source != normalized_expected:
-            raise InvestingCsvError(
-                f"{filename} header mismatch: expected {expected_headers}, received {source_headers}"
-            )
+        isim_index, symbol_index = _match_table_headers(filename, source_headers, expected_headers)
         if len(rows) < min_rows:
             raise InvestingCsvError(
                 f"{filename} has {len(rows)} rows; at least {min_rows} are required before publication"
@@ -91,17 +123,21 @@ def validate_extracted_tables(payload: dict[str, Any], min_rows: int) -> dict[st
 
         companies: list[str] = []
         for row_number, row in enumerate(rows, start=2):
-            if not isinstance(row, list) or len(row) != len(expected_headers):
+            if not isinstance(row, list) or len(row) != len(source_headers):
                 raise InvestingCsvError(
                     f"{filename} row {row_number} has {len(row) if isinstance(row, list) else 'invalid'} "
-                    f"columns; expected {len(expected_headers)}"
+                    f"columns; expected {len(source_headers)}"
                 )
             if not all(isinstance(value, str) for value in row):
                 raise InvestingCsvError(f"{filename} row {row_number} contains a non-text value")
-            company_name = row[0].strip()
+            company_name = row[isim_index].strip()
             if not company_name:
                 raise InvestingCsvError(f"{filename} row {row_number} has an empty company name")
             companies.append(company_name)
+            if symbol_index is not None:
+                normalized_symbol = _normalize_source_symbol(row[symbol_index])
+                if normalized_symbol:
+                    company_symbols.setdefault(company_name, set()).add(normalized_symbol)
 
         row_counts[filename] = len(rows)
         company_sets[filename] = Counter(companies)
@@ -117,6 +153,10 @@ def validate_extracted_tables(payload: dict[str, Any], min_rows: int) -> dict[st
                 f"missing={missing}, extra={extra}"
             )
 
+    conflicts = [name for name, symbols in company_symbols.items() if len(symbols) > 1]
+    if conflicts:
+        raise InvestingCsvError(f"symbol conflict for companies: {conflicts[:5]}")
+
     return row_counts
 
 
@@ -131,10 +171,12 @@ def publish_extracted_tables(payload: dict[str, Any], destination: Path, min_row
 
     try:
         for filename, headers in CSV_HEADERS.items():
+            source_headers = payload["tables"][filename]["headers"]
+            _, symbol_index = _match_table_headers(filename, source_headers, headers)
             staged_file = staging / filename
             with staged_file.open("w", encoding="utf-8-sig", newline="") as handle:
                 writer = csv.writer(handle, quoting=csv.QUOTE_ALL)
-                writer.writerow(headers)
+                writer.writerow(_published_headers(source_headers, headers, symbol_index))
                 writer.writerows(payload["tables"][filename]["rows"])
                 handle.flush()
                 os.fsync(handle.fileno())
