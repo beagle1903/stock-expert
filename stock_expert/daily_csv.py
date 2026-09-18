@@ -290,23 +290,6 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
                 unmapped_names.append(company_name)
                 continue
 
-        mapped_ticker = _resolve_ticker(ticker_map, company_name)
-        if used_source_symbol and mapped_ticker and mapped_ticker != ticker:
-            source_map_disagreement_count += 1
-
-        if ticker in used_tickers:
-            skipped_symbol_conflict_count += 1
-            skipped_unmapped_count += 1
-            unmapped_names.append(company_name)
-            continue
-        used_tickers.add(ticker)
-
-        mapped_count += 1
-        if used_source_symbol:
-            source_symbol_count += 1
-        else:
-            ticker_map_fallback_count += 1
-
         try:
             last_price = _parse_required_row_number(row, "SON", decimal_separator)
             daily_pct = _parse_required_row_number(row, "FARK", decimal_separator)
@@ -323,6 +306,23 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
         except (KeyError, ValueError):
             skipped_malformed_count += 1
             continue
+
+        if ticker in used_tickers:
+            skipped_symbol_conflict_count += 1
+            skipped_unmapped_count += 1
+            unmapped_names.append(company_name)
+            continue
+        used_tickers.add(ticker)
+
+        mapped_count += 1
+        if used_source_symbol:
+            source_symbol_count += 1
+        else:
+            ticker_map_fallback_count += 1
+
+        mapped_ticker = _resolve_ticker(ticker_map, company_name)
+        if used_source_symbol and mapped_ticker and mapped_ticker != ticker:
+            source_map_disagreement_count += 1
 
         snapshots.append(
             MarketSnapshot(

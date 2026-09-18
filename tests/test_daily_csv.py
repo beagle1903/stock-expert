@@ -511,6 +511,50 @@ class DailyCsvImportTests(unittest.TestCase):
         self.assertEqual(snapshots[0].company_name, "Adel")
         self.assertEqual(self._mapping_failure_names(payload["snapshot_id"]), ["Other Co"])
 
+    def test_malformed_first_row_does_not_reserve_ticker_for_later_valid_row(self) -> None:
+        self._write_csv_rows(
+            "fiyat.csv",
+            ["Kod", "İsim", "Son", " Yüksek", " Düşük", "Fark", "Fark %", "Hac.", "Zaman"],
+            [
+                ["ADEL", "Adel", "bad-price", "47,78", "44,60", "2,60", "5,98%", "11,48M", "18:09:44"],
+                ["ADEL", "Other Co", "10,00", "11,00", "9,00", "1,00", "1,00%", "1,00M", "18:09:44"],
+            ],
+        )
+        self._write_csv_rows(
+            "performans.csv",
+            ["Kod", "İsim", "Günlük", "Haftalık", " 1 Aylık", "YTD", "1 Yıllık", "3 Yıllık"],
+            [
+                ["ADEL", "Adel", "5,98", "7,21", "36,39", "39,70", "20,37", "347,60"],
+                ["ADEL", "Other Co", "1,00", "1,00", "1,00", "1,00", "1,00", "1,00"],
+            ],
+        )
+        self._write_csv_rows(
+            "teknik.csv",
+            ["Kod", "İsim", "Saatlik", "Günlük", "Haftalık", "Aylık"],
+            [
+                ["ADEL", "Adel", "Güçlü Al", "Al", "Nötr", "Güçlü Al"],
+                ["ADEL", "Other Co", "Al", "Al", "Al", "Al"],
+            ],
+        )
+        self._write_csv_rows(
+            "temel.csv",
+            ["Kod", "İsim", "Ortalama Hacim (3Ay)", "Piyasa değeri", "Gelir", "Fiyat / Kazanç Oranı", "Beta"],
+            [
+                ["ADEL", "Adel", "4,82M", "12,02Mlr", "2,10B", "12,77", "-0,59"],
+                ["ADEL", "Other Co", "1,00M", "1,00Mlr", "1,00B", "10,00", "1,00"],
+            ],
+        )
+
+        payload = json.loads(import_daily_csv_command(self.settings, "2026-04-21"))
+        snapshots = get_market_snapshots_for_date(self.settings, date(2026, 4, 21))
+
+        self.assertEqual(payload["rows_read"], 1)
+        self.assertEqual(payload["skipped_malformed_count"], 1)
+        self.assertEqual(payload["skipped_symbol_conflict_count"], 0)
+        self.assertEqual(len(snapshots), 1)
+        self.assertEqual(snapshots[0].ticker, "ADEL")
+        self.assertEqual(snapshots[0].company_name, "Other Co")
+
     def test_source_symbol_is_preferred_over_ticker_map(self) -> None:
         self._write_minimal_csv_set(
             "2,10B",

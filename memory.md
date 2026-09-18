@@ -95,7 +95,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-09-16 | Daily CSV provenance persists atomically on `snapshot_runs` (`not_captured` for old rows); read-only Snapshots API/UI lists lineage, coverage, mapping failures, and prior-id comparison. | Matches missed-mover evidence rules, keeps publication atomic, and does not change ranking or latest-picks selection. |
 | 2026-09-16 | Completed feature work ends with a GitHub pull request. | Operator asked to always open a PR when a task ships, rather than leaving the branch local-only. |
 | 2026-09-18 | Every completed development task ends with a GitHub PR; always dispatch project subagents. | Operator asked for standing workflow docs, not optional feature-only PRs. |
-| 2026-09-18 | Daily CSV mapping prefers a validated source symbol/code; `ticker_map.csv` stays the collision-free company-name fallback. Invalid/empty source codes never become prefix tickers. Cross-table or duplicate-ticker conflicts are skipped and reported. Source-vs-map disagreements are counted, not auto-corrected. | Issue #12. |
+| 2026-09-18 | Daily CSV mapping prefers a validated source symbol/code; `ticker_map.csv` stays the collision-free company-name fallback. Invalid/empty source codes never become prefix tickers. Cross-table or duplicate-ticker conflicts are skipped and reported. Ticker uniqueness is reserved only after required numeric validation succeeds, so a malformed first row cannot block a later valid row for the same ticker. Source-vs-map disagreements are counted, not auto-corrected. | Issue #12. |
 
 ## Workflows
 
