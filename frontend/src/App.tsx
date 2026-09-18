@@ -13,7 +13,9 @@ import {
   Stack,
   SpinnerGap,
   Star,
+  WarningCircle,
 } from "@phosphor-icons/react";
+import { dashboardBootKind } from "./data/dashboardViewModel.mjs";
 import { dashboardRepository } from "./data/dashboardRepository";
 import { snapshotHistoryRepository } from "./data/snapshotHistoryRepository";
 import { strategyEvidenceRepository } from "./data/strategyEvidenceRepository";
@@ -645,7 +647,15 @@ function RunTimeline({ data }: { data: DashboardData }) {
   );
 }
 
-function StatusView({ kind, onRetry }: { kind: "loading" | "empty"; onRetry: () => void }) {
+function StatusView({
+  kind,
+  onRetry,
+  message,
+}: {
+  kind: "loading" | "empty" | "error";
+  onRetry: () => void;
+  message?: string | null;
+}) {
   if (kind === "loading") {
     return (
       <section className="panel status-view" aria-live="polite">
@@ -653,6 +663,16 @@ function StatusView({ kind, onRetry }: { kind: "loading" | "empty"; onRetry: () 
         <h2>Loading persisted evidence</h2>
         <p>Reading the latest persisted SQLite snapshot.</p>
         <div className="skeleton-lines" aria-hidden="true"><span /><span /><span /></div>
+        <button type="button" className="secondary-action" onClick={onRetry}>Retry</button>
+      </section>
+    );
+  }
+  if (kind === "error") {
+    return (
+      <section className="panel status-view" role="alert">
+        <WarningCircle size={32} aria-hidden="true" />
+        <h2>Persisted evidence could not be loaded</h2>
+        <p>{message ?? "The local dashboard APIs did not return persisted evidence."}</p>
         <button type="button" className="secondary-action" onClick={onRetry}>Retry</button>
       </section>
     );
@@ -1297,7 +1317,7 @@ function RunsView({ data, reload }: {
 }
 
 export function App() {
-  const { data, status, reload } = useDashboard(dashboardRepository);
+  const { data, status, error, reload } = useDashboard(dashboardRepository);
   const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const strategyEvidence = useStrategyEvidence(
     strategyEvidenceRepository,
@@ -1307,7 +1327,7 @@ export function App() {
     snapshotHistoryRepository,
     activeView === "snapshots",
   );
-  const [selectedTicker, setSelectedTicker] = useState("AKSEN");
+  const [selectedTicker, setSelectedTicker] = useState("");
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [selectedReview, setSelectedReview] = useState<ReviewSummary | null>(null);
   const [selectedPlayback, setSelectedPlayback] = useState<StrategyPlayback | null>(null);
@@ -1434,7 +1454,14 @@ export function App() {
       );
     }
     if (contentMode === "dashboard_unavailable" || !data) {
-      return <StatusView kind={status === "error" ? "empty" : "loading"} onRetry={() => void reload()} />;
+      const bootKind = dashboardBootKind(status, Boolean(data));
+      return (
+        <StatusView
+          kind={bootKind === "error" ? "error" : "loading"}
+          message={error}
+          onRetry={() => void reload()}
+        />
+      );
     }
     if (activeView === "overview") return <OverviewView data={data} onNavigate={navigate} />;
     if (activeView === "reviews") {

@@ -42,19 +42,25 @@
 
 ## Frontend Prototype
 
-- Dark Evidence Console implemented under `frontend/` with typed mock data and an explicit future repository boundary.
+- Dark Evidence Console implemented under `frontend/`. Every evidence panel reads live loopback APIs; the orphaned mock fixture is removed.
+- Boot distinguishes loading, empty basket, and API error. Error copy is not the empty-basket message.
 - Responsive browser and design QA are recorded in `frontend/design-qa.md`.
-- Live evidence-panel API integration remains deferred; Python strategy and SQLite behavior are unchanged.
+- Python strategy and SQLite behavior are unchanged.
 - Data & Runs now has a loopback-only persisted routine launcher with holiday/missed-day routing, CSV readiness checks, confirmation, progress, and result IDs.
 - The repo-local `/stock-expert:run` command starts or reuses the web app and opens it in Codex's built-in browser.
 - Cursor overlay skills in `.cursor/skills/` are the current operator path for `routine`, `run`, and `refresh-data`; the Codex plugin remains unused fallback. See `docs/context/cursor-operator.md`.
-- Reviews now load persisted history and selectable historical outcomes from SQLite and refresh after a successful routine; compact date navigation, older/newer controls, and a detail-first narrow layout keep the history usable. Other evidence panels remain typed sample data.
+- Reviews load persisted history and selectable historical outcomes from SQLite and refresh after a successful routine; compact date navigation, older/newer controls, and a detail-first narrow layout keep the history usable.
 - Data & Runs no longer includes the UI-only Presentation states preview controls.
 - The repo-local plugin exposes `refresh-data` for validated BIST CSV publication and hands successful refreshes to the direct `?view=runs` web entry point.
 - The repo-local `run` launcher starts only missing UI/API components, retains component pids and ignored logs, and requires a launcher-owned five-minute post-boot watchdog result for both new and reused processes.
 
 ## Active Enhancement
 
+- Live Evidence Console honesty (remove mock fixture, distinguish boot
+  error vs empty basket, drop hardcoded ticker default) is on
+  `live-evidence-panels` for GitHub issue #13. See
+  `docs/tasks/live-evidence-panels.md`. Python ranking, review, import,
+  and SQLite strategy stay unchanged.
 - Import canonical source symbol/code, keep `ticker_map.csv` as fallback
   shipped on `main` via
   [PR #29](https://github.com/beagle1903/stock-expert/pull/29). GitHub issue

@@ -20,7 +20,7 @@
 - Browser implementation: `output/playwright/evidence-console-desktop-v3.png`
 - Full and focused comparison: `output/playwright/design-comparison-v2.png`
 - Viewport: 1440 × 1024 desktop
-- State: dark theme, Today's Picks active, AKSEN selected, loaded Snapshot #100
+- Historical comparison state (2026-07 visual pass): dark theme, Today's Picks active, sample ticker AKSEN, Snapshot #100. That fixture is no longer the live UI.
 
 ## Evidence Reviewed
 
@@ -71,5 +71,22 @@
 ## Follow-up Polish
 
 - Revisit optical font weight only if a future brand typeface is selected.
+
+## Live-evidence honesty QA
+
+Production panels read persisted loopback APIs. Do not treat the 2026-07
+Snapshot #100 / AKSEN comparison as the current data source.
+
+- API-down Retry must not say "No persisted ideas for this signal date"; it
+  must use the distinct "Persisted evidence could not be loaded" heading.
+- Empty basket (successful load, no selected pick) still uses the empty-ideas
+  copy.
+- Reviews `not_captured` missed movers keep the unchanged-legacy explanation.
+- Snapshots `not_captured` provenance stays labeled, not backfilled.
+- Strategy Lab empty/partial notices remain for missing reviews, incomplete
+  pairs, and unavailable snapshots.
+- Selected pick is the first loaded ticker, not a hardcoded AKSEN default.
+- Narrow 820px snapshot/review and 760px pick evidence still scroll the
+  selected detail into view.
 
 final result: passed

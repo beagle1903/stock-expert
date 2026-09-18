@@ -7,14 +7,18 @@ type LoadStatus = "loading" | "loaded" | "error";
 export function useDashboard(repository: DashboardRepository) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setStatus("loading");
+    setError(null);
     try {
       setData(await repository.load());
       setStatus("loaded");
-    } catch {
+    } catch (caught) {
+      setData(null);
       setStatus("error");
+      setError(caught instanceof Error ? caught.message : "Persisted evidence could not be loaded.");
     }
   }, [repository]);
 
@@ -22,5 +26,5 @@ export function useDashboard(repository: DashboardRepository) {
     void load();
   }, [load]);
 
-  return { data, status, reload: load };
+  return { data, status, error, reload: load };
 }
