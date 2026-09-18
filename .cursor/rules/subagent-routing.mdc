@@ -7,6 +7,8 @@ alwaysApply: true
 
 Use these project agents instead of Cursor's built-in `explore` type. Do not nest subagents. Do not start GitHub issue #11 from this overlay. bugbot and security-review run only when the user asks.
 
+Always dispatch these project agents. Do not skip them because a task looks small.
+
 ## Roster
 
 - `se-explore` — read-only search before a change when the layout is unknown. Preferred model: composer-2.5-fast

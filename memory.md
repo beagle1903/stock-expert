@@ -94,6 +94,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-09-16 | Project Cursor agents `se-explore`, `se-implement`, `se-strategy-review`, and `se-ui-review` plus always-on routing with a named model cascade. | Keeps delegated work on Stock Expert invariants and reports silent Cursor model swaps instead of assuming the pin ran. |
 | 2026-09-16 | Daily CSV provenance persists atomically on `snapshot_runs` (`not_captured` for old rows); read-only Snapshots API/UI lists lineage, coverage, mapping failures, and prior-id comparison. | Matches missed-mover evidence rules, keeps publication atomic, and does not change ranking or latest-picks selection. |
 | 2026-09-16 | Completed feature work ends with a GitHub pull request. | Operator asked to always open a PR when a task ships, rather than leaving the branch local-only. |
+| 2026-09-18 | Every completed development task ends with a GitHub PR; always dispatch project subagents. | Operator asked for standing workflow docs, not optional feature-only PRs. |
 
 ## Workflows
 
@@ -116,6 +117,7 @@ Document repeatable ways of doing things in this repo.
 - `D:\miniconda3\python.exe -m unittest discover -s tests -v`
 - Cursor operator skills: `.cursor/skills/routine`, `.cursor/skills/run`, `.cursor/skills/refresh-data`
 - Project subagents: `.cursor/agents/se-*.md` routed by `.cursor/rules/subagent-routing.mdc`
+- Standing workflow rules: `docs/rules/workflow.md`
 
 ### Daily CSV Routine
 
@@ -166,8 +168,8 @@ Live files:
 - Use a short topic branch for non-trivial work. Do not prefix with `codex/`. Do not add `docs/superpowers/` spec or plan files unless the user asks.
 - Keep all related feature changes on the same branch, even when they span model logic, schema, CLI output, tests, docs, memory, and deployment notes.
 - Merge a feature branch back into `main` only after behavior is trusted through tests and any relevant dry-run routine checks.
-- At the end of a completed feature task, commit, push the feature branch, and open a GitHub pull request. Do not wait to be asked.
-- Tiny typo/docs fixes may still go directly to `main` when the scope is obvious.
+- After every completed development task, commit on a topic branch, push, and open a GitHub pull request. Do not wait to be asked. See `docs/rules/workflow.md`.
+- Tiny typo-only edits may still go directly to `main` when the scope is a single obvious typo; everything else needs a PR.
 - Push `main` after merges so GitHub remains the backup/source of truth.
 - The old long-running `codex/add-indicators` branch has been merged and removed.
 
@@ -182,6 +184,7 @@ Live files:
 - Do not modify `docs/scratch/*` during normal task work.
 - Follow the existing docs and folder structure.
 - Root guidance lives in `AGENTS.md`.
+- Standing workflow (always PR, always project subagents): `docs/rules/workflow.md`.
 - Feature docs live in `docs/features/`.
 - Review and trust project-local Codex hooks through `/hooks`; hook trust must be renewed after hook definition changes.
 - Cursor is the current operator path. Project skills live in `.cursor/skills/`; the Cursor docs `stop` hook is `.cursor/hooks.json` wrapping `.codex/hooks/validate_docs_update.py`. Trust it in Cursor Settings > Hooks.
@@ -240,3 +243,4 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-09-17 | Dropped Codex-style branch names and spec/plan ceremony for new work. |
 | 2026-09-17 | Recorded Yahoo secondary-path isolation and removal of `midday-routine` (#14). |
 | 2026-09-17 | Removed redundant `openwiki/` generated wiki. |
+| 2026-09-18 | Recorded mandatory PR after every development task and always-dispatch project subagents. |

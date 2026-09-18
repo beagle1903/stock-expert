@@ -5,6 +5,7 @@ Read order:
 - `docs/tasks/current.md`
 - `docs/context/project.md`
 - `docs/rules/output.md`
+- `docs/rules/workflow.md`
 
 Then use:
 - `docs/context/architecture.md`
@@ -16,6 +17,8 @@ Rules:
 - Keep responses under 300 words
 - Do not modify `docs/scratch/*`
 - Follow existing structure
+- Always dispatch project subagents; do not skip them because a task looks small. See `docs/rules/workflow.md`
+- After every completed development task, commit on a topic branch, push, and open a GitHub pull request. Do not wait to be asked. See `docs/rules/workflow.md`
 - In this repo, `/routine` means run the full persisted routine workflow, then verify SQLite persistence and `git status --short`
 - Cursor project skills in `.cursor/skills/` are the operator path for `/routine`, `/run`, and refresh-data; Codex plugin copies are unused fallback
 - GitHub issues are the requirement tickets; update or create them when work starts, ships, or the spec changes

@@ -1,0 +1,30 @@
+---
+description: Always dispatch Stock Expert project subagents
+alwaysApply: true
+---
+
+# Always Dispatch Project Subagents
+
+Always dispatch project subagents. Do not skip them because a task looks small.
+
+Follow `.cursor/rules/subagent-routing.mdc` and `.cursor/agents/se-*.md`.
+
+## Do
+
+- `se-explore` before a change when layout is unknown.
+- `se-implement` for one scoped change.
+- `se-strategy-review` after persistence, ranking, review, import, or snapshot work.
+- `se-ui-review` after Evidence Console changes.
+- After each subagent, report requested slug, model that ran if known, and whether that was a downgrade.
+- Parent owns issues, branches, commits, and PRs.
+
+## Don't
+
+- Do not skip project subagents because the task looks small.
+- Do not use Cursor built-in `explore`.
+- Do not nest subagents.
+- Do not invent a fifth project agent.
+
+bugbot and security-review still run only when the user asks.
+
+Canonical detail: `docs/rules/workflow.md`.
