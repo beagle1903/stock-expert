@@ -55,10 +55,10 @@
 
 ## Active Enhancement
 
-- Workflow docs for mandatory PRs and always-dispatch project subagents are
-  in progress on `workflow-pr-and-subagents` (GitHub issue
-  [#26](https://github.com/beagle1903/stock-expert/issues/26)). Canonical
-  rule: `docs/rules/workflow.md`.
+- Workflow docs for mandatory PRs and always-dispatch project subagents
+  shipped on `main` via
+  [PR #27](https://github.com/beagle1903/stock-expert/pull/27). GitHub issue
+  #26 is closed. Canonical rule: `docs/rules/workflow.md`.
 - Fade-then-rechase penalty and miss tags shipped on `main` via
   [PR #23](https://github.com/beagle1903/stock-expert/pull/23). GitHub issue
   #21 is closed. See `docs/tasks/fade-then-rechase.md`.
