@@ -74,6 +74,9 @@ full 5-minute watchdog or live Investing.com scrape as part of this PR.
 
 ## Project Subagents
 
+Always dispatch project subagents. Do not skip them because a task looks
+small. Canonical rule: `docs/rules/workflow.md`.
+
 Project agents live under `.cursor/agents/` and are routed by
 `.cursor/rules/subagent-routing.mdc` (`alwaysApply: true`).
 
@@ -101,6 +104,10 @@ not a replacement for the issue.
 
 ## Conventions That Stay
 
+- After every completed development task, commit on a topic branch, push,
+  and open a GitHub pull request. Do not wait to be asked. Tiny typo-only
+  edits may still go directly to `main` when the scope is a single obvious
+  typo. See `docs/rules/workflow.md`.
 - Feature branches use a short topic name, not `codex/<task-name>`
 - `main` uses `data/stock_expert.db`; other branches stay isolated
 - Codex docs in `docs/context/codex-commands.md` and

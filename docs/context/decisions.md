@@ -11,6 +11,8 @@
 
 ## Current Notes
 
+- After every completed development task, commit on a topic branch, push, and open a GitHub pull request. Do not wait to be asked. Tiny typo-only edits may still go directly to `main` when the scope is a single obvious typo. See `docs/rules/workflow.md`.
+- Always dispatch project subagents (`se-explore`, `se-implement`, `se-strategy-review`, `se-ui-review`). Do not skip them because a task looks small. Do not use Cursor built-in `explore`. Do not nest subagents. See `docs/rules/workflow.md`.
 - Daily CSV imports are the main runtime market-data source
 - `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily`, persisted `picks`, actual `review`, score-ranked vs bucketed review comparison, and downside-risk diagnostics
 - Yahoo import remains an optional secondary path (`download-ohlcv`, `import-ohlcv-excel`). It never joins `routine`. Imports publish `yahoo_ohlcv` snapshots that cannot replace daily-CSV prices or the four live CSVs. Use `review --dry-run` for non-mutating review checks; `midday-routine` was removed.

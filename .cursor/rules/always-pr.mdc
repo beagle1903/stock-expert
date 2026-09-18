@@ -1,0 +1,29 @@
+---
+description: After every completed development task, create a GitHub pull request
+alwaysApply: true
+---
+
+# Always Open a Pull Request
+
+After every completed development task, commit on a topic branch, push, and open a GitHub pull request. Do not wait for the user to ask.
+
+## Do
+
+- Commit on a short topic branch (no `codex/` prefix).
+- Push the branch, then `gh pr create` with a HEREDOC body (Summary + Test plan).
+- Return the PR URL when done.
+- Parent agent owns commits, issues, and PRs.
+- `se-implement` does not commit unless the user already asked.
+- Apply this to every development task, including docs/workflow changes.
+
+## Don't
+
+- Do not wait to be asked for a PR.
+- Do not leave completed work local-only.
+- Do not skip a PR because the change looks small or is "just docs".
+
+## Exception
+
+Tiny typo-only edits may still go directly to `main` when the scope is a single obvious typo. Everything else needs a PR.
+
+Canonical detail: `docs/rules/workflow.md`.
