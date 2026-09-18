@@ -32,9 +32,49 @@ HEADER_MAP = str.maketrans(
 )
 
 
+SOURCE_SYMBOL_HEADERS = frozenset({"KOD", "SEMBOL", "SYMBOL", "CODE", "TICKER", "HISSEKODU"})
+SOURCE_SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9]{2,5}$")
+
+
 def _normalize_key(value: str) -> str:
     normalized = value.translate(HEADER_MAP).upper().strip()
     return "".join(ch for ch in normalized if ch.isalnum())
+
+
+def _normalize_source_symbol(value: str) -> str | None:
+    text = value.strip().translate(HEADER_MAP).upper()
+    if text.endswith(".IS"):
+        text = text[:-3]
+    if SOURCE_SYMBOL_RE.fullmatch(text):
+        return text
+    return None
+
+
+def _row_source_symbols(row: dict[str, str]) -> tuple[set[str], bool]:
+    symbols: set[str] = set()
+    had_invalid = False
+    for header in SOURCE_SYMBOL_HEADERS:
+        raw = (row.get(header) or "").strip()
+        if not raw:
+            continue
+        normalized = _normalize_source_symbol(raw)
+        if normalized:
+            symbols.add(normalized)
+        else:
+            had_invalid = True
+    return symbols, had_invalid
+
+
+def _collect_source_symbols(*rows: dict[str, str] | None) -> tuple[set[str], bool]:
+    symbols: set[str] = set()
+    had_invalid = False
+    for row in rows:
+        if not row:
+            continue
+        row_symbols, row_invalid = _row_source_symbols(row)
+        symbols.update(row_symbols)
+        had_invalid = had_invalid or row_invalid
+    return symbols, had_invalid
 
 
 CORPORATE_SUFFIXES = (
@@ -205,11 +245,16 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
     snapshots: list[MarketSnapshot] = []
     price_rows: list[tuple[str, date, float, float, float]] = []
     mapped_count = 0
-    fallback_count = 0
+    source_symbol_count = 0
+    ticker_map_fallback_count = 0
     skipped_non_equity_count = 0
     skipped_unmapped_count = 0
     skipped_malformed_count = 0
+    skipped_symbol_conflict_count = 0
+    invalid_symbol_count = 0
+    source_map_disagreement_count = 0
     unmapped_names: list[str] = []
+    used_tickers: set[str] = set()
 
     for row in fiyat:
         company_name = row.get("ISIM", "").strip()
@@ -225,13 +270,42 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
         if not perf or not tech or not fund:
             continue
 
-        ticker = _resolve_ticker(ticker_map, company_name)
-        if not ticker:
-            fallback_count += 1
+        source_symbols, had_invalid = _collect_source_symbols(row, perf, tech, fund)
+        if had_invalid:
+            invalid_symbol_count += 1
+
+        used_source_symbol = False
+        if len(source_symbols) > 1:
+            skipped_symbol_conflict_count += 1
             skipped_unmapped_count += 1
             unmapped_names.append(company_name)
             continue
+        if len(source_symbols) == 1:
+            ticker = next(iter(source_symbols))
+            used_source_symbol = True
+        else:
+            ticker = _resolve_ticker(ticker_map, company_name)
+            if not ticker:
+                skipped_unmapped_count += 1
+                unmapped_names.append(company_name)
+                continue
+
+        mapped_ticker = _resolve_ticker(ticker_map, company_name)
+        if used_source_symbol and mapped_ticker and mapped_ticker != ticker:
+            source_map_disagreement_count += 1
+
+        if ticker in used_tickers:
+            skipped_symbol_conflict_count += 1
+            skipped_unmapped_count += 1
+            unmapped_names.append(company_name)
+            continue
+        used_tickers.add(ticker)
+
         mapped_count += 1
+        if used_source_symbol:
+            source_symbol_count += 1
+        else:
+            ticker_map_fallback_count += 1
 
         try:
             last_price = _parse_required_row_number(row, "SON", decimal_separator)
@@ -311,7 +385,12 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
             "rows_read": len(snapshots),
             "distinct_generated_tickers": distinct_tickers,
             "mapped_count": mapped_count,
-            "fallback_count": fallback_count,
+            "fallback_count": skipped_unmapped_count,
+            "source_symbol_count": source_symbol_count,
+            "ticker_map_fallback_count": ticker_map_fallback_count,
+            "skipped_symbol_conflict_count": skipped_symbol_conflict_count,
+            "invalid_symbol_count": invalid_symbol_count,
+            "source_map_disagreement_count": source_map_disagreement_count,
             "skipped_non_equity_count": skipped_non_equity_count,
             "skipped_unmapped_count": skipped_unmapped_count,
             "skipped_malformed_count": skipped_malformed_count,

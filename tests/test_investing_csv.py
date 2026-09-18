@@ -155,3 +155,61 @@ class InvestingCsvTests(unittest.TestCase):
                 refresh_investing_csvs_command(settings, min_rows=2, timeout_seconds=30)
 
         self.assertFalse((self.base_dir / "data" / "fiyat.csv").exists())
+
+    def _with_symbol_column(
+        self,
+        payload: dict[str, object],
+        symbols: dict[str, dict[str, str]],
+        *,
+        position: str = "after",
+        header: str = "Kod",
+    ) -> dict[str, object]:
+        tables = payload["tables"]
+        for filename, table in tables.items():
+            headers = list(table["headers"])
+            rows = [list(row) for row in table["rows"]]
+            company_symbols = symbols[filename]
+            if position == "before":
+                table["headers"] = [header, *headers]
+                table["rows"] = [[company_symbols[row[0]], *row] for row in rows]
+            else:
+                table["headers"] = [headers[0], header, *headers[1:]]
+                table["rows"] = [[row[0], company_symbols[row[0]], *row[1:]] for row in rows]
+        return payload
+
+    def test_optional_kod_column_validates_when_symbols_agree(self) -> None:
+        agreed = {
+            filename: {"Adel": "ADEL", "Adese Gayrimenkul": "ADESE"}
+            for filename in CSV_HEADERS
+        }
+        for position in ("before", "after"):
+            with self.subTest(position=position):
+                payload = self._with_symbol_column(self._payload(), agreed, position=position)
+                counts = validate_extracted_tables(payload, min_rows=2)
+                self.assertEqual(counts, {filename: 2 for filename in CSV_HEADERS})
+
+    def test_optional_kod_conflict_across_tables_raises(self) -> None:
+        symbols = {
+            filename: {"Adel": "ADEL", "Adese Gayrimenkul": "ADESE"}
+            for filename in CSV_HEADERS
+        }
+        symbols["performans.csv"]["Adel"] = "THYAO"
+        payload = self._with_symbol_column(self._payload(), symbols, position="after")
+
+        with self.assertRaisesRegex(InvestingCsvError, "symbol conflict"):
+            validate_extracted_tables(payload, min_rows=2)
+
+    def test_publishes_optional_kod_column_when_present(self) -> None:
+        agreed = {
+            filename: {"Adel": "ADEL", "Adese Gayrimenkul": "ADESE"}
+            for filename in CSV_HEADERS
+        }
+        payload = self._with_symbol_column(self._payload(), agreed, position="after")
+        publish_extracted_tables(payload, destination=self.base_dir, min_rows=2)
+
+        with (self.base_dir / "fiyat.csv").open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.reader(handle))
+        self.assertEqual(rows[0][0], "İsim")
+        self.assertEqual(rows[0][1], "Kod")
+        self.assertEqual(rows[1][0], "Adel")
+        self.assertEqual(rows[1][1], "ADEL")
