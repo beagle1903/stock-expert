@@ -1,0 +1,8 @@
+{
+  "name": "bist",
+  "displayName": "BIST",
+  "version": "1.0.0",
+  "description": "Refresh BIST CSVs in Cursor's embedded browser, then run the persisted routine. Does not start the web app.",
+  "keywords": ["bist", "investing", "routine"],
+  "skills": "./skills/"
+}
