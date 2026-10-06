@@ -97,6 +97,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-09-18 | Every completed development task ends with a GitHub PR; always dispatch project subagents. | Operator asked for standing workflow docs, not optional feature-only PRs. |
 | 2026-09-18 | Daily CSV mapping prefers a validated source symbol/code; `ticker_map.csv` stays the collision-free company-name fallback. Invalid/empty source codes never become prefix tickers. Cross-table or duplicate-ticker conflicts are skipped and reported. Ticker uniqueness is reserved only after required numeric validation succeeds, so a malformed first row cannot block a later valid row for the same ticker. Source-vs-map disagreements are counted, not auto-corrected. | Issue #12. |
 | 2026-09-18 | Evidence Console production panels are live loopback reads. The orphaned mock fixture is removed, boot API errors are distinct from an empty basket, and the selected pick is the first loaded ticker rather than a hardcoded sample. | Issue #13. Does not change Python ranking, review, import, or SQLite strategy. |
+| 2026-10-06 | `/bist` refreshes the four Investing.com CSVs in Cursor's embedded browser, publishes through `publish_extracted_tables`, then runs `routine`. It does not launch the web app or standalone Edge/Chrome. | Issue #32. `refresh-investing-csvs` is not an embedded-browser adapter and must not be used for this workflow. |
 
 ## Workflows
 
@@ -117,7 +118,8 @@ Document repeatable ways of doing things in this repo.
 - `D:\miniconda3\python.exe -m stock_expert picks --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m unittest discover -s tests -v`
-- Cursor operator skills: `.cursor/skills/routine`, `.cursor/skills/run`, `.cursor/skills/refresh-data`
+- Cursor operator skills: `.cursor/skills/routine`, `.cursor/skills/run`, `.cursor/skills/refresh-data`, `.cursor/skills/bist`
+- Cursor plugin `plugins/bist` packages the same `/bist` skill: embedded-browser refresh, validated publish, then `routine`, without the web app
 - Project subagents: `.cursor/agents/se-*.md` routed by `.cursor/rules/subagent-routing.mdc`
 - Standing workflow rules: `docs/rules/workflow.md`
 
@@ -147,10 +149,11 @@ Live files:
 
 ### Investing.com CSV Refresh
 
-- Run `refresh-investing-csvs` before the routine when the four live files need updating.
-- Visible browser mode is the default; complete any site access challenge manually. The automation does not bypass it.
-- The command selects Türkiye all shares, clicks `Daha Fazla` until absent, extracts all four tabs, and replaces no file unless the full bundle validates.
-- The browser profile persists under ignored `data/.investing-browser-profile/`.
+- `/bist` is the operator path when the four live files need updating and the persisted routine should follow: Cursor's embedded browser, `publish_extracted_tables`, then `routine`. It does not launch the web app or standalone Edge/Chrome.
+- Do not use `refresh-investing-csvs` or `scripts/investing_csv_extract.mjs` for `/bist`. That launcher is a separate Edge/Chrome process, not an embedded-browser adapter.
+- Complete any site access challenge manually in the embedded browser. The workflow does not bypass it.
+- Select Türkiye all shares, expand the equity-table footer `Daha Fazla` until it is gone, capture all four tabs, and replace no file unless the full bundle validates.
+- The CLI browser profile persists under ignored `data/.investing-browser-profile/`.
 
 ### Strategy Comparison
 
@@ -218,6 +221,10 @@ Live files:
   the port. The web API therefore uses configurable `STOCK_EXPERT_API_PORT` with
   safe default `18765`; the development launcher, Vite proxy, docs, and run skill
   must stay aligned.
+- The equity-table `Daha Fazla` control is the cursor-pointer footer row under
+  the table whose visible text is exactly `Daha Fazla`. Do not click a
+  navigation item that merely contains those words. Do not use
+  `refresh-investing-csvs` for the `/bist` workflow.
 
 ## Data Sources And External Dependencies
 
@@ -246,3 +253,4 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-09-17 | Recorded Yahoo secondary-path isolation and removal of `midday-routine` (#14). |
 | 2026-09-17 | Removed redundant `openwiki/` generated wiki. |
 | 2026-09-18 | Recorded mandatory PR after every development task and always-dispatch project subagents. |
+| 2026-10-06 | Recorded `/bist`: embedded-browser refresh, `publish_extracted_tables`, then `routine`, without the web app or standalone Edge/Chrome. |

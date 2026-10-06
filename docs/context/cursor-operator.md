@@ -17,10 +17,15 @@ behavior:
 - `.cursor/skills/refresh-data/SKILL.md` — refresh the four live Investing.com
   CSVs in Cursor's in-app browser, publish only a validated bundle, then open
   `http://127.0.0.1:5173/?view=runs`
+- `.cursor/skills/bist/SKILL.md` — the same embedded-browser refresh and
+  validated publish, then the persisted `routine`. It does not open Data & Runs
+  or start the web app. The Cursor plugin at `plugins/bist/` packages this
+  skill; the project skill remains the operator path.
 
-Do not launch standalone Chrome or Edge for data refresh. Do not auto-run
-`routine` after a refresh. The Codex copies under `plugins/stock-expert/skills/`
-are leftover fallbacks.
+Do not launch standalone Chrome or Edge for data refresh. `refresh-data` does
+not auto-run `routine`. `/bist` is the chain that runs `routine` only after a
+validated publish, and it does not open Data & Runs. The Codex copies under
+`plugins/stock-expert/skills/` are leftover fallbacks.
 
 ## Documentation Stop Hook
 

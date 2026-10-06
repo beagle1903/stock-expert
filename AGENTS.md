@@ -20,7 +20,7 @@ Rules:
 - Always dispatch project subagents; do not skip them because a task looks small. See `docs/rules/workflow.md`
 - After every completed development task, commit on a topic branch, push, and open a GitHub pull request. Do not wait to be asked. See `docs/rules/workflow.md`
 - In this repo, `/routine` means run the full persisted routine workflow, then verify SQLite persistence and `git status --short`
-- Cursor project skills in `.cursor/skills/` are the operator path for `/routine`, `/run`, and refresh-data; Codex plugin copies are unused fallback
+- Cursor project skills in `.cursor/skills/` are the operator path for `/routine`, `/run`, refresh-data, and `/bist`; the `plugins/bist` copy packages the same `/bist` skill, and Codex plugin copies are unused fallback
 - GitHub issues are the requirement tickets; update or create them when work starts, ships, or the spec changes
 - Do not use Codex-style structure: no `codex/` branches, no Superpowers spec/plan files unless asked
 - Use `memory.md` for durable repo memory: decisions, gotchas, workflows, and other expensive-to-rediscover context
