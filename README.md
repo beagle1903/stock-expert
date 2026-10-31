@@ -12,6 +12,32 @@ npm run dev
 
 Open `http://127.0.0.1:5173/?view=runs`, review the resolved signal/trade dates and four CSV checks, then confirm the persisted routine. The button remains disabled when an input is missing, empty, or stale. In Codex, `/stock-expert:refresh-data` refreshes and validates the live CSV bundle before opening Data & Runs; `/stock-expert:run` only starts or reuses the app.
 
+### Screenshots
+
+**Today's Picks**: the ranked basket for the target trade date, per-pick signal evidence, exposure policy, and the last review.
+
+![Today's Picks](docs/assets/screenshots/picks.png)
+
+**Overview**: snapshot, signal/trade dates, exposure policy, last review outcome, and the run timeline.
+
+![Overview](docs/assets/screenshots/overview.png)
+
+**Reviews**: browse past signal baskets and replay each one against its exact snapshot and recorded outcome.
+
+![Reviews](docs/assets/screenshots/reviews.png)
+
+**Snapshots**: published import lineage, import health, and mapping failures.
+
+![Snapshots](docs/assets/screenshots/snapshots.png)
+
+**Strategy Lab**: pilot status, paired score-ranked vs bucketed comparison, and candidate cutoff evidence.
+
+![Strategy Lab](docs/assets/screenshots/diagnostics.png)
+
+**Data & Runs**: CSV readiness checks and the persisted routine launcher.
+
+![Data & Runs](docs/assets/screenshots/runs.png)
+
 Python CLI for BIST intraday idea generation and review.
 
 Current runtime mode: daily CSV snapshots.
@@ -30,14 +56,14 @@ Current runtime mode: daily CSV snapshots.
 Run these from the repo root.
 
 ```powershell
-& 'D:\miniconda3\python.exe' -m stock_expert import-daily-folder --folder data\20260414
-& 'D:\miniconda3\python.exe' -m stock_expert refresh-investing-csvs
-& 'D:\miniconda3\python.exe' -m stock_expert review --date 2026-04-21 --dry-run
-& 'D:\miniconda3\python.exe' -m stock_expert routine --date 2026-04-21
-& 'D:\miniconda3\python.exe' -m stock_expert daily --date 2026-04-14
-& 'D:\miniconda3\python.exe' -m stock_expert picks --date 2026-04-14
-& 'D:\miniconda3\python.exe' -m stock_expert review --date 2026-04-14
-& 'D:\miniconda3\python.exe' -m unittest discover -s tests -v
+python.exe -m stock_expert import-daily-folder --folder data\20260414
+python.exe -m stock_expert refresh-investing-csvs
+python.exe -m stock_expert review --date 2026-04-21 --dry-run
+python.exe -m stock_expert routine --date 2026-04-21
+python.exe -m stock_expert daily --date 2026-04-14
+python.exe -m stock_expert picks --date 2026-04-14
+python.exe -m stock_expert review --date 2026-04-14
+python.exe -m unittest discover -s tests -v
 ```
 
 ## Tests
@@ -45,7 +71,7 @@ Run these from the repo root.
 Run these from the repo root.
 
 ```powershell
-& 'D:\miniconda3\python.exe' -m unittest discover -s tests -v
+python.exe -m unittest discover -s tests -v
 ```
 
 ## Data
