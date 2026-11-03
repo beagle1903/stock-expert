@@ -17,6 +17,7 @@
 - `.cursor/hooks/validate_docs_update.py`: Cursor `stop` adapter that maps validator block output to `followup_message`
 - `.cursor/skills/`: Cursor operator skills for `routine`, `run`, `refresh-data`, and `bist`
 - `plugins/bist/`: Cursor plugin that packages the same `/bist` skill (embedded-browser refresh, validated publish, then `routine`, without the web app)
+- `.claude/skills/bist/`: Claude Code port of `/bist` for the desktop app's built-in browser pane; `publish_capture.py` validates and publishes a saved capture
 - `.github/workflows/ci.yml`: pull-request and `main` checks for the Python suite plus frontend tests and production build
 - `frontend/`: React/Vite Evidence Console with live persisted APIs for all Evidence Console panels
 - `frontend/src/data/dashboardRepository.ts`: dashboard adapter for the latest persisted review, historical review summaries, selected review detail, and captured missed-mover evidence

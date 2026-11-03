@@ -98,6 +98,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-09-18 | Daily CSV mapping prefers a validated source symbol/code; `ticker_map.csv` stays the collision-free company-name fallback. Invalid/empty source codes never become prefix tickers. Cross-table or duplicate-ticker conflicts are skipped and reported. Ticker uniqueness is reserved only after required numeric validation succeeds, so a malformed first row cannot block a later valid row for the same ticker. Source-vs-map disagreements are counted, not auto-corrected. | Issue #12. |
 | 2026-09-18 | Evidence Console production panels are live loopback reads. The orphaned mock fixture is removed, boot API errors are distinct from an empty basket, and the selected pick is the first loaded ticker rather than a hardcoded sample. | Issue #13. Does not change Python ranking, review, import, or SQLite strategy. |
 | 2026-10-06 | `/bist` refreshes the four Investing.com CSVs in Cursor's embedded browser, publishes through `publish_extracted_tables`, then runs `routine`. It does not launch the web app or standalone Edge/Chrome. | Issue #32. `refresh-investing-csvs` is not an embedded-browser adapter and must not be used for this workflow. |
+| 2026-11-03 | Claude Code runs `/bist` from `.claude/skills/bist/` in the desktop app's built-in browser pane. The pane needs a 1440x1000 viewport to show the four tabs, and the capture reaches Python through the saved `tool-results` file via `publish_capture.py`. | The Cursor skill's browser tool and absolute paths do not apply in Claude Code. Rows are not retyped through the model, to avoid transcription errors. |
 
 ## Workflows
 
@@ -120,6 +121,7 @@ Document repeatable ways of doing things in this repo.
 - `D:\miniconda3\python.exe -m unittest discover -s tests -v`
 - Cursor operator skills: `.cursor/skills/routine`, `.cursor/skills/run`, `.cursor/skills/refresh-data`, `.cursor/skills/bist`
 - Cursor plugin `plugins/bist` packages the same `/bist` skill: embedded-browser refresh, validated publish, then `routine`, without the web app
+- Claude Code `/bist`: `.claude/skills/bist` (built-in browser pane, `publish_capture.py`, then `routine`)
 - Project subagents: `.cursor/agents/se-*.md` routed by `.cursor/rules/subagent-routing.mdc`
 - Standing workflow rules: `docs/rules/workflow.md`
 
@@ -254,3 +256,4 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-09-17 | Removed redundant `openwiki/` generated wiki. |
 | 2026-09-18 | Recorded mandatory PR after every development task and always-dispatch project subagents. |
 | 2026-10-06 | Recorded `/bist`: embedded-browser refresh, `publish_extracted_tables`, then `routine`, without the web app or standalone Edge/Chrome. |
+| 2026-11-03 | Recorded the Claude Code `/bist` port and its viewport and saved-capture gotchas. |
