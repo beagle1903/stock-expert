@@ -64,4 +64,4 @@ Environment: `STOCK_EXPERT_DB_PATH` (also settable in `.env`) overrides the DB; 
 - Do not edit `docs/scratch/*`. Do not add `docs/superpowers/` specs/plans or `codex/` branch prefixes unless asked.
 - Workflow (`docs/rules/workflow.md`): completed development work goes on a short topic branch with a PR (`gh pr create`, body with Summary + Test plan); only single obvious typo fixes go straight to `main`. GitHub issues are the requirement tickets.
 - "routine" means run the full persisted `routine`, then verify SQLite persistence and `git status --short`. Assume the live CSVs are already current; don't ask.
-- Operator skills live in `.cursor/skills/` (`routine`, `run`, `refresh-data`, `bist`); `plugins/bist` packages `/bist`. Codex copies under `plugins/stock-expert` are unused fallback.
+- Operator skills live in `.cursor/skills/` (`routine`, `run`, `refresh-data`, `bist`); `plugins/bist` packages `/bist`. In Claude Code, `/bist` is `.claude/skills/bist/` (built-in browser pane); the other three are Cursor-only. Codex copies under `plugins/stock-expert` are unused fallback.

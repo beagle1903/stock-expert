@@ -27,6 +27,9 @@ not auto-run `routine`. `/bist` is the chain that runs `routine` only after a
 validated publish, and it does not open Data & Runs. The Codex copies under
 `plugins/stock-expert/skills/` are leftover fallbacks.
 
+Claude Code has its own `/bist` at `.claude/skills/bist/`. See
+`docs/features/investing-csv-refresh.md`. The other Cursor skills are not ported.
+
 ## Documentation Stop Hook
 
 - Configuration: `.cursor/hooks.json`

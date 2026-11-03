@@ -8,7 +8,8 @@ D:\miniconda3\python.exe -m stock_expert refresh-investing-csvs
 
 Prefer Cursor's embedded browser for operator-visible refreshes. Open `https://tr.investing.com/equities/turkey`, confirm the Turkish Fiyat/Performans/Teknik/Temel labels, select `Türkiye tüm hisse senetleri`, then expand the equity-table footer control whose visible text is exactly `Daha Fazla` (the cursor-pointer row under the table) until that control disappears. Do not click navigation items that merely contain the words Daha Fazla. Switching tabs preserves the expanded row set, so do not repeat the clicks unless the footer control reappears.
 
-The `/bist` operator workflow uses Cursor's in-app browser only. Standalone Edge
+The `/bist` operator workflow uses an in-app browser only: Cursor's, or the Claude
+desktop app's built-in pane under Claude Code. Standalone Edge
 and Chrome launches are deliberately unsupported for this workflow because they
 have repeatedly failed to produce reliable table data. `refresh-investing-csvs`
 is not that embedded-browser adapter.
@@ -38,6 +39,19 @@ publishes them with `publish_extracted_tables` at `min_rows=500`. It runs
 `routine` only after that validated publish succeeds. It does not start the
 web app or open Data & Runs. A failed refresh or publication stops before
 `routine`. Do not use `refresh-investing-csvs` for this workflow.
+
+### Claude Code port
+
+`.claude/skills/bist/SKILL.md` runs the same workflow in the Claude desktop
+app's built-in browser pane. Three things differ from Cursor:
+
+- The pane's default width serves a mobile layout without the four tabs, so the
+  skill sets a 1440x1000 viewport first. The app clears that size when a turn ends.
+- A sign-up popup can cover the page. The skill closes it and never signs in.
+- The roughly 228 KB capture is too large to return inline, so `javascript_tool`
+  saves it to a `tool-results` file and reports that as an error. That is expected.
+  `.claude/skills/bist/publish_capture.py` reads the file (`--dry-run` validates
+  only), so rows are never retyped through the model.
 
 ## Codex Plugin
 
