@@ -18,6 +18,7 @@ from stock_expert.services import (
     picks_output,
     review_output,
 )
+from stock_expert.trading_calendar import is_trading_session, previous_trading_session
 from stock_expert.yahoo import download_ohlcv_command, import_ohlcv_excel_command
 
 
@@ -120,7 +121,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--date",
         dest="as_of",
         default=date.today().isoformat(),
-        help="Snapshot date in YYYY-MM-DD format, default is today",
+        help=(
+            "Snapshot date in YYYY-MM-DD format, default is today; "
+            "a weekend or holiday resolves to the previous trading session"
+        ),
     )
     routine_parser.add_argument("--data-dir", default="data", help="Directory containing the four live csv files")
     return parser
@@ -216,21 +220,31 @@ def main() -> int:
             return 1
         return 0
     if args.command == "routine":
-        as_of = date.fromisoformat(args.as_of)
+        requested = date.fromisoformat(args.as_of)
+        # A weekend or holiday run holds the previous session's close, so it
+        # must not be stored as a signal date of its own.
+        as_of = requested if is_trading_session(requested) else previous_trading_session(requested)
+        routine_header = {"routine": args.command, "routine_date": as_of.isoformat()}
+        if as_of != requested:
+            routine_header["requested_date"] = requested.isoformat()
+            print(
+                f"{args.command}: {requested.isoformat()} is not an open trading session; "
+                f"the signal date resolves to {as_of.isoformat()}.",
+                file=sys.stderr,
+            )
         ranking_context = RankingContext()
         try:
             import_result = json.loads(
-                import_daily_csv_command(settings=settings, snapshot_date=args.as_of, data_dir=args.data_dir)
+                import_daily_csv_command(
+                    settings=settings,
+                    snapshot_date=as_of.isoformat(),
+                    data_dir=args.data_dir,
+                )
             )
         except DailyCsvError as exc:
             print(f"{args.command}: {exc}", file=sys.stderr)
             return 1
-        print(
-            json.dumps(
-                {"routine": args.command, "routine_date": args.as_of, "import": import_result},
-                indent=2,
-            )
-        )
+        print(json.dumps({**routine_header, "import": import_result}, indent=2))
         print()
         print("Market Context:")
         print(market_context_output(as_of))
