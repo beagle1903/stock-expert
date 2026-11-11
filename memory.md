@@ -99,6 +99,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-09-18 | Evidence Console production panels are live loopback reads. The orphaned mock fixture is removed, boot API errors are distinct from an empty basket, and the selected pick is the first loaded ticker rather than a hardcoded sample. | Issue #13. Does not change Python ranking, review, import, or SQLite strategy. |
 | 2026-10-06 | `/bist` refreshes the four Investing.com CSVs in Cursor's embedded browser, publishes through `publish_extracted_tables`, then runs `routine`. It does not launch the web app or standalone Edge/Chrome. | Issue #32. `refresh-investing-csvs` is not an embedded-browser adapter and must not be used for this workflow. |
 | 2026-11-03 | Claude Code runs `/bist` from `.claude/skills/bist/` in the desktop app's built-in browser pane. The pane needs a 1440x1000 viewport to show the four tabs, and the capture reaches Python through the saved `tool-results` file via `publish_capture.py`. | The Cursor skill's browser tool and absolute paths do not apply in Claude Code. Rows are not retyped through the model, to avoid transcription errors. |
+| 2026-11-11 | CLI `routine` resolves a non-session `--date` to the previous trading session, matching the web launcher preview. | A Saturday 2026-11-07 run stored snapshot 176 under a non-session date, so review 136 scored the 2026-11-06 basket against that same Friday's close and the basket targeting 2026-11-09 was never reviewed. That evidence is immutable and stays as recorded. |
 
 ## Workflows
 
@@ -214,6 +215,8 @@ Live files:
 - `--dry-run` is the safe path for old-strategy comparisons because normal `picks`/`review` mutate SQLite state.
 - Review candidate recomputation must stay dry-run even during a persisted review; otherwise strategy changes can rewrite the historical pick basket before it is evaluated.
 - Variable-date religious/exchange holidays must be recorded as exact confirmed dates; stable annual closures such as July 15 may use recurring month/day rules.
+- Review 136 (signal 2026-11-06, review date 2026-11-07) is a known bad session: it measures the signal day's own close, not the 2026-11-09 trade. Baskets from snapshots 174 and 176 have no review.
+- `snapshot_runs.imported_at` is UTC; local time is UTC+3.
 - Workspace-local temp directories are safer than OS temp directories for tests in this environment.
 - `.test_tmp/` is a local test artifact folder and should stay ignored.
 - `frontend/scripts/dev.mjs` owns both start/reuse and the post-ready watchdog;

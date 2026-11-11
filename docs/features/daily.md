@@ -4,6 +4,7 @@
 - Key movers
 - Uses latest imported CSV snapshot for the requested date
 - `routine` imports the current root CSV files before summary output
+- `routine` resolves a weekend or holiday `--date` (including the default, today) to the previous trading session before import, review, and picks. It warns on stderr and adds `requested_date` to the header JSON; `routine_date` is the resolved signal date
 - Daily summary can surface a few signal-ready leaders from the ranked output when their technical/basic-analysis adjustments are supportive
 - Daily CSV import skips obvious non-equity portfolio-management/fund rows unless explicitly allowlisted
 - Required numeric fields reject non-finite and invalid price/volume values
