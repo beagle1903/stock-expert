@@ -8,7 +8,6 @@ __pycache__/
 .venv/
 venv/
 .env
-.codex/config.toml
 
 frontend/node_modules/
 frontend/dist/
