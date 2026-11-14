@@ -45,10 +45,10 @@ port. The launcher and Vite proxy resolve this setting together. Set
 `STOCK_EXPERT_PYTHON` when the desired Python executable is not on `PATH`;
 Windows development also recognizes `D:\miniconda3\python.exe`.
 
-The repo-local Codex command `/stock-expert:run` starts or reuses that same
-development pair, verifies the UI on `http://127.0.0.1:5173/` and API health on
-port `18765` by default, then opens the UI in Codex's built-in browser. Bare
-`/run` is the workspace shorthand.
+The Claude Code `/console` skill starts or reuses that same development pair,
+verifies the UI on `http://127.0.0.1:5173/` and API health on port `18765` by
+default, waits for the watchdog, then opens the UI in the Claude desktop app's
+built-in browser pane.
 
 The launcher owns a post-ready observation window of at least five minutes for
 both started and reused processes. It records separate UI/API logs and pids in

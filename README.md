@@ -10,7 +10,7 @@ npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173/?view=runs`, review the resolved signal/trade dates and four CSV checks, then confirm the persisted routine. The button remains disabled when an input is missing, empty, or stale. In Codex, `/stock-expert:refresh-data` refreshes and validates the live CSV bundle before opening Data & Runs; `/stock-expert:run` only starts or reuses the app.
+Open `http://127.0.0.1:5173/?view=runs`, review the resolved signal/trade dates and four CSV checks, then confirm the persisted routine. The button remains disabled when an input is missing, empty, or stale. In Claude Code, `/refresh-data` refreshes and validates the live CSV bundle before opening Data & Runs; `/console` only starts or reuses the app.
 
 ### Screenshots
 

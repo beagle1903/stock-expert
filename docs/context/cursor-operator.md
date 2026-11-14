@@ -1,5 +1,7 @@
 # Cursor Operator Overlay
 
+> Historical: this describes the retired Cursor overlay. The current operator path is Claude Code; see `CLAUDE.md`, `docs/rules/workflow.md`, and `docs/context/docs-stop-hook.md`.
+
 Cursor is the current operator path for this repository. The Codex plugin and
 Codex Stop hook remain in the repo as an unused fallback and are not the
 documented daily workflow.
@@ -130,5 +132,5 @@ not a replacement for the issue.
   typo. See `docs/rules/workflow.md`.
 - Feature branches use a short topic name, not `codex/<task-name>`
 - `main` uses `data/stock_expert.db`; other branches stay isolated
-- Codex docs in `docs/context/codex-commands.md` and
-  `docs/context/codex-hooks.md` remain historical
+- Codex docs in `docs/context/codex-commands.md` remain historical; the hook
+  doc (formerly `codex-hooks.md`) is now `docs/context/docs-stop-hook.md`

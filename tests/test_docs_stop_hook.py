@@ -128,7 +128,7 @@ class DocsStopHookTests(unittest.TestCase):
         )
         self.addCleanup(fixture.unlink, missing_ok=True)
 
-        result = run_validator("stock_expert/_dead_code_hook_fixture.py", "docs/context/codex-hooks.md")
+        result = run_validator("stock_expert/_dead_code_hook_fixture.py", "docs/context/docs-stop-hook.md")
 
         payload = json.loads(result.stdout)
         self.assertEqual(payload["decision"], "block")
@@ -141,7 +141,7 @@ class DocsStopHookTests(unittest.TestCase):
         fixture.write_text("import json\n", encoding="utf-8")
         self.addCleanup(fixture.unlink, missing_ok=True)
 
-        result = run_validator("scripts/_dead_code_hook_fixture.py", "docs/context/codex-hooks.md")
+        result = run_validator("scripts/_dead_code_hook_fixture.py", "docs/context/docs-stop-hook.md")
 
         payload = json.loads(result.stdout)
         self.assertEqual(payload["decision"], "block")
@@ -238,7 +238,7 @@ class DocsStopHookTests(unittest.TestCase):
 
         result = run_validator(
             "stock_expert/services.py",
-            "docs/context/codex-hooks.md",
+            "docs/context/docs-stop-hook.md",
             hook_input=stop_payload(transcript),
         )
 
