@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-VALIDATOR = REPO_ROOT / ".codex" / "hooks" / "validate_docs_update.py"
+VALIDATOR = REPO_ROOT / "scripts" / "validate_docs_update.py"
 MESSAGE_KEYS = ("last_assistant_message", "text", "message", "response", "agent_message")
 
 

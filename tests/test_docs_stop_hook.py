@@ -9,7 +9,9 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SCRIPT = REPO_ROOT / ".codex" / "hooks" / "validate_docs_update.py"
+SCRIPT = REPO_ROOT / "scripts" / "validate_docs_update.py"
+CLAUDE_SETTINGS = REPO_ROOT / ".claude" / "settings.json"
+CODEX_HOOKS = REPO_ROOT / ".codex" / "hooks.json"
 CURSOR_ADAPTER = REPO_ROOT / ".cursor" / "hooks" / "validate_docs_update.py"
 TEST_TMP = REPO_ROOT / ".test_tmp"
 
@@ -42,6 +44,7 @@ def run_validator(
     *changed_files: str,
     hook_input: dict[str, object] | None = None,
     task_note: str | None = None,
+    cwd: Path = REPO_ROOT,
 ) -> subprocess.CompletedProcess[str]:
     command = [sys.executable, str(SCRIPT)]
     for path in changed_files:
@@ -50,7 +53,7 @@ def run_validator(
         command.extend(["--task-note", task_note])
     return subprocess.run(
         command,
-        cwd=REPO_ROOT,
+        cwd=cwd,
         input=json.dumps(hook_input or {}),
         capture_output=True,
         text=True,
@@ -140,6 +143,99 @@ class DocsStopHookTests(unittest.TestCase):
         self.assertIn("Likely dead code", payload["reason"])
         self.assertIn("unused import 'json'", payload["reason"])
         self.assertIn("unused private function '_unused_helper'", payload["reason"])
+
+    def test_blocks_changed_validator_script_with_likely_dead_code(self) -> None:
+        fixture = REPO_ROOT / "scripts" / "_dead_code_hook_fixture.py"
+        fixture.write_text("import json\n", encoding="utf-8")
+        self.addCleanup(fixture.unlink, missing_ok=True)
+
+        result = run_validator("scripts/_dead_code_hook_fixture.py", "docs/context/codex-hooks.md")
+
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["decision"], "block")
+        self.assertIn("unused import 'json'", payload["reason"])
+
+    def test_validator_script_change_requires_documentation(self) -> None:
+        result = run_validator("scripts/validate_docs_update.py")
+
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["decision"], "block")
+        self.assertIn("scripts/validate_docs_update.py", payload["reason"])
+
+    def test_claude_overlay_change_requires_documentation(self) -> None:
+        for path in (".claude/settings.json", ".claude/skills/bist/publish_capture.py"):
+            with self.subTest(path=path):
+                payload = json.loads(run_validator(path).stdout)
+                self.assertEqual(payload["decision"], "block")
+                self.assertIn(path, payload["reason"])
+
+    def test_claude_local_only_files_do_not_require_documentation(self) -> None:
+        result = run_validator(".claude/settings.local.json", ".claude/launch.json")
+
+        self.assertEqual(json.loads(result.stdout), {})
+
+    def test_claude_code_stop_payload_blocks_code_only_change(self) -> None:
+        result = run_validator(
+            "stock_expert/services.py",
+            hook_input={
+                "session_id": "test-session",
+                "transcript_path": str(TEST_TMP / "missing.jsonl"),
+                "cwd": str(REPO_ROOT),
+                "hook_event_name": "Stop",
+                "stop_hook_active": False,
+                "last_assistant_message": "Updated services.py",
+            },
+        )
+
+        payload = json.loads(result.stdout)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(set(payload), {"decision", "reason"})
+        self.assertEqual(payload["decision"], "block")
+
+    def test_claude_code_stop_payload_marker_allows_stop(self) -> None:
+        result = run_validator(
+            "stock_expert/services.py",
+            hook_input={
+                "hook_event_name": "Stop",
+                "stop_hook_active": True,
+                "last_assistant_message": "DOCS_NOT_NEEDED: internal refactor only",
+            },
+        )
+
+        self.assertEqual(json.loads(result.stdout), {})
+
+    def test_validator_does_not_depend_on_working_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as outside:
+            blocked = run_validator("stock_expert/services.py", cwd=Path(outside))
+            documented = run_validator(
+                "stock_expert/services.py",
+                "docs/features/picks.md",
+                cwd=Path(outside),
+            )
+
+        self.assertEqual(json.loads(blocked.stdout)["decision"], "block")
+        self.assertEqual(json.loads(documented.stdout), {})
+
+    def test_claude_code_settings_register_validator_as_stop_hook(self) -> None:
+        settings = json.loads(CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+
+        commands = [
+            hook["command"]
+            for group in settings["hooks"]["Stop"]
+            for hook in group["hooks"]
+            if hook["type"] == "command"
+        ]
+        self.assertEqual(len(commands), 1)
+        self.assertIn("$CLAUDE_PROJECT_DIR/scripts/validate_docs_update.py", commands[0])
+        self.assertTrue(SCRIPT.is_file())
+
+    def test_codex_hook_entry_point_uses_moved_validator(self) -> None:
+        hook = json.loads(CODEX_HOOKS.read_text(encoding="utf-8"))["hooks"]["Stop"][0]["hooks"][0]
+
+        self.assertIn("/scripts/validate_docs_update.py", hook["command"])
+        self.assertIn("scripts\\validate_docs_update.py", hook["commandWindows"])
+        for command in (hook["command"], hook["commandWindows"]):
+            self.assertNotIn(".codex", command)
 
     def test_cursor_overlay_change_requires_documentation(self) -> None:
         result = run_validator(".cursor/hooks.json")
