@@ -35,7 +35,9 @@ Accepted documentation locations:
 python "$CLAUDE_PROJECT_DIR/scripts/validate_docs_update.py"
 ```
 
-Claude Code sends the Stop event JSON on stdin (including `last_assistant_message`, where the `DOCS_NOT_NEEDED` marker is looked up) and reads the validator's stdout. `{"decision": "block", "reason": "..."}` keeps the session going with the reason as feedback; `{}` lets it stop. The validator changes to the repository root itself, so the session's working directory does not matter.
+Claude Code sends the Stop event JSON on stdin (including `last_assistant_message` and `transcript_path`) and reads the validator's stdout. `{"decision": "block", "reason": "..."}` keeps the session going with the reason as feedback; `{}` lets it stop. The validator changes to the repository root itself, so the session's working directory does not matter.
+
+The validator looks up the `DOCS_NOT_NEEDED` marker in `last_assistant_message` when that field is a non-empty string; otherwise it reads the JSONL file named by `transcript_path` and uses the last assistant entry that has text. A marker in an earlier assistant message does not count, and a missing or malformed transcript is ignored.
 
 The hook fires at the end of every turn, not only when a task is finished, so a turn that ends with code changed and no docs yet is blocked until docs are updated or the marker is given. It needs `python` on `PATH`. Review the hook under `/hooks` in a Claude Code session after pulling a change to it.
 

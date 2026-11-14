@@ -93,6 +93,54 @@ def task_note_has_marker(path: Path) -> bool:
         return False
 
 
+def _content_text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        blocks = [block.get("text") for block in content if isinstance(block, dict)]
+        return "\n".join(text for text in blocks if isinstance(text, str) and text)
+    return ""
+
+
+def _assistant_text(entry: object) -> str:
+    if not isinstance(entry, dict):
+        return ""
+    message = entry.get("message")
+    roles = [entry.get("role"), entry.get("type")]
+    if isinstance(message, dict):
+        roles.append(message.get("role"))
+        text = _content_text(message.get("content"))
+    else:
+        text = _content_text(entry.get("content"))
+    return text if "assistant" in roles else ""
+
+
+def last_assistant_text_from_transcript(path: object) -> str:
+    if not isinstance(path, str) or not path.strip():
+        return ""
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except (OSError, ValueError):
+        return ""
+    last = ""
+    for line in lines:
+        try:
+            text = _assistant_text(json.loads(line))
+        except ValueError:
+            continue
+        if text:
+            last = text
+    return last
+
+
+def final_assistant_message(hook_input: dict[str, object]) -> str:
+    # Claude Code sends the final message directly; fall back to the JSONL transcript.
+    direct = hook_input.get("last_assistant_message")
+    if isinstance(direct, str) and direct:
+        return direct
+    return last_assistant_text_from_transcript(hook_input.get("transcript_path"))
+
+
 def load_hook_input() -> dict[str, object]:
     raw = sys.stdin.read().strip()
     if not raw:
@@ -192,7 +240,7 @@ def validation_response(
     if any(is_accepted_documentation(path) for path in changed_files):
         return {}
 
-    if task_note_has_marker(task_note) or contains_marker(str(hook_input.get("last_assistant_message", ""))):
+    if task_note_has_marker(task_note) or contains_marker(final_assistant_message(hook_input)):
         return {}
 
     listed = "\n".join(f"- {path}" for path in development_files)
