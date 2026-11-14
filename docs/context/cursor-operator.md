@@ -28,7 +28,13 @@ validated publish, and it does not open Data & Runs. The Codex copies under
 `plugins/stock-expert/skills/` are leftover fallbacks.
 
 Claude Code has its own `/bist` at `.claude/skills/bist/`. See
-`docs/features/investing-csv-refresh.md`. The other Cursor skills are not ported.
+`docs/features/investing-csv-refresh.md`. The other Cursor skills are ported
+too: `.claude/skills/routine/`, `.claude/skills/refresh-data/`, and
+`.claude/skills/console/` (this overlay's `/run`, renamed because Claude Code
+has a built-in `run` skill). The four project agents are ported to
+`.claude/agents/se-*.md` with Claude Code model aliases (`haiku`, `inherit`,
+`opus`, `sonnet`) and tool allow-lists in place of the model slugs and
+`readonly` flag described below.
 
 ## Documentation Stop Hook
 
