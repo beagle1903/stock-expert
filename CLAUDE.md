@@ -62,7 +62,12 @@ Environment: `STOCK_EXPERT_DB_PATH` (also settable in `.env`) overrides the DB; 
 
 - After each completed development change, update the relevant Markdown in `docs/features/`, `docs/context/`, `docs/tasks/`, or `memory.md` (the docs Stop hook in `.claude/settings.json` runs `scripts/validate_docs_update.py` to enforce this; see `docs/context/codex-hooks.md`). Use `DOCS_NOT_NEEDED: <reason>` only when docs are deliberately unnecessary.
 - Do not edit `docs/scratch/*`. Do not add `docs/superpowers/` specs/plans or `codex/` branch prefixes unless asked.
-- Workflow (`docs/rules/workflow.md`): completed development work goes on a short topic branch with a PR (`gh pr create`, body with Summary + Test plan); only single obvious typo fixes go straight to `main`. GitHub issues are the requirement tickets.
+- Always open a pull request: after every completed development task, including docs-only and small ones, commit on a short topic branch, push, and open a GitHub pull request (`gh pr create`, body with Summary + Test plan) without waiting to be asked, then return the PR URL. Do not leave completed work local-only. Only a single obvious typo fix may go straight to `main`. GitHub issues are the requirement tickets.
 - "routine" means run the full persisted `routine`, then verify SQLite persistence and `git status --short`. Assume the live CSVs are already current; don't ask.
 - Operator skills live in `.claude/skills/`: `/routine`, `/console` (starts the web app and waits for the watchdog; the port of Cursor's `/run`, renamed because Claude Code has a built-in `run` skill), `/refresh-data`, and `/bist`. Browser work uses the built-in browser pane. The copies in `.cursor/skills/`, `plugins/bist`, and `plugins/stock-expert` are leftovers awaiting removal (GitHub issue #36).
-- Project subagents live in `.claude/agents/`: `se-explore` (read-only, haiku), `se-implement` (inherit), `se-strategy-review` (opus, no edits), `se-ui-review` (sonnet, no edits). `tests/test_project_subagents.py` and `tests/test_project_skills.py` pin both.
+- Always dispatch the project subagents in `.claude/agents/`; do not skip them because a task looks small, do not nest them, and use `se-explore` instead of the built-in `Explore` agent:
+  - `se-explore` (read-only, haiku) before a change when the layout is unknown.
+  - `se-implement` (inherit) for one scoped change; it does not commit unless the user already asked.
+  - `se-strategy-review` (opus, no edits) after persistence, ranking, review, import, or snapshot work.
+  - `se-ui-review` (sonnet, no edits) after Evidence Console changes.
+- The parent session owns issues, branches, commits, and PRs. `docs/rules/workflow.md` is the canonical rules file and holds the subagent roster, the model fallback cascade, and the report-the-actual-model rule. `tests/test_project_subagents.py` and `tests/test_project_skills.py` pin the agents, skills, and these rules.
