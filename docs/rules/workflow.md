@@ -28,7 +28,6 @@ Canonical standing rules. Not optional. Not feature-only.
 - Do not invent a fifth project agent.
 - `/code-review` and `/security-review` run only when the user asks.
 - The parent owns issues, branches, commits, and PRs. `se-implement` does not commit unless the user already asked.
-- The Cursor copies of these rules in `.cursor/rules/*.mdc` are leftovers awaiting removal under GitHub issue #36.
 
 ### Roster
 

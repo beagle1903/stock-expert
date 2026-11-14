@@ -95,6 +95,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-11-14 | The Cursor always-on rules (always PR, always dispatch subagents, roster/cascade/reporting) moved into `docs/rules/workflow.md` and the `CLAUDE.md` "Repo rules" section (GitHub issue #36, step 3). | `CLAUDE.md` is what Claude Code always loads, so it replaces `alwaysApply: true`. The cascade uses the Agent tool's `model` override (`haiku`/`opus`/`sonnet`, then `inherit`); `/code-review` and `/security-review` replace the Cursor "bugbot" wording; the stale "do not start issue #11" line was dropped. |
 | 2026-11-14 | `scripts/validate_docs_update.py` itself reads the `DOCS_NOT_NEEDED` marker from the last assistant entry of the hook's `transcript_path` when `last_assistant_message` is absent or empty, and the tests no longer read `.cursor/` or `.codex/` (GitHub issue #36, step 4). | The transcript fallback was the one capability only the Cursor adapter had, so the Claude Code Stop hook keeps it after the folders go. `tests/test_project_subagents.py` pins the `.claude/agents/` instructions with phrase needles in place of the line-by-line comparison against `.cursor/agents/`; deleting both folders must not break a test. |
 | 2026-11-14 | Docs describe Claude Code as the only operator path: `docs/context/codex-hooks.md` became `docs/context/docs-stop-hook.md`, `codex-commands.md` and `cursor-operator.md` carry a "Historical" banner, and remaining Cursor/Codex text sits in labelled leftover sections (GitHub issue #36, step 5). | Step 6 can delete `.cursor/`, `.codex/`, `plugins/`, and `.agents/` plus those labelled sections without hunting through current-state docs. `docs/superpowers/*` and dated decision/change-log rows stay as written. |
+| 2026-11-14 | Deleted the Cursor and Codex overlays (`.cursor/`, `.codex/`, `plugins/`, `.agents/`) and dropped `.codex/` and `.cursor/` from the docs validator's gated and dead-code prefixes (GitHub issue #36, step 6). | Claude Code is the only operator path, so the unmaintained copies were only a source of drift. They remain in git history (the single deletion commit in the step 6 PR); `tests/test_project_skills.py` asserts the four folders stay absent and `tests/test_docs_stop_hook.py` asserts their paths are no longer gated. |
 | 2026-09-16 | GitHub issues remain the requirement tickets; docs record implementation. | Open issues stay the spec until we start them; close, update, or add issues when work ships or the requirement changes. Do not treat `docs/tasks/` as a replacement for the issue. |
 | 2026-09-16 | Project Cursor agents `se-explore`, `se-implement`, `se-strategy-review`, and `se-ui-review` plus always-on routing with a named model cascade. | Keeps delegated work on Stock Expert invariants and reports silent Cursor model swaps instead of assuming the pin ran. |
 | 2026-09-16 | Daily CSV provenance persists atomically on `snapshot_runs` (`not_captured` for old rows); read-only Snapshots API/UI lists lineage, coverage, mapping failures, and prior-id comparison. | Matches missed-mover evidence rules, keeps publication atomic, and does not change ranking or latest-picks selection. |
@@ -129,7 +130,7 @@ Document repeatable ways of doing things in this repo.
 - Claude Code operator skills (the operator path): `/routine`, `/console`, `/refresh-data`, `/bist` in `.claude/skills/`
 - Claude Code `/bist`: `.claude/skills/bist` (built-in browser pane, `publish_capture.py`, then `routine`, without the web app)
 - Claude Code project subagents: `.claude/agents/se-*.md` (`se-explore` haiku and read-only, `se-implement` inherit, `se-strategy-review` opus, `se-ui-review` sonnet; reviewers have no edit tools)
-- The Cursor and Codex overlays (`.cursor/`, `.codex/`, `plugins/`, `.agents/`) are leftovers scheduled for removal under GitHub issue #36; do not use or extend them.
+- The Cursor and Codex overlays (`.cursor/`, `.codex/`, `plugins/`, `.agents/`) were removed on 2026-11-14 under GitHub issue #36; recover them from git history (the single deletion commit in the step 6 PR) if ever needed.
 - Standing workflow rules: `docs/rules/workflow.md`
 
 ### Daily CSV Routine
@@ -202,7 +203,7 @@ Live files:
 - Feature docs live in `docs/features/`.
 - Claude Code is the operator path. Project skills live in `.claude/skills/` (`/routine`, `/console`, `/refresh-data`, `/bist`) and project subagents in `.claude/agents/`.
 - The docs Stop hook is registered in `.claude/settings.json` and runs `scripts/validate_docs_update.py` (`python "$CLAUDE_PROJECT_DIR/scripts/validate_docs_update.py"`). It gates `.claude/` and `scripts/`, except the per-machine `.claude/settings.local.json` and `.claude/launch.json`. Review it under `/hooks` in a Claude Code session after a hook definition change. See `docs/context/docs-stop-hook.md`.
-- The Cursor and Codex overlays (`.cursor/`, `.codex/`, `plugins/`, `.agents/`) are leftovers scheduled for removal under GitHub issue #36; their hooks, skills, and plugins are not maintained.
+- The Cursor and Codex overlays (`.cursor/`, `.codex/`, `plugins/`, `.agents/`) were removed on 2026-11-14 under GitHub issue #36; recover them from git history (the single deletion commit in the step 6 PR) if ever needed. The docs validator no longer gates those paths.
 
 ## Gotchas
 
@@ -271,6 +272,7 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-11-14 | Recorded the Claude Code skills (`/console` replaces `/run`) and `se-*` subagents (#36). |
 | 2026-11-14 | Recorded the move of the Cursor always-on rules into `docs/rules/workflow.md` and `CLAUDE.md` (#36). |
 | 2026-11-14 | Rewrote the commands list and repo conventions to Claude Code facts, marked the Cursor/Codex overlays as leftovers, and added the `docs/tasks/current.md` marker gotcha (#36). |
+| 2026-11-14 | Recorded the removal of the Cursor and Codex overlay folders and their validator prefixes (#36). |
 | 2026-09-18 | Recorded mandatory PR after every development task and always-dispatch project subagents. |
 | 2026-10-06 | Recorded `/bist`: embedded-browser refresh, `publish_extracted_tables`, then `routine`, without the web app or standalone Edge/Chrome. |
 | 2026-11-03 | Recorded the Claude Code `/bist` port and its viewport and saved-capture gotchas. |

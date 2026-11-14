@@ -26,15 +26,6 @@
 - `frontend/scripts/dev.mjs`: start/reuse owner for hidden UI/API processes, ignored logs, pid files, and the post-boot observation lifecycle
 - `frontend/scripts/watchdog.mjs`: injectable five-minute liveness, proxy, dashboard-semantic, and runtime-log monitor with operator summaries
 
-## Leftover Cursor and Codex overlays (removed in GitHub issue #36, step 6)
-
-- `.cursor/hooks.json`, `.cursor/hooks/validate_docs_update.py`: Cursor `stop` adapter that maps validator block output to `followup_message`
-- `.cursor/skills/`: Cursor skills for `routine`, `run`, `refresh-data`, and `bist`
-- `.cursor/agents/`, `.cursor/rules/`: Cursor copies of the project subagents and always-on rules
-- `plugins/bist/`: Cursor plugin that packages the Cursor `/bist` skill
-- `plugins/stock-expert/`, `.agents/plugins/marketplace.json`: Codex plugin (`routine`, `run`, `refresh-data`) and its local marketplace
-- `.codex/hooks.json`: Codex Stop hook that calls `scripts/validate_docs_update.py`
-
 ## Frontend Boundary
 
 - Presentation components consume `DashboardData` instead of importing Python or SQLite concerns.

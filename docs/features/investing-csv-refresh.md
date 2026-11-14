@@ -63,16 +63,7 @@ explicit execution boundary.
 
 ## Retired Cursor and Codex paths
 
-These are removed in GitHub issue #36, step 6.
-
-- Cursor: `.cursor/skills/bist/SKILL.md`, packaged by the Cursor plugin
-  `plugins/bist/`, ran the same `/bist` workflow in Cursor's embedded browser
-  and published with `publish_extracted_tables` at `min_rows=500` before
-  `routine`.
-- Codex: `/stock-expert:refresh-data` (`plugins/stock-expert/`) ran the
-  `refresh-investing-csvs` command, verified the published bundle, and opened
-  `http://127.0.0.1:5173/?view=runs` unless the user requested CLI-only
-  output. It never confirmed or started the persisted routine.
+The Cursor `/bist` skill and plugin and the Codex `/stock-expert:refresh-data` plugin command were removed in GitHub issue #36. The Claude Code `/bist` and `/refresh-data` skills above replace them.
 
 ## Verification
 

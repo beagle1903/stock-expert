@@ -56,6 +56,9 @@ SKILL_SPECS = {
 
 OTHER_TOOL_NEEDLES = ("cursor-ide-browser", "Cursor's", "Codex", "C:\\Users", "D:\\miniconda3")
 
+# Cursor and Codex overlay folders deleted under GitHub issue #36.
+RETIRED_OVERLAY_DIRS = (".cursor", ".codex", "plugins", ".agents")
+
 
 def read_skill(name: str) -> tuple[dict[str, object], str]:
     return parse_frontmatter((SKILLS_DIR / name / "SKILL.md").read_text(encoding="utf-8"))
@@ -90,6 +93,11 @@ class ClaudeCodeSkillTests(unittest.TestCase):
             for needle in OTHER_TOOL_NEEDLES:
                 with self.subTest(skill=name, needle=needle):
                     self.assertNotIn(needle, body)
+
+    def test_retired_overlay_folders_are_gone(self) -> None:
+        for name in RETIRED_OVERLAY_DIRS:
+            with self.subTest(name):
+                self.assertFalse((REPO_ROOT / name).exists())
 
     def test_refresh_data_never_runs_the_routine(self) -> None:
         _, body = read_skill("refresh-data")
