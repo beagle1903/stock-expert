@@ -741,6 +741,86 @@ class ReviewOutputTests(unittest.TestCase):
         persisted_movers = persist_review_bundle.call_args.kwargs["missed_movers"]
         self.assertEqual(persisted_movers, payload["missed_top_movers"])
 
+    def test_review_reserves_slots_for_near_cutoff_winners_behind_top_movers(self) -> None:
+        signal_date = date(2026, 4, 20)
+        candidates = [
+            PickRow(date=signal_date, ticker=f"CAND{i}", score=1.0 - i / 100, momentum=1.0, volume=1.0, risk="high")
+            for i in range(1, 31)
+        ]
+
+        def mover(ticker: str, day_return: float) -> dict[str, object]:
+            return {
+                "ticker": ticker,
+                "date": "2026-04-21",
+                "day_return": day_return,
+                "close_price": 10.0,
+                "volume": self.settings.low_liquidity_threshold,
+            }
+
+        movers = (
+            [mover(f"LIMIT{i}", 0.10) for i in range(12)]
+            + [
+                mover("CAND1", 0.099),  # unpicked top-rank winner (no target prices in this dry run)
+                mover("CAND6", 0.098),  # near cutoff winner
+                mover("CAND25", 0.097),  # winner outside the near-cutoff band
+                mover("UNRANKED", 0.096),  # winner with no candidate rank
+            ]
+            + [mover(f"CAND{i}", 0.09 - i / 1000) for i in range(7, 13)]  # six more near-cutoff winners
+            + [mover("CAND14", 0.039)]  # near cutoff but below the win threshold
+        )
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=candidates[:5]),
+            patch("stock_expert.services.rank_candidates", return_value=candidates),
+            patch("stock_expert.services.get_prices_for_date", return_value=[]),
+            patch("stock_expert.services.get_top_movers", return_value=movers),
+            patch("stock_expert.services.get_latest_weights", return_value=None),
+        ):
+            payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=True))
+
+        tickers = [row["ticker"] for row in payload["missed_top_movers"]]
+        self.assertEqual(tickers[:12], [f"LIMIT{i}" for i in range(12)])
+        self.assertEqual(tickers[12:], ["CAND1", "CAND6", "CAND7", "CAND8", "CAND9"])
+        reserved = payload["missed_top_movers"][12:]
+        self.assertTrue(all(row["attribution"]["candidate_rank"] <= 20 for row in reserved))
+        self.assertTrue(all(row["attribution"]["selection_note"] == "near_cutoff" for row in reserved[1:]))
+        self.assertTrue(all(row["classification"] == "actionable" for row in reserved))
+        self.assertEqual(
+            len(payload["missed_actionable"]) + len(payload["missed_non_actionable"]),
+            len(payload["missed_top_movers"]),
+        )
+
+    def test_review_adds_no_reserved_rows_when_top_movers_do_not_fill_the_list(self) -> None:
+        signal_date = date(2026, 4, 20)
+        candidates = [
+            PickRow(date=signal_date, ticker=f"CAND{i}", score=1.0 - i / 100, momentum=1.0, volume=1.0, risk="high")
+            for i in range(1, 11)
+        ]
+        movers = [
+            {
+                "ticker": ticker,
+                "date": "2026-04-21",
+                "day_return": day_return,
+                "close_price": 10.0,
+                "volume": self.settings.low_liquidity_threshold,
+            }
+            for ticker, day_return in [("CAND6", 0.08), ("OTHER", 0.01), ("CAND7", -0.02)]
+        ]
+        with (
+            patch("stock_expert.services.ensure_base_state"),
+            patch("stock_expert.services.generate_picks", return_value=candidates[:5]),
+            patch("stock_expert.services.rank_candidates", return_value=candidates),
+            patch("stock_expert.services.get_prices_for_date", return_value=[]),
+            patch("stock_expert.services.get_top_movers", return_value=movers),
+            patch("stock_expert.services.get_latest_weights", return_value=None),
+        ):
+            payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=True))
+
+        self.assertEqual(
+            [row["ticker"] for row in payload["missed_top_movers"]],
+            ["CAND6", "OTHER", "CAND7"],
+        )
+
     def test_persisted_review_wins_require_four_percent_return(self) -> None:
         init_db(self.settings)
         picks = [
