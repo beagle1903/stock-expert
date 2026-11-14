@@ -1308,9 +1308,20 @@ def review_output(
     missed_top_movers = []
     missed_actionable = []
     missed_non_actionable = []
-    for mover in get_top_movers(settings, review_date, 1, limit=50):
+    # The first rows are the day's largest movers. Limit-up names fill them on
+    # most sessions, so a few extra slots are reserved for unpicked winners that
+    # ranked inside the near-cutoff band on the signal date.
+    near_cutoff_slots = settings.near_cutoff_missed_mover_slots
+    for mover in get_top_movers(settings, review_date, 1, limit=5000):
         if mover["ticker"] in picked_tickers:
             continue
+        candidate = candidate_rankings.get(mover["ticker"])
+        if len(missed_top_movers) >= settings.missed_top_mover_limit:
+            if near_cutoff_slots <= 0 or (mover["day_return"] or 0.0) < MIN_DAILY_WIN_RETURN:
+                break
+            if candidate is None or candidate[0] > settings.near_cutoff_max_rank:
+                continue
+            near_cutoff_slots -= 1
         entry = {
             "ticker": mover["ticker"],
             "date": mover["date"],
@@ -1318,7 +1329,6 @@ def review_output(
             "close_price": round(mover["close_price"], 4),
             "volume": mover["volume"],
         }
-        candidate = candidate_rankings.get(entry["ticker"])
         bucket, reason = classify_missed_mover(settings, entry, candidate=candidate)
         review_entry = {
             "ticker": entry["ticker"],
@@ -1338,8 +1348,6 @@ def review_output(
             missed_actionable.append(review_entry)
         else:
             missed_non_actionable.append(review_entry)
-        if len(missed_top_movers) >= 12:
-            break
 
     current = get_weights_as_of(settings, signal_date) or default_weights(signal_date)
     pilot_state = get_strategy_pilot_state(settings)

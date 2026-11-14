@@ -23,6 +23,8 @@ class Settings:
     setup_penalized_limit_up_min_penalty: float = 0.05
     setup_penalized_limit_up_min_rank: int = 50
     near_cutoff_max_rank: int = 20
+    missed_top_mover_limit: int = 12
+    near_cutoff_missed_mover_slots: int = 5
 
 
 def _sanitize_branch_name(branch_name: str) -> str:

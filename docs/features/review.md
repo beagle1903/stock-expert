@@ -11,6 +11,7 @@
 - Includes reviewed-pick and missed-mover attribution from recomputed signal-date ranks, signal components, boosts, and setup penalty context
 - Setup-penalized limit-up-like misses (`>=9%`, setup penalty `>=0.05`, rank `>50`) persist as `non_actionable` / `setup_penalized_limit_up`
 - Near-cutoff misses (rank 6–20) use `selection_note=near_cutoff` only on missed movers, not on selected basket members
+- Missed movers list the 12 largest unpicked movers by return, then up to 5 reserved rows for unpicked winners (return `>=4%`) that ranked inside the top 20 on the signal date. Reserved rows keep return order, use the same classification and attribution, and appear only when the first 12 rows are full. Reviews persisted before 2026-11-14 hold at most 12 rows and are not recomputed.
 - Reviewed persisted picks can include `selection_bucket`, allowing later bucket-level performance checks
 - Counts a pick as a win only when return is at least 4%; smaller gains are treated as losses
 - Persists each review run, resulting weights, pick-level returns, and candidate outcomes in one transaction
