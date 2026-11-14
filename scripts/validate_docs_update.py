@@ -12,7 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MARKER = "DOCS_NOT_NEEDED"
 ACCEPTED_DOC_PREFIXES = ("docs/features/", "docs/context/", "docs/tasks/")
-DEVELOPMENT_PREFIXES = ("stock_expert/", "tests/", "scripts/", ".claude/", ".codex/", ".cursor/")
+DEVELOPMENT_PREFIXES = ("stock_expert/", "tests/", "scripts/", ".claude/")
 # Per-machine Claude Code files: never committed project behaviour, so never gated.
 LOCAL_ONLY_FILES = {".claude/settings.local.json", ".claude/launch.json"}
 DEVELOPMENT_FILENAMES = {
@@ -23,7 +23,7 @@ DEVELOPMENT_FILENAMES = {
     "tox.ini",
 }
 DEVELOPMENT_SUFFIXES = {".py", ".sql", ".toml", ".json", ".yaml", ".yml", ".ini", ".cfg"}
-DEAD_CODE_CHECK_PREFIXES = ("stock_expert/", "scripts/", ".cursor/hooks/")
+DEAD_CODE_CHECK_PREFIXES = ("stock_expert/", "scripts/")
 DEAD_CODE_IGNORE_IMPORT_MODULES = {"__future__"}
 
 

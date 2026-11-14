@@ -1,6 +1,6 @@
 # Cursor Operator Overlay
 
-> Historical: this describes the retired Cursor overlay. The current operator path is Claude Code; see `CLAUDE.md`, `docs/rules/workflow.md`, and `docs/context/docs-stop-hook.md`.
+> Historical: this describes the retired Cursor overlay. The current operator path is Claude Code; see `CLAUDE.md`, `docs/rules/workflow.md`, and `docs/context/docs-stop-hook.md`. The files this document references under `.cursor/`, `.codex/`, `plugins/`, or `.agents/` were deleted on 2026-11-14 (GitHub issue #36) and exist only in git history.
 
 Cursor is the current operator path for this repository. The Codex plugin and
 Codex Stop hook remain in the repo as an unused fallback and are not the

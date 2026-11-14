@@ -76,10 +76,11 @@ class DocsStopHookTests(unittest.TestCase):
         self.assertEqual(payload["decision"], "block")
 
     def test_configuration_change_requires_documentation(self) -> None:
-        result = run_validator(".codex/hooks.json")
-
-        payload = json.loads(result.stdout)
-        self.assertEqual(payload["decision"], "block")
+        for path in ("scripts/tooling.json", "tests/fixtures/settings.toml"):
+            with self.subTest(path=path):
+                payload = json.loads(run_validator(path).stdout)
+                self.assertEqual(payload["decision"], "block")
+                self.assertIn(path, payload["reason"])
 
     def test_code_tests_schema_cli_and_root_configuration_require_documentation(self) -> None:
         paths = [
@@ -223,12 +224,19 @@ class DocsStopHookTests(unittest.TestCase):
         self.assertIn("$CLAUDE_PROJECT_DIR/scripts/validate_docs_update.py", commands[0])
         self.assertTrue(SCRIPT.is_file())
 
-    def test_cursor_overlay_change_requires_documentation(self) -> None:
-        result = run_validator(".cursor/hooks.json")
+    def test_removed_overlay_paths_are_no_longer_gated(self) -> None:
+        paths = (
+            ".cursor/hooks.json",
+            ".codex/hooks.json",
+            "plugins/bist/.cursor-plugin/plugin.json",
+            ".agents/plugins/marketplace.json",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                result = run_validator(path)
 
-        payload = json.loads(result.stdout)
-        self.assertEqual(payload["decision"], "block")
-        self.assertIn(".cursor/hooks.json", payload["reason"])
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(json.loads(result.stdout), {})
 
     def test_stop_payload_allows_documented_change_with_transcript_present(self) -> None:
         transcript = write_transcript(

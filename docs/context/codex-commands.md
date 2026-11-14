@@ -1,6 +1,6 @@
 # Codex Commands
 
-> Historical: this describes the retired Codex plugin commands. The current operator path is Claude Code; see `CLAUDE.md` and `docs/rules/workflow.md`.
+> Historical: this describes the retired Codex plugin commands. The current operator path is Claude Code; see `CLAUDE.md` and `docs/rules/workflow.md`. The files this document references under `.cursor/`, `.codex/`, `plugins/`, or `.agents/` were deleted on 2026-11-14 (GitHub issue #36) and exist only in git history.
 
 ## Project-Local Commands
 
