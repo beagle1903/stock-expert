@@ -53,6 +53,13 @@ app's built-in browser pane. Three things differ from Cursor:
   `.claude/skills/bist/publish_capture.py` reads the file (`--dry-run` validates
   only), so rows are never retyped through the model.
 
+### Claude Code refresh without the routine
+
+`.claude/skills/refresh-data/SKILL.md` follows the Refresh section of the
+`/bist` skill (same page scripts and `publish_capture.py`), never runs
+`routine`, and then hands off to `http://127.0.0.1:5173/?view=runs` through
+`.claude/skills/console/SKILL.md` unless CLI-only output was requested.
+
 ## Codex Plugin
 
 `/stock-expert:refresh-data` runs the same validated refresh command, verifies

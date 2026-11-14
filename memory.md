@@ -91,6 +91,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-09-01 | Historical Strategy Playback reads one immutable review bundle and its exact recorded signal snapshot through a read-only API. | Keeps preserved baskets, outcomes, strategy metadata, and pilot arms inspectable without recomputing legacy evidence or borrowing newer snapshots. |
 | 2026-09-16 | Cursor overlay skills and a Cursor `stop` adapter are the operator path; Codex plugin and Codex Stop hook stay in-repo as unused fallback. | Lets the repo run from Cursor without changing strategy, SQLite, or the web launcher, and without deleting Codex files. |
 | 2026-11-14 | The docs validator moved from `.codex/hooks/` to `scripts/validate_docs_update.py` and Claude Code got a project Stop hook in `.claude/settings.json` (GitHub issue #36, step 1). | `scripts/` is tool-neutral, so the validator survives the planned removal of `.cursor/` and `.codex/`; the Cursor adapter and Codex hook keep working by calling the new path. |
+| 2026-11-14 | Ported `/routine`, `/refresh-data`, and Cursor's `/run` (as `/console`) to `.claude/skills/`, and the four `se-*` subagents to `.claude/agents/` (GitHub issue #36, step 2). | Claude Code is the operator path. `/console` avoids the built-in `run` skill; `refresh-data` reuses the `/bist` Refresh section so the page scripts have one source; agents pin `haiku`/`inherit`/`opus`/`sonnet` and a tool allow-list in place of Cursor model slugs and `readonly`. The Codex-only skill `metadata` triggers and `agents/openai.yaml` were dropped on purpose. |
 | 2026-09-16 | GitHub issues remain the requirement tickets; docs record implementation. | Open issues stay the spec until we start them; close, update, or add issues when work ships or the requirement changes. Do not treat `docs/tasks/` as a replacement for the issue. |
 | 2026-09-16 | Project Cursor agents `se-explore`, `se-implement`, `se-strategy-review`, and `se-ui-review` plus always-on routing with a named model cascade. | Keeps delegated work on Stock Expert invariants and reports silent Cursor model swaps instead of assuming the pin ran. |
 | 2026-09-16 | Daily CSV provenance persists atomically on `snapshot_runs` (`not_captured` for old rows); read-only Snapshots API/UI lists lineage, coverage, mapping failures, and prior-id comparison. | Matches missed-mover evidence rules, keeps publication atomic, and does not change ranking or latest-picks selection. |
@@ -125,7 +126,9 @@ Document repeatable ways of doing things in this repo.
 - Cursor operator skills: `.cursor/skills/routine`, `.cursor/skills/run`, `.cursor/skills/refresh-data`, `.cursor/skills/bist`
 - Cursor plugin `plugins/bist` packages the same `/bist` skill: embedded-browser refresh, validated publish, then `routine`, without the web app
 - Claude Code `/bist`: `.claude/skills/bist` (built-in browser pane, `publish_capture.py`, then `routine`)
-- Project subagents: `.cursor/agents/se-*.md` routed by `.cursor/rules/subagent-routing.mdc`
+- Claude Code operator skills: `.claude/skills/routine`, `.claude/skills/console` (the port of Cursor's `/run`), `.claude/skills/refresh-data`, `.claude/skills/bist`
+- Claude Code project subagents: `.claude/agents/se-*.md` (`se-explore` haiku and read-only, `se-implement` inherit, `se-strategy-review` opus, `se-ui-review` sonnet; reviewers have no edit tools)
+- Leftover Cursor subagents: `.cursor/agents/se-*.md` routed by `.cursor/rules/subagent-routing.mdc`
 - Standing workflow rules: `docs/rules/workflow.md`
 
 ### Daily CSV Routine
@@ -261,6 +264,7 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-09-17 | Recorded Yahoo secondary-path isolation and removal of `midday-routine` (#14). |
 | 2026-09-17 | Removed redundant `openwiki/` generated wiki. |
 | 2026-11-14 | Recorded the neutral docs-validator path and the Claude Code Stop hook (#36). |
+| 2026-11-14 | Recorded the Claude Code skills (`/console` replaces `/run`) and `se-*` subagents (#36). |
 | 2026-09-18 | Recorded mandatory PR after every development task and always-dispatch project subagents. |
 | 2026-10-06 | Recorded `/bist`: embedded-browser refresh, `publish_extracted_tables`, then `routine`, without the web app or standalone Edge/Chrome. |
 | 2026-11-03 | Recorded the Claude Code `/bist` port and its viewport and saved-capture gotchas. |

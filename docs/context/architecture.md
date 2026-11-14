@@ -18,6 +18,8 @@
 - `.cursor/skills/`: Cursor operator skills for `routine`, `run`, `refresh-data`, and `bist`
 - `plugins/bist/`: Cursor plugin that packages the same `/bist` skill (embedded-browser refresh, validated publish, then `routine`, without the web app)
 - `.claude/skills/bist/`: Claude Code port of `/bist` for the desktop app's built-in browser pane; `publish_capture.py` validates and publishes a saved capture
+- `.claude/skills/routine/`, `.claude/skills/console/`, `.claude/skills/refresh-data/`: Claude Code operator skills for the persisted routine, the web app launch with its watchdog (the port of Cursor's `/run`), and the validated CSV refresh with Data & Runs handoff
+- `.claude/agents/se-*.md`: Claude Code project subagents (`se-explore`, `se-implement`, `se-strategy-review`, `se-ui-review`)
 - `.github/workflows/ci.yml`: pull-request and `main` checks for the Python suite plus frontend tests and production build
 - `frontend/`: React/Vite Evidence Console with live persisted APIs for all Evidence Console panels
 - `frontend/src/data/dashboardRepository.ts`: dashboard adapter for the latest persisted review, historical review summaries, selected review detail, and captured missed-mover evidence

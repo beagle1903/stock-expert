@@ -118,5 +118,90 @@ class ProjectSubagentTests(unittest.TestCase):
                 self.assertIn(needle, text)
 
 
+CLAUDE_AGENTS_DIR = REPO_ROOT / ".claude" / "agents"
+READ_ONLY_TOOLS = frozenset({"Read", "Grep", "Glob"})
+REVIEW_TOOLS = READ_ONLY_TOOLS | {"Bash"}
+WRITE_TOOLS = frozenset({"Edit", "Write", "NotebookEdit"})
+
+# Claude Code agents pin a model alias and a tool allow-list instead of
+# Cursor's model slug and `readonly` flag. `tools: None` means all tools.
+CLAUDE_AGENT_SPECS = (
+    {
+        "filename": "se-explore.md",
+        "model": "haiku",
+        "tools": READ_ONLY_TOOLS,
+    },
+    {
+        "filename": "se-implement.md",
+        "model": "inherit",
+        "tools": None,
+    },
+    {
+        "filename": "se-strategy-review.md",
+        "model": "opus",
+        "tools": REVIEW_TOOLS,
+    },
+    {
+        "filename": "se-ui-review.md",
+        "model": "sonnet",
+        "tools": REVIEW_TOOLS,
+    },
+)
+
+CURSOR_ONLY_NEEDLES = ("readonly", "composer-2.5-fast", "claude-opus-5-thinking-high", "claude-4-sonnet", ".cursor")
+
+
+class ClaudeCodeSubagentTests(unittest.TestCase):
+    def test_claude_agents_dir_contains_exactly_the_four_se_agents(self) -> None:
+        md_files = {path.name for path in CLAUDE_AGENTS_DIR.glob("*.md")}
+        self.assertEqual(md_files, EXPECTED_AGENT_FILENAMES)
+
+    def test_claude_agent_files_match_pinned_contract(self) -> None:
+        cursor_specs = {spec["filename"]: spec for spec in AGENT_SPECS}
+        for spec in CLAUDE_AGENT_SPECS:
+            with self.subTest(spec["filename"]):
+                text = (CLAUDE_AGENTS_DIR / spec["filename"]).read_text(encoding="utf-8")
+                fields, body = parse_frontmatter(text)
+                cursor_spec = cursor_specs[spec["filename"]]
+                self.assertEqual(fields.get("name"), cursor_spec["name"])
+                self.assertEqual(fields.get("model"), spec["model"])
+                self.assertIsInstance(fields.get("description"), str)
+                self.assertGreater(len(str(fields.get("description"))), 20)
+                if spec["tools"] is None:
+                    self.assertNotIn("tools", fields)
+                else:
+                    tools = {tool.strip() for tool in str(fields.get("tools")).split(",")}
+                    self.assertEqual(tools, spec["tools"])
+                    self.assertFalse(tools & WRITE_TOOLS)
+                for needle in cursor_spec["body_needles"]:
+                    self.assertIn(needle, body)
+
+    def test_claude_agents_keep_the_cursor_agent_instructions(self) -> None:
+        for spec in AGENT_SPECS:
+            with self.subTest(spec["filename"]):
+                _, cursor_body = parse_frontmatter((AGENTS_DIR / spec["filename"]).read_text(encoding="utf-8"))
+                _, claude_body = parse_frontmatter(
+                    (CLAUDE_AGENTS_DIR / spec["filename"]).read_text(encoding="utf-8")
+                )
+                claude_lines = {line.strip() for line in claude_body.splitlines()}
+                for line in cursor_body.splitlines():
+                    if line.strip():
+                        self.assertIn(line.strip(), claude_lines)
+
+    def test_claude_agents_carry_no_cursor_only_settings(self) -> None:
+        for path in sorted(CLAUDE_AGENTS_DIR.glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            for needle in CURSOR_ONLY_NEEDLES:
+                with self.subTest(agent=path.name, needle=needle):
+                    self.assertNotIn(needle, text)
+
+    def test_claude_reviewers_and_implementer_must_not_run_the_persisted_routine(self) -> None:
+        for filename in ("se-implement.md", "se-strategy-review.md"):
+            with self.subTest(filename):
+                text = (CLAUDE_AGENTS_DIR / filename).read_text(encoding="utf-8")
+                self.assertIn("stock_expert routine", text)
+                self.assertIn("writes", text)
+
+
 if __name__ == "__main__":
     unittest.main()

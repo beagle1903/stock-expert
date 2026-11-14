@@ -16,7 +16,7 @@ Canonical standing rules. Not optional. Not feature-only.
 ## Subagents
 
 - Always dispatch project subagents. Do not skip them because a task looks small.
-- Use `.cursor/agents/se-*.md` via `.cursor/rules/subagent-routing.mdc`.
+- In Claude Code, use `.claude/agents/se-*.md`. The Cursor copies are `.cursor/agents/se-*.md` via `.cursor/rules/subagent-routing.mdc`.
 - `se-explore` before a change when layout is unknown.
 - `se-implement` for one scoped change.
 - `se-strategy-review` after persistence, ranking, review, import, or snapshot work.
