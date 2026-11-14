@@ -11,8 +11,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "validate_docs_update.py"
 CLAUDE_SETTINGS = REPO_ROOT / ".claude" / "settings.json"
-CODEX_HOOKS = REPO_ROOT / ".codex" / "hooks.json"
-CURSOR_ADAPTER = REPO_ROOT / ".cursor" / "hooks" / "validate_docs_update.py"
 TEST_TMP = REPO_ROOT / ".test_tmp"
 
 
@@ -23,21 +21,15 @@ def write_transcript(name: str, *entries: dict[str, object]) -> Path:
     return path
 
 
-def run_cursor_adapter(
-    *changed_files: str,
-    hook_input: dict[str, object] | None = None,
-) -> subprocess.CompletedProcess[str]:
-    command = [sys.executable, str(CURSOR_ADAPTER)]
-    for path in changed_files:
-        command.extend(["--changed-file", path])
-    return subprocess.run(
-        command,
-        cwd=REPO_ROOT,
-        input=json.dumps(hook_input or {}),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def stop_payload(transcript: Path, **extra: object) -> dict[str, object]:
+    return {
+        "session_id": "test-session",
+        "transcript_path": str(transcript),
+        "cwd": str(REPO_ROOT),
+        "hook_event_name": "Stop",
+        "stop_hook_active": False,
+        **extra,
+    }
 
 
 def run_validator(
@@ -191,6 +183,8 @@ class DocsStopHookTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(set(payload), {"decision", "reason"})
         self.assertEqual(payload["decision"], "block")
+        self.assertIn("stock_expert/services.py", payload["reason"])
+        self.assertNotIn("followup_message", payload)
 
     def test_claude_code_stop_payload_marker_allows_stop(self) -> None:
         result = run_validator(
@@ -229,14 +223,6 @@ class DocsStopHookTests(unittest.TestCase):
         self.assertIn("$CLAUDE_PROJECT_DIR/scripts/validate_docs_update.py", commands[0])
         self.assertTrue(SCRIPT.is_file())
 
-    def test_codex_hook_entry_point_uses_moved_validator(self) -> None:
-        hook = json.loads(CODEX_HOOKS.read_text(encoding="utf-8"))["hooks"]["Stop"][0]["hooks"][0]
-
-        self.assertIn("/scripts/validate_docs_update.py", hook["command"])
-        self.assertIn("scripts\\validate_docs_update.py", hook["commandWindows"])
-        for command in (hook["command"], hook["commandWindows"]):
-            self.assertNotIn(".codex", command)
-
     def test_cursor_overlay_change_requires_documentation(self) -> None:
         result = run_validator(".cursor/hooks.json")
 
@@ -244,69 +230,162 @@ class DocsStopHookTests(unittest.TestCase):
         self.assertEqual(payload["decision"], "block")
         self.assertIn(".cursor/hooks.json", payload["reason"])
 
-    def test_cursor_adapter_maps_block_to_followup_message(self) -> None:
-        result = run_cursor_adapter("stock_expert/services.py")
+    def test_stop_payload_allows_documented_change_with_transcript_present(self) -> None:
+        transcript = write_transcript(
+            "documented_change.jsonl",
+            {"type": "assistant", "message": {"role": "assistant", "content": "Updated services.py"}},
+        )
 
-        payload = json.loads(result.stdout)
-        self.assertEqual(result.returncode, 0)
-        self.assertIn("followup_message", payload)
-        self.assertIn("stock_expert/services.py", payload["followup_message"])
-        self.assertNotIn("decision", payload)
-
-    def test_cursor_adapter_allows_documented_change(self) -> None:
-        result = run_cursor_adapter(
+        result = run_validator(
             "stock_expert/services.py",
-            "docs/context/cursor-operator.md",
+            "docs/context/codex-hooks.md",
+            hook_input=stop_payload(transcript),
         )
 
         self.assertEqual(result.returncode, 0)
         self.assertEqual(json.loads(result.stdout), {})
 
-    def test_cursor_adapter_reads_docs_marker_from_transcript_path(self) -> None:
+    def test_stop_payload_reads_marker_from_role_content_transcript(self) -> None:
         transcript = write_transcript(
             "docs_marker.jsonl",
             {"role": "user", "content": "change services"},
             {
                 "role": "assistant",
                 "content": [
-                    {
-                        "type": "text",
-                        "text": "DOCS_NOT_NEEDED: stop stdin has no message keys",
-                    }
+                    {"type": "tool_use", "id": "t1", "name": "Edit", "input": {}},
+                    {"type": "text", "text": "DOCS_NOT_NEEDED: stop stdin has no message keys"},
                 ],
             },
         )
 
-        result = run_cursor_adapter(
-            "stock_expert/services.py",
-            hook_input={
-                "hook_event_name": "stop",
-                "status": "completed",
-                "loop_count": 0,
-                "transcript_path": str(transcript),
-            },
-        )
+        result = run_validator("stock_expert/services.py", hook_input=stop_payload(transcript))
 
         self.assertEqual(result.returncode, 0)
         self.assertEqual(json.loads(result.stdout), {})
 
-    def test_cursor_adapter_blocks_when_transcript_has_no_marker(self) -> None:
+    def test_stop_payload_reads_marker_from_claude_code_transcript(self) -> None:
+        marker = "DOCS_NOT_NEEDED: internal refactor only"
+        entries = (
+            {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": marker}]}},
+            {"type": "assistant", "message": {"role": "assistant", "content": marker}},
+        )
+        for index, entry in enumerate(entries):
+            with self.subTest(index=index):
+                # The trailing tool-only assistant entry has no text, so it does not count as the last message.
+                transcript = write_transcript(
+                    "claude_code_marker.jsonl",
+                    {"type": "user", "message": {"role": "user", "content": "change services"}},
+                    entry,
+                    {
+                        "type": "assistant",
+                        "message": {"role": "assistant", "content": [{"type": "tool_use", "name": "Bash"}]},
+                    },
+                )
+
+                result = run_validator(
+                    "stock_expert/services.py",
+                    hook_input=stop_payload(transcript, stop_hook_active=True),
+                )
+
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(json.loads(result.stdout), {})
+
+    def test_stop_payload_blocks_when_transcript_has_no_marker(self) -> None:
         transcript = write_transcript(
             "no_docs_marker.jsonl",
+            {"type": "user", "message": {"role": "user", "content": "DOCS_NOT_NEEDED: says the user"}},
             {
                 "type": "assistant",
-                "message": {"content": [{"type": "text", "text": "Updated services.py"}]},
+                "message": {"role": "assistant", "content": [{"type": "text", "text": "Updated services.py"}]},
             },
         )
 
-        result = run_cursor_adapter(
-            "stock_expert/services.py",
-            hook_input={"transcript_path": str(transcript)},
-        )
+        result = run_validator("stock_expert/services.py", hook_input=stop_payload(transcript))
 
         payload = json.loads(result.stdout)
         self.assertEqual(result.returncode, 0)
-        self.assertIn("stock_expert/services.py", payload["followup_message"])
+        self.assertEqual(set(payload), {"decision", "reason"})
+        self.assertEqual(payload["decision"], "block")
+        self.assertIn("stock_expert/services.py", payload["reason"])
+
+    def test_stop_payload_ignores_marker_in_earlier_assistant_message(self) -> None:
+        transcript = write_transcript(
+            "stale_docs_marker.jsonl",
+            {"role": "assistant", "content": [{"type": "text", "text": "DOCS_NOT_NEEDED: earlier turn"}]},
+            {"role": "user", "content": "now change services"},
+            {
+                "type": "assistant",
+                "message": {"role": "assistant", "content": [{"type": "text", "text": "Updated services.py"}]},
+            },
+        )
+
+        result = run_validator("stock_expert/services.py", hook_input=stop_payload(transcript))
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout)["decision"], "block")
+
+    def test_last_assistant_message_takes_precedence_over_transcript(self) -> None:
+        with_marker = write_transcript(
+            "precedence_marker.jsonl",
+            {"role": "assistant", "content": "DOCS_NOT_NEEDED: only in the transcript"},
+        )
+        without_marker = write_transcript(
+            "precedence_no_marker.jsonl",
+            {"role": "assistant", "content": "Updated services.py"},
+        )
+
+        blocked = run_validator(
+            "stock_expert/services.py",
+            hook_input=stop_payload(with_marker, last_assistant_message="Updated services.py"),
+        )
+        allowed = run_validator(
+            "stock_expert/services.py",
+            hook_input=stop_payload(without_marker, last_assistant_message="DOCS_NOT_NEEDED: internal refactor"),
+        )
+        empty_falls_back = run_validator(
+            "stock_expert/services.py",
+            hook_input=stop_payload(with_marker, last_assistant_message=""),
+        )
+
+        self.assertEqual(json.loads(blocked.stdout)["decision"], "block")
+        self.assertEqual(json.loads(allowed.stdout), {})
+        self.assertEqual(json.loads(empty_falls_back.stdout), {})
+
+    def test_missing_or_malformed_transcript_blocks_without_crashing(self) -> None:
+        malformed = write_transcript("malformed.jsonl")
+        malformed.write_text(
+            'not json DOCS_NOT_NEEDED\n{"role": "assistant", "content": "DOCS_NOT_NEEDED: trunc\n\n'
+            '["assistant", "DOCS_NOT_NEEDED"]\n"DOCS_NOT_NEEDED"\nnull\n'
+            '{"role": "assistant", "content": {"text": 5}}\n{"type": "assistant", "message": "DOCS_NOT_NEEDED"}\n',
+            encoding="utf-8",
+        )
+        binary = TEST_TMP / "binary.jsonl"
+        binary.write_bytes(b"\xff\xfe DOCS_NOT_NEEDED \x00\n")
+        cases = {
+            "missing": TEST_TMP / "missing.jsonl",
+            "directory": TEST_TMP,
+            "malformed": malformed,
+            "binary": binary,
+        }
+
+        for name, transcript in cases.items():
+            with self.subTest(name):
+                result = run_validator("stock_expert/services.py", hook_input=stop_payload(transcript))
+
+                payload = json.loads(result.stdout)
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stderr, "")
+                self.assertEqual(payload["decision"], "block")
+
+        for value in (None, 7, ["x"], ""):
+            with self.subTest(transcript_path=value):
+                result = run_validator(
+                    "stock_expert/services.py",
+                    hook_input={"hook_event_name": "Stop", "stop_hook_active": False, "transcript_path": value},
+                )
+
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(json.loads(result.stdout)["decision"], "block")
 
 
 if __name__ == "__main__":

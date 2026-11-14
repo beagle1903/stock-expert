@@ -68,7 +68,9 @@ The automated merge check is only:
 D:\miniconda3\python.exe -m unittest tests.test_docs_stop_hook -v
 ```
 
-That already covers validator gating and adapter mapping. You do not need to
+That already covers validator gating and adapter mapping. (Since GitHub issue
+#36 step 4 it covers the Claude Code hook only; the adapter mapping is no
+longer tested.) You do not need to
 run `routine`, `/run`, or a data refresh to merge this overlay.
 
 Remaining Cursor UI checks are one-time operator setup, not CI:
@@ -109,7 +111,9 @@ If a Task slug is rejected: `se-explore` falls back
 `claude-opus-5-thinking-high → claude-4-sonnet → inherit`;
 `se-ui-review` falls back `claude-4-sonnet → inherit`. Do not invent a
 fifth model. After each launch, report the actual model. Do not nest
-subagents. Contract tests: `tests/test_project_subagents.py`.
+subagents. Contract tests: `tests/test_project_subagents.py` (since GitHub
+issue #36 step 4 they cover the Claude Code agents in `.claude/agents/` only,
+not these Cursor copies).
 
 ## Requirement tickets
 
