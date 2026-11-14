@@ -89,7 +89,9 @@ full 5-minute watchdog or live Investing.com scrape as part of this PR.
 ## Project Subagents
 
 Always dispatch project subagents. Do not skip them because a task looks
-small. Canonical rule: `docs/rules/workflow.md`.
+small. Canonical rule: `docs/rules/workflow.md`. The Claude Code roster,
+cascade and reporting rules now live in `docs/rules/workflow.md`; the
+table and cascade below describe the leftover Cursor agents.
 
 Project agents live under `.cursor/agents/` and are routed by
 `.cursor/rules/subagent-routing.mdc` (`alwaysApply: true`).

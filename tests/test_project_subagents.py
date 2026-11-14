@@ -203,5 +203,79 @@ class ClaudeCodeSubagentTests(unittest.TestCase):
                 self.assertIn("writes", text)
 
 
+WORKFLOW_RULES = REPO_ROOT / "docs" / "rules" / "workflow.md"
+CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
+
+# The Claude Code equivalents of RULE_NEEDLES, plus the always-PR rule.
+# `docs/rules/workflow.md` carries the detail; `CLAUDE.md` is always loaded.
+WORKFLOW_NEEDLES = (
+    "Always dispatch project subagents",
+    "se-explore",
+    "se-implement",
+    "se-strategy-review",
+    "se-ui-review",
+    "Preferred model: haiku",
+    "Preferred model: inherit",
+    "Preferred model: opus",
+    "Preferred model: sonnet",
+    "- se-explore: haiku → inherit",
+    "- se-implement: inherit only",
+    "- se-strategy-review: opus → sonnet → inherit",
+    "- se-ui-review: sonnet → inherit",
+    "report the actual model",
+    "Do not invent a fifth model",
+    "Do not nest subagents",
+    "open a GitHub pull request",
+    "Do not wait for the user to ask",
+    "single obvious typo",
+    "Summary and Test plan",
+    "codex/",
+)
+
+WORKFLOW_FORBIDDEN_NEEDLES = ("composer-2.5-fast", "claude-opus-5-thinking-high", "claude-4-sonnet", "bugbot")
+
+CLAUDE_MD_NEEDLES = (
+    "pull request",
+    "without waiting to be asked",
+    "Always dispatch",
+    "se-explore",
+    "se-implement",
+    "se-strategy-review",
+    "se-ui-review",
+    "docs/rules/workflow.md",
+)
+
+
+class ClaudeCodeStandingRulesTests(unittest.TestCase):
+    def test_workflow_rules_encode_pr_roster_cascade_and_reporting(self) -> None:
+        text = WORKFLOW_RULES.read_text(encoding="utf-8")
+        for needle in WORKFLOW_NEEDLES:
+            with self.subTest(needle):
+                self.assertIn(needle, text)
+
+    def test_workflow_roster_models_match_the_claude_agent_files(self) -> None:
+        lines = WORKFLOW_RULES.read_text(encoding="utf-8").splitlines()
+        for spec in CLAUDE_AGENT_SPECS:
+            with self.subTest(spec["filename"]):
+                fields, _ = parse_frontmatter((CLAUDE_AGENTS_DIR / spec["filename"]).read_text(encoding="utf-8"))
+                self.assertEqual(fields.get("model"), spec["model"])
+                prefix = f"- `{fields.get('name')}` — "
+                roster = [line for line in lines if line.startswith(prefix)]
+                self.assertEqual(len(roster), 1)
+                self.assertTrue(roster[0].endswith(f"Preferred model: {fields.get('model')}"))
+
+    def test_workflow_rules_carry_no_cursor_only_wording(self) -> None:
+        text = WORKFLOW_RULES.read_text(encoding="utf-8")
+        for needle in WORKFLOW_FORBIDDEN_NEEDLES:
+            with self.subTest(needle):
+                self.assertNotIn(needle, text)
+
+    def test_claude_md_states_both_standing_rules(self) -> None:
+        text = CLAUDE_MD.read_text(encoding="utf-8")
+        for needle in CLAUDE_MD_NEEDLES:
+            with self.subTest(needle):
+                self.assertIn(needle, text)
+
+
 if __name__ == "__main__":
     unittest.main()

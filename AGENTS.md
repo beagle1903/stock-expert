@@ -18,7 +18,7 @@ Rules:
 - Do not modify `docs/scratch/*`
 - Follow existing structure
 - Always dispatch project subagents; do not skip them because a task looks small. See `docs/rules/workflow.md`
-- After every completed development task, commit on a topic branch, push, and open a GitHub pull request. Do not wait to be asked. See `docs/rules/workflow.md`
+- After every completed development task, including small or docs-only ones, commit on a topic branch, push, and open a GitHub pull request. Do not wait to be asked, and do not leave completed work local-only. See `docs/rules/workflow.md`
 - In this repo, `/routine` means run the full persisted routine workflow, then verify SQLite persistence and `git status --short`
 - Claude Code project skills in `.claude/skills/` are the operator path: `/routine`, `/console` (the port of Cursor's `/run`), `/refresh-data`, and `/bist`; project subagents are `.claude/agents/se-*.md`. The Cursor copies in `.cursor/`, the `plugins/bist` copy, and the Codex plugin copies are leftovers awaiting removal (GitHub issue #36)
 - GitHub issues are the requirement tickets; update or create them when work starts, ships, or the spec changes
