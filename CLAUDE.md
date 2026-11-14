@@ -60,7 +60,7 @@ Environment: `STOCK_EXPERT_DB_PATH` (also settable in `.env`) overrides the DB; 
 
 ## Repo rules
 
-- After each completed development change, update the relevant Markdown in `docs/features/`, `docs/context/`, `docs/tasks/`, or `memory.md` (a docs Stop hook, `.codex/hooks/validate_docs_update.py`, enforces this). Use `DOCS_NOT_NEEDED: <reason>` only when docs are deliberately unnecessary.
+- After each completed development change, update the relevant Markdown in `docs/features/`, `docs/context/`, `docs/tasks/`, or `memory.md` (the docs Stop hook in `.claude/settings.json` runs `scripts/validate_docs_update.py` to enforce this; see `docs/context/codex-hooks.md`). Use `DOCS_NOT_NEEDED: <reason>` only when docs are deliberately unnecessary.
 - Do not edit `docs/scratch/*`. Do not add `docs/superpowers/` specs/plans or `codex/` branch prefixes unless asked.
 - Workflow (`docs/rules/workflow.md`): completed development work goes on a short topic branch with a PR (`gh pr create`, body with Summary + Test plan); only single obvious typo fixes go straight to `main`. GitHub issues are the requirement tickets.
 - "routine" means run the full persisted `routine`, then verify SQLite persistence and `git status --short`. Assume the live CSVs are already current; don't ask.

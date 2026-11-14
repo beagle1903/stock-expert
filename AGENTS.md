@@ -25,4 +25,5 @@ Rules:
 - Do not use Codex-style structure: no `codex/` branches, no Superpowers spec/plan files unless asked
 - Use `memory.md` for durable repo memory: decisions, gotchas, workflows, and other expensive-to-rediscover context
 - After every development change, update relevant Markdown in `docs/features/`, `docs/context/`, `docs/tasks/`, or `memory.md`
+- The docs Stop hook validator is `scripts/validate_docs_update.py`; Claude Code runs it from `.claude/settings.json`, and the leftover Cursor and Codex hook entry points call the same script
 - Use `DOCS_NOT_NEEDED: <reason>` in `docs/tasks/current.md` or the final response only when documentation is deliberately unnecessary

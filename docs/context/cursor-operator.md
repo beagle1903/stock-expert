@@ -34,7 +34,7 @@ Claude Code has its own `/bist` at `.claude/skills/bist/`. See
 
 - Configuration: `.cursor/hooks.json`
 - Adapter: `.cursor/hooks/validate_docs_update.py`
-- Shared validator: `.codex/hooks/validate_docs_update.py`
+- Shared validator: `scripts/validate_docs_update.py`
 - Tests: `tests/test_docs_stop_hook.py`
 
 The adapter runs the existing validator and maps Codex
@@ -48,7 +48,7 @@ so `DOCS_NOT_NEEDED:` in the final reply reaches the shared validator.
 The marker in `docs/tasks/current.md` remains valid.
 
 `.cursor/` JSON, Python, and other development files are gated the same way as
-`.codex/` files. Accepted documentation locations are unchanged:
+`.codex/`, `.claude/`, and `scripts/` files. Accepted documentation locations are unchanged:
 `docs/features/`, `docs/context/`, `docs/tasks/`, and `memory.md`.
 
 `failClosed` is not enabled yet. Set it only after the live follow-up in

@@ -13,7 +13,7 @@
 - `stock_expert/config.py`: paths and thresholds
 - `stock_expert/web_api.py`: loopback-only routine preview/execution adapter around the existing CLI
 - `stock_expert/yahoo.py`: optional Yahoo OHLCV downloader; CSV export under `data/` except live CSVs; SQLite import publishes `yahoo_ohlcv` snapshots
-- `.codex/hooks/validate_docs_update.py`: shared docs-update validator used by the leftover Codex Stop hook and the Cursor overlay adapter
+- `scripts/validate_docs_update.py`: shared docs-update validator run by the Claude Code Stop hook (`.claude/settings.json`), the leftover Codex Stop hook, and the Cursor overlay adapter
 - `.cursor/hooks/validate_docs_update.py`: Cursor `stop` adapter that maps validator block output to `followup_message`
 - `.cursor/skills/`: Cursor operator skills for `routine`, `run`, `refresh-data`, and `bist`
 - `plugins/bist/`: Cursor plugin that packages the same `/bist` skill (embedded-browser refresh, validated publish, then `routine`, without the web app)

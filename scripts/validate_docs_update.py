@@ -3,14 +3,18 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
 MARKER = "DOCS_NOT_NEEDED"
 ACCEPTED_DOC_PREFIXES = ("docs/features/", "docs/context/", "docs/tasks/")
-DEVELOPMENT_PREFIXES = ("stock_expert/", "tests/", ".codex/", ".cursor/")
+DEVELOPMENT_PREFIXES = ("stock_expert/", "tests/", "scripts/", ".claude/", ".codex/", ".cursor/")
+# Per-machine Claude Code files: never committed project behaviour, so never gated.
+LOCAL_ONLY_FILES = {".claude/settings.local.json", ".claude/launch.json"}
 DEVELOPMENT_FILENAMES = {
     "pyproject.toml",
     "setup.py",
@@ -19,7 +23,7 @@ DEVELOPMENT_FILENAMES = {
     "tox.ini",
 }
 DEVELOPMENT_SUFFIXES = {".py", ".sql", ".toml", ".json", ".yaml", ".yml", ".ini", ".cfg"}
-DEAD_CODE_CHECK_PREFIXES = ("stock_expert/", ".codex/hooks/", ".cursor/hooks/")
+DEAD_CODE_CHECK_PREFIXES = ("stock_expert/", "scripts/", ".cursor/hooks/")
 DEAD_CODE_IGNORE_IMPORT_MODULES = {"__future__"}
 
 
@@ -62,6 +66,8 @@ def is_accepted_documentation(path: str) -> bool:
 
 def is_development_file(path: str) -> bool:
     normalized = normalize(path)
+    if normalized in LOCAL_ONLY_FILES:
+        return False
     if normalized in DEVELOPMENT_FILENAMES:
         return True
     if Path(normalized).suffix.lower() == ".sql":
@@ -204,14 +210,17 @@ def validation_response(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--changed-file", action="append", default=[])
-    parser.add_argument("--task-note", default="docs/tasks/current.md")
+    parser.add_argument("--task-note")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    task_note = Path(args.task_note).resolve() if args.task_note else REPO_ROOT / "docs" / "tasks" / "current.md"
+    # Hooks may fire from any working directory; git and relative paths need the repo root.
+    os.chdir(REPO_ROOT)
     changed_files = [normalize(path) for path in args.changed_file] or discover_changed_files()
-    response = validation_response(changed_files, load_hook_input(), Path(args.task_note))
+    response = validation_response(changed_files, load_hook_input(), task_note)
     print(json.dumps(response))
     return 0
 
