@@ -13,7 +13,7 @@
 
 - Evidence Console production panels are live loopback reads. Boot API errors use a distinct StatusView from an empty basket. Issue #13.
 - After every completed development task, commit on a topic branch, push, and open a GitHub pull request. Do not wait to be asked. Tiny typo-only edits may still go directly to `main` when the scope is a single obvious typo. See `docs/rules/workflow.md`.
-- Always dispatch project subagents (`se-explore`, `se-implement`, `se-strategy-review`, `se-ui-review`). Do not skip them because a task looks small. Do not use Cursor built-in `explore`. Do not nest subagents. See `docs/rules/workflow.md`.
+- Always dispatch project subagents (`se-explore`, `se-implement`, `se-strategy-review`, `se-ui-review`). Do not skip them because a task looks small. Use `se-explore` instead of Claude Code's built-in `Explore` agent. Do not nest subagents. See `docs/rules/workflow.md`.
 - Daily CSV imports are the main runtime market-data source
 - `routine` imports `data/fiyat.csv`, `data/performans.csv`, `data/teknik.csv`, and `data/temel.csv`, then runs `daily`, persisted `picks`, actual `review`, score-ranked vs bucketed review comparison, and downside-risk diagnostics
 - Yahoo import remains an optional secondary path (`download-ohlcv`, `import-ohlcv-excel`). It never joins `routine`. Imports publish `yahoo_ohlcv` snapshots that cannot replace daily-CSV prices or the four live CSVs. Use `review --dry-run` for non-mutating review checks; `midday-routine` was removed.
@@ -41,7 +41,7 @@
 - Persisted candidate outcomes continue to support rolling ranking diagnostics; separate pilot tables guarantee complete score-ranked and bucketed basket evidence
 - Default pick exposure is reduced when the signal-date advancer ratio is below 30% or when rolling candidate evidence favors a tighter top-3 cutoff, while ranking logic remains unchanged
 - Review weights move only from a rolling multi-session performance window instead of daily review drift
-- Project-local Codex Stop validation blocks development changes without relevant Markdown updates unless a deliberate `DOCS_NOT_NEEDED` reason is present
+- The Claude Code docs Stop hook (`.claude/settings.json` running `scripts/validate_docs_update.py`) blocks development changes without relevant Markdown updates unless a deliberate `DOCS_NOT_NEEDED` reason is present
 - KAP is not part of the active runtime workflow
 - Dated `data/YYYYMMDD` folders are legacy/manual archive inputs
 - Trading-session routing has one owner in `stock_expert/trading_calendar.py`; services and dated-folder imports must use it

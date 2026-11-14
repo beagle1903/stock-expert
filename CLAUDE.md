@@ -60,7 +60,7 @@ Environment: `STOCK_EXPERT_DB_PATH` (also settable in `.env`) overrides the DB; 
 
 ## Repo rules
 
-- After each completed development change, update the relevant Markdown in `docs/features/`, `docs/context/`, `docs/tasks/`, or `memory.md` (the docs Stop hook in `.claude/settings.json` runs `scripts/validate_docs_update.py` to enforce this; see `docs/context/codex-hooks.md`). Use `DOCS_NOT_NEEDED: <reason>` only when docs are deliberately unnecessary.
+- After each completed development change, update the relevant Markdown in `docs/features/`, `docs/context/`, `docs/tasks/`, or `memory.md` (the docs Stop hook in `.claude/settings.json` runs `scripts/validate_docs_update.py` to enforce this; see `docs/context/docs-stop-hook.md`). Use `DOCS_NOT_NEEDED: <reason>` only when docs are deliberately unnecessary.
 - Do not edit `docs/scratch/*`. Do not add `docs/superpowers/` specs/plans or `codex/` branch prefixes unless asked.
 - Always open a pull request: after every completed development task, including docs-only and small ones, commit on a short topic branch, push, and open a GitHub pull request (`gh pr create`, body with Summary + Test plan) without waiting to be asked, then return the PR URL. Do not leave completed work local-only. Only a single obvious typo fix may go straight to `main`. GitHub issues are the requirement tickets.
 - "routine" means run the full persisted `routine`, then verify SQLite persistence and `git status --short`. Assume the live CSVs are already current; don't ask.

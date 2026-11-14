@@ -13,12 +13,10 @@
 - `stock_expert/config.py`: paths and thresholds
 - `stock_expert/web_api.py`: loopback-only routine preview/execution adapter around the existing CLI
 - `stock_expert/yahoo.py`: optional Yahoo OHLCV downloader; CSV export under `data/` except live CSVs; SQLite import publishes `yahoo_ohlcv` snapshots
-- `scripts/validate_docs_update.py`: shared docs-update validator run by the Claude Code Stop hook (`.claude/settings.json`), the leftover Codex Stop hook, and the Cursor overlay adapter
-- `.cursor/hooks/validate_docs_update.py`: Cursor `stop` adapter that maps validator block output to `followup_message`
-- `.cursor/skills/`: Cursor operator skills for `routine`, `run`, `refresh-data`, and `bist`
-- `plugins/bist/`: Cursor plugin that packages the same `/bist` skill (embedded-browser refresh, validated publish, then `routine`, without the web app)
-- `.claude/skills/bist/`: Claude Code port of `/bist` for the desktop app's built-in browser pane; `publish_capture.py` validates and publishes a saved capture
-- `.claude/skills/routine/`, `.claude/skills/console/`, `.claude/skills/refresh-data/`: Claude Code operator skills for the persisted routine, the web app launch with its watchdog (the port of Cursor's `/run`), and the validated CSV refresh with Data & Runs handoff
+- `scripts/validate_docs_update.py`: docs-update validator run by the Claude Code Stop hook; see `docs/context/docs-stop-hook.md`
+- `.claude/settings.json`: registers the project `Stop` hook that runs the validator
+- `.claude/skills/bist/`: Claude Code `/bist` skill for the desktop app's built-in browser pane; `publish_capture.py` validates and publishes a saved capture, then the skill runs `routine`
+- `.claude/skills/routine/`, `.claude/skills/console/`, `.claude/skills/refresh-data/`: Claude Code operator skills for the persisted routine, the web app launch with its watchdog, and the validated CSV refresh with Data & Runs handoff
 - `.claude/agents/se-*.md`: Claude Code project subagents (`se-explore`, `se-implement`, `se-strategy-review`, `se-ui-review`)
 - `.github/workflows/ci.yml`: pull-request and `main` checks for the Python suite plus frontend tests and production build
 - `frontend/`: React/Vite Evidence Console with live persisted APIs for all Evidence Console panels
@@ -27,7 +25,15 @@
 - `frontend/src/data/routineRepository.ts`: typed HTTP adapter for routine preview/execution
 - `frontend/scripts/dev.mjs`: start/reuse owner for hidden UI/API processes, ignored logs, pid files, and the post-boot observation lifecycle
 - `frontend/scripts/watchdog.mjs`: injectable five-minute liveness, proxy, dashboard-semantic, and runtime-log monitor with operator summaries
-- `plugins/stock-expert/skills/refresh-data/SKILL.md`: leftover Codex fallback for validated BIST CSV refresh; Cursor uses `.cursor/skills/refresh-data/SKILL.md`
+
+## Leftover Cursor and Codex overlays (removed in GitHub issue #36, step 6)
+
+- `.cursor/hooks.json`, `.cursor/hooks/validate_docs_update.py`: Cursor `stop` adapter that maps validator block output to `followup_message`
+- `.cursor/skills/`: Cursor skills for `routine`, `run`, `refresh-data`, and `bist`
+- `.cursor/agents/`, `.cursor/rules/`: Cursor copies of the project subagents and always-on rules
+- `plugins/bist/`: Cursor plugin that packages the Cursor `/bist` skill
+- `plugins/stock-expert/`, `.agents/plugins/marketplace.json`: Codex plugin (`routine`, `run`, `refresh-data`) and its local marketplace
+- `.codex/hooks.json`: Codex Stop hook that calls `scripts/validate_docs_update.py`
 
 ## Frontend Boundary
 

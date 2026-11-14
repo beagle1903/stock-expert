@@ -94,6 +94,7 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-11-14 | Ported `/routine`, `/refresh-data`, and Cursor's `/run` (as `/console`) to `.claude/skills/`, and the four `se-*` subagents to `.claude/agents/` (GitHub issue #36, step 2). | Claude Code is the operator path. `/console` avoids the built-in `run` skill; `refresh-data` reuses the `/bist` Refresh section so the page scripts have one source; agents pin `haiku`/`inherit`/`opus`/`sonnet` and a tool allow-list in place of Cursor model slugs and `readonly`. The Codex-only skill `metadata` triggers and `agents/openai.yaml` were dropped on purpose. |
 | 2026-11-14 | The Cursor always-on rules (always PR, always dispatch subagents, roster/cascade/reporting) moved into `docs/rules/workflow.md` and the `CLAUDE.md` "Repo rules" section (GitHub issue #36, step 3). | `CLAUDE.md` is what Claude Code always loads, so it replaces `alwaysApply: true`. The cascade uses the Agent tool's `model` override (`haiku`/`opus`/`sonnet`, then `inherit`); `/code-review` and `/security-review` replace the Cursor "bugbot" wording; the stale "do not start issue #11" line was dropped. |
 | 2026-11-14 | `scripts/validate_docs_update.py` itself reads the `DOCS_NOT_NEEDED` marker from the last assistant entry of the hook's `transcript_path` when `last_assistant_message` is absent or empty, and the tests no longer read `.cursor/` or `.codex/` (GitHub issue #36, step 4). | The transcript fallback was the one capability only the Cursor adapter had, so the Claude Code Stop hook keeps it after the folders go. `tests/test_project_subagents.py` pins the `.claude/agents/` instructions with phrase needles in place of the line-by-line comparison against `.cursor/agents/`; deleting both folders must not break a test. |
+| 2026-11-14 | Docs describe Claude Code as the only operator path: `docs/context/codex-hooks.md` became `docs/context/docs-stop-hook.md`, `codex-commands.md` and `cursor-operator.md` carry a "Historical" banner, and remaining Cursor/Codex text sits in labelled leftover sections (GitHub issue #36, step 5). | Step 6 can delete `.cursor/`, `.codex/`, `plugins/`, and `.agents/` plus those labelled sections without hunting through current-state docs. `docs/superpowers/*` and dated decision/change-log rows stay as written. |
 | 2026-09-16 | GitHub issues remain the requirement tickets; docs record implementation. | Open issues stay the spec until we start them; close, update, or add issues when work ships or the requirement changes. Do not treat `docs/tasks/` as a replacement for the issue. |
 | 2026-09-16 | Project Cursor agents `se-explore`, `se-implement`, `se-strategy-review`, and `se-ui-review` plus always-on routing with a named model cascade. | Keeps delegated work on Stock Expert invariants and reports silent Cursor model swaps instead of assuming the pin ran. |
 | 2026-09-16 | Daily CSV provenance persists atomically on `snapshot_runs` (`not_captured` for old rows); read-only Snapshots API/UI lists lineage, coverage, mapping failures, and prior-id comparison. | Matches missed-mover evidence rules, keeps publication atomic, and does not change ranking or latest-picks selection. |
@@ -125,12 +126,10 @@ Document repeatable ways of doing things in this repo.
 - `D:\miniconda3\python.exe -m stock_expert picks --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m stock_expert review --date YYYY-MM-DD`
 - `D:\miniconda3\python.exe -m unittest discover -s tests -v`
-- Cursor operator skills: `.cursor/skills/routine`, `.cursor/skills/run`, `.cursor/skills/refresh-data`, `.cursor/skills/bist`
-- Cursor plugin `plugins/bist` packages the same `/bist` skill: embedded-browser refresh, validated publish, then `routine`, without the web app
-- Claude Code `/bist`: `.claude/skills/bist` (built-in browser pane, `publish_capture.py`, then `routine`)
-- Claude Code operator skills: `.claude/skills/routine`, `.claude/skills/console` (the port of Cursor's `/run`), `.claude/skills/refresh-data`, `.claude/skills/bist`
+- Claude Code operator skills (the operator path): `/routine`, `/console`, `/refresh-data`, `/bist` in `.claude/skills/`
+- Claude Code `/bist`: `.claude/skills/bist` (built-in browser pane, `publish_capture.py`, then `routine`, without the web app)
 - Claude Code project subagents: `.claude/agents/se-*.md` (`se-explore` haiku and read-only, `se-implement` inherit, `se-strategy-review` opus, `se-ui-review` sonnet; reviewers have no edit tools)
-- Leftover Cursor subagents: `.cursor/agents/se-*.md` routed by `.cursor/rules/subagent-routing.mdc`
+- The Cursor and Codex overlays (`.cursor/`, `.codex/`, `plugins/`, `.agents/`) are leftovers scheduled for removal under GitHub issue #36; do not use or extend them.
 - Standing workflow rules: `docs/rules/workflow.md`
 
 ### Daily CSV Routine
@@ -159,7 +158,7 @@ Live files:
 
 ### Investing.com CSV Refresh
 
-- `/bist` is the operator path when the four live files need updating and the persisted routine should follow: Cursor's embedded browser, `publish_extracted_tables`, then `routine`. It does not launch the web app or standalone Edge/Chrome.
+- `/bist` is the operator path when the four live files need updating and the persisted routine should follow: the Claude desktop app's built-in browser pane, `publish_capture.py` (which publishes through `publish_extracted_tables`), then `routine`. It does not launch the web app or standalone Edge/Chrome.
 - Do not use `refresh-investing-csvs` or `scripts/investing_csv_extract.mjs` for `/bist`. That launcher is a separate Edge/Chrome process, not an embedded-browser adapter.
 - Complete any site access challenge manually in the embedded browser. The workflow does not bypass it.
 - Select Türkiye all shares, expand the equity-table footer `Daha Fazla` until it is gone, capture all four tabs, and replace no file unless the full bundle validates.
@@ -201,10 +200,9 @@ Live files:
 - Root guidance lives in `AGENTS.md`.
 - Standing workflow (always PR, always project subagents): `docs/rules/workflow.md`.
 - Feature docs live in `docs/features/`.
-- Review and trust project-local Codex hooks through `/hooks`; hook trust must be renewed after hook definition changes.
-- Cursor is the current operator path. Project skills live in `.cursor/skills/`; the Cursor docs `stop` hook is `.cursor/hooks.json` wrapping `scripts/validate_docs_update.py`. Trust it in Cursor Settings > Hooks.
-- Claude Code runs the same validator as a project Stop hook from `.claude/settings.json` (`python "$CLAUDE_PROJECT_DIR/scripts/validate_docs_update.py"`). It gates `.claude/` and `scripts/` like `.cursor/` and `.codex/`, except the per-machine `.claude/settings.local.json` and `.claude/launch.json`. Moving the script changed the Cursor and Codex hook definitions, so those need re-trusting if either tool is used again.
-- The local Codex plugin is leftover fallback sourced from `.agents/plugins/marketplace.json` and `plugins/stock-expert`; reinstall it with `codex plugin add stock-expert@stock-expert-local` only if Codex is used again.
+- Claude Code is the operator path. Project skills live in `.claude/skills/` (`/routine`, `/console`, `/refresh-data`, `/bist`) and project subagents in `.claude/agents/`.
+- The docs Stop hook is registered in `.claude/settings.json` and runs `scripts/validate_docs_update.py` (`python "$CLAUDE_PROJECT_DIR/scripts/validate_docs_update.py"`). It gates `.claude/` and `scripts/`, except the per-machine `.claude/settings.local.json` and `.claude/launch.json`. Review it under `/hooks` in a Claude Code session after a hook definition change. See `docs/context/docs-stop-hook.md`.
+- The Cursor and Codex overlays (`.cursor/`, `.codex/`, `plugins/`, `.agents/`) are leftovers scheduled for removal under GitHub issue #36; their hooks, skills, and plugins are not maintained.
 
 ## Gotchas
 
@@ -238,6 +236,10 @@ Live files:
   the table whose visible text is exactly `Daha Fazla`. Do not click a
   navigation item that merely contains those words. Do not use
   `refresh-investing-csvs` for the `/bist` workflow.
+- The literal `DOCS_NOT_NEEDED` token anywhere in `docs/tasks/current.md`
+  switches the docs gate off for every change and makes the hook tests fail.
+  That file must only describe the marker in words; put a real marker in the
+  final assistant message instead.
 
 ## Data Sources And External Dependencies
 
@@ -268,6 +270,7 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-11-14 | Recorded the neutral docs-validator path and the Claude Code Stop hook (#36). |
 | 2026-11-14 | Recorded the Claude Code skills (`/console` replaces `/run`) and `se-*` subagents (#36). |
 | 2026-11-14 | Recorded the move of the Cursor always-on rules into `docs/rules/workflow.md` and `CLAUDE.md` (#36). |
+| 2026-11-14 | Rewrote the commands list and repo conventions to Claude Code facts, marked the Cursor/Codex overlays as leftovers, and added the `docs/tasks/current.md` marker gotcha (#36). |
 | 2026-09-18 | Recorded mandatory PR after every development task and always-dispatch project subagents. |
 | 2026-10-06 | Recorded `/bist`: embedded-browser refresh, `publish_extracted_tables`, then `routine`, without the web app or standalone Edge/Chrome. |
 | 2026-11-03 | Recorded the Claude Code `/bist` port and its viewport and saved-capture gotchas. |
