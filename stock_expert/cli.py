@@ -18,7 +18,12 @@ from stock_expert.services import (
     picks_output,
     review_output,
 )
-from stock_expert.trading_calendar import is_trading_session, previous_trading_session
+from stock_expert.trading_calendar import (
+    calendar_coverage_warnings,
+    is_trading_session,
+    next_trading_session,
+    previous_trading_session,
+)
 from stock_expert.yahoo import download_ohlcv_command, import_ohlcv_excel_command
 
 
@@ -232,6 +237,11 @@ def main() -> int:
                 f"the signal date resolves to {as_of.isoformat()}.",
                 file=sys.stderr,
             )
+        calendar_warnings = calendar_coverage_warnings(as_of, next_trading_session(as_of))
+        if calendar_warnings:
+            routine_header["calendar_warnings"] = calendar_warnings
+            for warning in calendar_warnings:
+                print(f"{args.command}: {warning}", file=sys.stderr)
         ranking_context = RankingContext()
         try:
             import_result = json.loads(

@@ -1,7 +1,7 @@
 # Feature: Review
 
 - Previous trading-day signal performance
-- Evaluates previous weekday signal-date picks against the requested realized market date
+- Evaluates previous trading-session signal-date picks against the requested realized market date (sessions come from `stock_expert/trading_calendar.py`; see `docs/context/trading-calendar.md`)
 - Missed top movers
 - Actionable vs non-actionable misses
 - Weight adjustments use a rolling review window with a minimum sample size instead of reacting to one session

@@ -5,7 +5,7 @@
 - `stock_expert/daily_csv.py`: imports the daily CSV snapshot files
 - `stock_expert/investing_csv.py`: validates and rollback-safe publishes the four rendered Investing.com table extracts
 - `scripts/investing_csv_extract.mjs`: drives a dedicated Edge/Chrome session through the browser debugging protocol without a third-party browser dependency
-- `stock_expert/trading_calendar.py`: shared BIST session and exact-closure routing
+- `stock_expert/trading_calendar.py`: shared BIST equity-session routing: recurring national closures, confirmed per-year variable closures and half days, and the unconfirmed-year warning (see `docs/context/trading-calendar.md`)
 - `data/ticker_map.csv`: collision-free company-name to ticker fallback used during import when a source symbol/code is missing or invalid
 - `stock_expert/signals.py`: momentum, volume spike, risk classification
 - `stock_expert/database.py`: SQLite schema and persistence

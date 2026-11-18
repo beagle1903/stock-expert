@@ -119,5 +119,7 @@ python.exe -m stock_expert routine
 3. Run `git status --short`.
 4. Report the pick basket, review result, snapshot/review ids, signal and
    target/review dates, SQLite verification, publication row counts, and git
-   status.
+   status. If the routine header JSON contains `calendar_warnings`, report it
+   first and point to the yearly update step in
+   `docs/context/trading-calendar.md`.
 5. Do not start `frontend/scripts/dev.mjs` or open `http://127.0.0.1:5173`.

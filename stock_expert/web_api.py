@@ -39,7 +39,12 @@ from stock_expert.services import (
     rank_candidates,
     rolling_candidate_diagnostics,
 )
-from stock_expert.trading_calendar import is_trading_session, next_trading_session, previous_trading_session
+from stock_expert.trading_calendar import (
+    calendar_coverage_warnings,
+    is_trading_session,
+    next_trading_session,
+    previous_trading_session,
+)
 
 
 REQUIRED_CSV_FILES = ("fiyat.csv", "performans.csv", "teknik.csv", "temel.csv")
@@ -1109,6 +1114,7 @@ def build_routine_preview(
         )
     if requested < current_day:
         warnings.append("This is a historical or missed-day run. Confirm that the live CSV files match the resolved signal date.")
+    warnings.extend(calendar_coverage_warnings(resolved, target))
 
     files: list[dict[str, Any]] = []
     newer_files: list[str] = []

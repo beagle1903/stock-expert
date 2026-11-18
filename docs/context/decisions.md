@@ -24,9 +24,10 @@
 - The bucketed basket composes 2 `core_momentum`, 2 `breakout_technical`, and 1 `coverage_recovery`, with score fill when needed.
 - Persisted and comparison picks include `selection_bucket` so later reviews can evaluate selection behavior.
 - Review win rate now requires at least 4% return; smaller positive returns count as losses.
-- Variable-date market holidays remain exact confirmed closed dates; stable annual closures may use recurring month/day rules.
-- July 15, Democracy and National Unity Day, is modeled as a recurring annual BIST closure.
-- The 2026 holiday-week routing treats 2026-05-26 as a half-holiday/low-liquidity context, skips 2026-05-27 through 2026-05-29, and leaves 2026-06-01 open.
+- Fixed national holidays (1 January, 23 April, 1 May, 19 May, 15 July, 30 August, 29 October) are recurring BIST closures, and 28 October is a recurring half-day session. Variable-date holidays and their half-day eves remain exact dates per year, copied from Borsa İstanbul's annual Pay Piyasası holiday table. 2026 comes from notice 41625 (2025-12-04). See `docs/context/trading-calendar.md` for the source table and the yearly update step. Issue #41.
+- Half-day sessions are open sessions read from the calendar; market context reports them as `reduced_liquidity` without changing routing, scoring, or exposure. Political-shock dates stay a `services.py` scoring input.
+- A year with no confirmed variable-holiday entry produces a calendar warning in `routine` and the Data & Runs preview instead of silently treating religious holidays as sessions.
+- Evidence recorded under an older calendar is not rebuilt or backfilled. Review 18 (signal 2026-04-23) stays as recorded even though 2026-04-23 is now a closure, and a persisted `review`/`routine` for 2026-04-24 must not be run because it would add a review for the 2026-04-22 basket and overwrite the 2026-04-24 weights row; use `--dry-run`.
 - Daily CSV imports skip unmapped company names instead of fabricating ticker symbols from company-name prefixes.
 - Daily CSV mapping prefers a validated source symbol/code over `ticker_map.csv`; the map remains the collision-free company-name fallback, invalid/empty source codes never become prefix tickers, and source-vs-map disagreements are counted in import diagnostics without changing the source ticker.
 - Daily CSV imports accept Turkish or English numeric punctuation, resolve only collision-free company aliases, and reject live-size snapshots below 75% distinct ticker coverage before persistence.

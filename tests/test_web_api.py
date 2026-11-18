@@ -784,6 +784,51 @@ class RoutineWebApiTests(unittest.TestCase):
         self.assertTrue(preview["ready"])
         self.assertIn("not an open trading session", preview["warnings"][0])
 
+    def test_preview_resolves_republic_day_to_half_day_eve(self) -> None:
+        self.write_inputs(modified=date(2026, 10, 28))
+
+        preview = build_routine_preview(
+            self.settings,
+            "2026-10-29",
+            today=date(2026, 10, 30),
+        )
+
+        self.assertEqual(preview["resolvedSignalDate"], "2026-10-28")
+        self.assertEqual(preview["targetTradeDate"], "2026-10-30")
+        self.assertFalse(preview["requestedWasTradingSession"])
+        self.assertTrue(preview["ready"])
+        self.assertEqual(preview["marketContext"]["selection_policy"], "reduced_liquidity")
+
+    def test_preview_warns_when_calendar_year_is_not_confirmed(self) -> None:
+        self.write_inputs(modified=date(2026, 12, 31))
+
+        year_end = build_routine_preview(
+            self.settings,
+            "2026-12-31",
+            today=date(2027, 1, 2),
+        )
+        unconfirmed = build_routine_preview(
+            self.settings,
+            "2027-03-03",
+            today=date(2027, 3, 3),
+        )
+        confirmed = build_routine_preview(
+            self.settings,
+            "2026-07-14",
+            today=date(2026, 7, 18),
+        )
+
+        self.assertEqual(year_end["targetTradeDate"], "2027-01-04")
+        for preview in (year_end, unconfirmed):
+            calendar_warnings = [
+                warning for warning in preview["warnings"] if "No confirmed variable-date BIST holidays" in warning
+            ]
+            self.assertEqual(len(calendar_warnings), 1)
+            self.assertIn("2027", calendar_warnings[0])
+        self.assertFalse(
+            any("No confirmed variable-date BIST holidays" in warning for warning in confirmed["warnings"])
+        )
+
     def test_preview_blocks_missing_and_stale_inputs(self) -> None:
         self.write_inputs(modified=date(2026, 7, 13))
         (self.data_dir / "temel.csv").unlink()

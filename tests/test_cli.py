@@ -369,6 +369,40 @@ class CliRoutineTests(unittest.TestCase):
         self.assertEqual(header["requested_date"], "2026-11-07")
         self.assertIn("2026-11-07 is not an open trading session", stderr.getvalue())
         self.assertIn("resolves to 2026-11-06", stderr.getvalue())
+        self.assertNotIn("calendar_warnings", header)
+
+    def run_routine_header(self, requested: str) -> tuple[dict[str, object], str]:
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.ensure_bucketed_default_pilot"),
+            patch("stock_expert.cli.import_daily_csv_command", return_value=json.dumps({"ok": True})),
+            patch("stock_expert.cli.daily_summary", return_value="daily"),
+            patch("stock_expert.cli.market_context_output", return_value="market"),
+            patch("stock_expert.cli.picks_output", return_value="picks"),
+            patch("stock_expert.cli.bucketed_strategy_comparison_output", return_value="bucketed"),
+            patch("stock_expert.cli.downside_risk_output", return_value="downside"),
+            patch("stock_expert.cli.review_output", return_value="review"),
+            patch("sys.argv", ["stocks", "routine", "--date", requested]),
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            self.assertEqual(cli.main(), 0)
+        return json.loads(stdout.getvalue().split("\n\n", 1)[0]), stderr.getvalue()
+
+    def test_routine_header_warns_when_calendar_year_is_not_confirmed(self) -> None:
+        for requested in ("2027-03-03", "2026-12-31"):
+            with self.subTest(requested=requested):
+                header, stderr = self.run_routine_header(requested)
+
+                self.assertEqual(len(header["calendar_warnings"]), 1)
+                self.assertIn("2027", header["calendar_warnings"][0])
+                self.assertIn("routine: No confirmed variable-date BIST holidays are recorded for 2027", stderr)
+
+    def test_routine_header_has_no_calendar_warning_for_confirmed_year(self) -> None:
+        header, stderr = self.run_routine_header("2026-04-21")
+
+        self.assertEqual(header, {"routine": "routine", "routine_date": "2026-04-21", "import": {"ok": True}})
+        self.assertEqual(stderr, "")
 
 
 if __name__ == "__main__":

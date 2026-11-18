@@ -15,7 +15,7 @@
 - Evidence-window loads use latest-request-wins semantics so a superseded response cannot overwrite the currently selected window.
 - The dashboard repository loads the latest picks, latest review, and review-history endpoints together and reloads them after a successful routine; historical detail selection remains read-only.
 - Data & Runs uses `stock_expert.web_api` to preview and execute the real persisted CLI routine through a loopback-only API.
-- The launcher resolves weekends/confirmed holidays through the shared trading calendar, shows signal date separately from target trade date, and surfaces market-context policy.
+- The launcher resolves weekends/confirmed holidays through the shared trading calendar, shows signal date separately from target trade date, and surfaces market-context policy (half-day sessions show as `reduced_liquidity`). When the signal or target date falls in a year with no confirmed variable-holiday entry, the preview adds a calendar warning to its existing warnings list.
 - Missing, empty, or filesystem-stale CSV inputs block execution. Newer timestamps warn because file metadata cannot prove the market date inside the rows.
 - Execution requires a current preview token, a second confirmation step, and an explicit operator checkbox. Only one routine can run at a time.
 - Successful runs report the persisted snapshot id, pick count, and review id when a prior basket is eligible for review.

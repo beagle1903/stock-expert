@@ -33,9 +33,7 @@ from stock_expert.services import (
     market_context_for_dates,
     market_context_score_penalty,
     next_review_weights,
-    next_weekday,
     picks_output,
-    previous_weekday,
     rank_candidates,
     review_output,
     rolling_candidate_diagnostics,
@@ -52,28 +50,7 @@ from stock_expert.signals import (
 )
 
 
-class ServiceDateTests(unittest.TestCase):
-    def test_next_weekday_skips_weekend(self) -> None:
-        self.assertEqual(next_weekday(date(2026, 4, 24)), date(2026, 4, 27))
-
-    def test_previous_weekday_skips_weekend(self) -> None:
-        self.assertEqual(previous_weekday(date(2026, 4, 27)), date(2026, 4, 24))
-
-    def test_next_weekday_skips_user_confirmed_market_holiday(self) -> None:
-        self.assertEqual(next_weekday(date(2026, 4, 30)), date(2026, 5, 4))
-        self.assertEqual(next_weekday(date(2026, 5, 18)), date(2026, 5, 20))
-        self.assertEqual(next_weekday(date(2026, 5, 26)), date(2026, 6, 1))
-
-    def test_previous_weekday_skips_user_confirmed_market_holiday(self) -> None:
-        self.assertEqual(previous_weekday(date(2026, 5, 4)), date(2026, 4, 30))
-        self.assertEqual(previous_weekday(date(2026, 5, 20)), date(2026, 5, 18))
-        self.assertEqual(previous_weekday(date(2026, 6, 1)), date(2026, 5, 26))
-
-    def test_trading_date_helpers_skip_recurring_july_15_holiday(self) -> None:
-        self.assertEqual(next_weekday(date(2026, 7, 14)), date(2026, 7, 16))
-        self.assertEqual(previous_weekday(date(2026, 7, 16)), date(2026, 7, 14))
-        self.assertEqual(next_weekday(date(2027, 7, 14)), date(2027, 7, 16))
-
+class MarketContextTests(unittest.TestCase):
     def test_market_context_marks_political_shock_window(self) -> None:
         context = market_context_for_dates(date(2026, 5, 21), date(2026, 5, 22), date(2026, 5, 25), date(2026, 5, 26))
 
@@ -86,6 +63,10 @@ class ServiceDateTests(unittest.TestCase):
                 "half_holiday_low_liquidity",
             ],
         )
+        self.assertEqual(
+            [entry["date"] for entry in context["tags"]],
+            ["2026-05-21", "2026-05-22", "2026-05-25", "2026-05-26"],
+        )
         self.assertIn("exogenous political-shock", context["interpretation"])
         self.assertEqual(context["selection_policy"], "shock_mode_penalty")
 
@@ -94,6 +75,22 @@ class ServiceDateTests(unittest.TestCase):
 
         self.assertEqual(context["selection_policy"], "reduced_liquidity")
         self.assertIn("low-liquidity", context["interpretation"])
+
+    def test_republic_day_eve_half_day_uses_liquidity_policy(self) -> None:
+        context = market_context_for_dates(date(2026, 10, 28))
+
+        self.assertEqual(context["selection_policy"], "reduced_liquidity")
+        self.assertEqual(
+            context["tags"],
+            [{"date": "2026-10-28", "tag": "half_holiday_low_liquidity"}],
+        )
+
+    def test_full_session_keeps_normal_policy(self) -> None:
+        context = market_context_for_dates(date(2026, 10, 27))
+
+        self.assertEqual(context["selection_policy"], "normal")
+        self.assertEqual(context["tags"], [])
+        self.assertIsNone(context["interpretation"])
 
 
 class EnrichmentSignalTests(unittest.TestCase):

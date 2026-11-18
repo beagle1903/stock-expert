@@ -23,7 +23,7 @@
 - Wide diagnostic rankings use score order for review attribution and missed-mover analysis
 - Needs multiple imported days for non-zero momentum and volume signals
 - Applies a small score penalty to overextended same-day movers above `+8%`
-- Uses the latest `signal_date` snapshot to generate picks for the next weekday `target_trade_date`
+- Uses the latest `signal_date` snapshot to generate picks for the next trading-session `target_trade_date`
 - Multiple same-day imports can coexist; date-based picks use the latest snapshot
 - Supports `--dry-run` for safe comparison runs
 - Pick JSON exposes breadth/rolling-evidence `exposure`, `setup_penalty`, `net_adjustment`, and `selection_bucket` so reduced exposure and candidate ranking are visible

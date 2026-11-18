@@ -49,4 +49,10 @@ Keep the handoff short. Report the pick basket, review result, snapshot/review
 ids, signal and target/review dates, SQLite verification result, and
 `git status --short`.
 
+If the routine header JSON contains `calendar_warnings`, report it first: that
+year's Borsa Istanbul holiday table has not been added to
+`stock_expert/trading_calendar.py`, so religious-holiday closures are being
+treated as sessions. Point to the yearly update step in
+`docs/context/trading-calendar.md`.
+
 Do not expand into strategy analysis unless requested.
