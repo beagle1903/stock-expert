@@ -378,6 +378,28 @@ class DailyCsvImportTests(unittest.TestCase):
         )
         self.assertEqual(payload["target_trade_date"], "2026-06-01")
 
+    def test_folder_import_skips_fixed_national_holidays(self) -> None:
+        cases = [
+            # 2026-04-23 National Sovereignty and Children's Day is closed.
+            ("data/20260424", "2026-04-22", "2026-04-24"),
+            # 2026-10-29 Republic Day is closed; 2026-10-28 is a half day.
+            ("data/20261030", "2026-10-28", "2026-10-30"),
+        ]
+        for folder, snapshot_date, target_trade_date in cases:
+            with self.subTest(folder=folder):
+                with patch(
+                    "stock_expert.daily_csv.import_daily_csv_command",
+                    return_value=json.dumps({"snapshot_id": 1}),
+                ) as import_command:
+                    payload = json.loads(import_daily_csv_folder_command(self.settings, folder))
+
+                import_command.assert_called_once_with(
+                    settings=self.settings,
+                    snapshot_date=snapshot_date,
+                    data_dir=folder,
+                )
+                self.assertEqual(payload["target_trade_date"], target_trade_date)
+
     def test_localized_source_symbol_headers_round_trip_without_ticker_map(self) -> None:
         for header in ("Kod", "Sembol", "Symbol"):
             with self.subTest(header=header):

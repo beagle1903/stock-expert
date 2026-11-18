@@ -34,12 +34,19 @@ from stock_expert.pilot import (
     operational_strategy,
 )
 from stock_expert.services import (
+    ReviewEvidenceConflict,
     adaptive_pick_exposure,
+    check_review_evidence,
     market_context_for_dates,
     rank_candidates,
     rolling_candidate_diagnostics,
 )
-from stock_expert.trading_calendar import is_trading_session, next_trading_session, previous_trading_session
+from stock_expert.trading_calendar import (
+    calendar_coverage_warnings,
+    is_trading_session,
+    next_trading_session,
+    previous_trading_session,
+)
 
 
 REQUIRED_CSV_FILES = ("fiyat.csv", "performans.csv", "teknik.csv", "temel.csv")
@@ -1109,6 +1116,19 @@ def build_routine_preview(
         )
     if requested < current_day:
         warnings.append("This is a historical or missed-day run. Confirm that the live CSV files match the resolved signal date.")
+    warnings.extend(calendar_coverage_warnings(resolved, target))
+    # The routine persists the review of (previous session -> resolved). The
+    # CLI re-checks before importing; surfacing it here keeps the run disabled.
+    # The Data & Runs operator has no terminal, so the CLI --dry-run hint is
+    # replaced with a pointer to the Reviews view.
+    try:
+        check_review_evidence(settings, resolved)
+    except ReviewEvidenceConflict as exc:
+        blocking_issues.append(
+            exc.message(cli_hint=False)
+            + " This routine would persist the prior-session review whose review date is the resolved signal date "
+            + f"{resolved.isoformat()}; inspect the existing review under Reviews."
+        )
 
     files: list[dict[str, Any]] = []
     newer_files: list[str] = []

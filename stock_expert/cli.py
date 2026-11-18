@@ -10,7 +10,9 @@ from stock_expert.daily_csv import DailyCsvError, import_daily_csv_command, impo
 from stock_expert.investing_csv import InvestingCsvError, refresh_investing_csvs_command
 from stock_expert.services import (
     RankingContext,
+    ReviewEvidenceConflict,
     bucketed_strategy_comparison_output,
+    check_review_evidence,
     daily_summary,
     downside_risk_output,
     ensure_bucketed_default_pilot,
@@ -18,7 +20,12 @@ from stock_expert.services import (
     picks_output,
     review_output,
 )
-from stock_expert.trading_calendar import is_trading_session, previous_trading_session
+from stock_expert.trading_calendar import (
+    calendar_coverage_warnings,
+    is_trading_session,
+    next_trading_session,
+    previous_trading_session,
+)
 from stock_expert.yahoo import download_ohlcv_command, import_ohlcv_excel_command
 
 
@@ -153,13 +160,16 @@ def main() -> int:
         return 0
     if args.command == "review":
         as_of = date.fromisoformat(args.as_of)
-        print(
-            review_output(
+        try:
+            review = review_output(
                 settings,
                 as_of,
                 dry_run=args.dry_run,
             )
-        )
+        except ReviewEvidenceConflict as exc:
+            print(f"review: {exc}", file=sys.stderr)
+            return 1
+        print(review)
         return 0
     if args.command == "download-ohlcv":
         print(
@@ -232,6 +242,18 @@ def main() -> int:
                 f"the signal date resolves to {as_of.isoformat()}.",
                 file=sys.stderr,
             )
+        calendar_warnings = calendar_coverage_warnings(as_of, next_trading_session(as_of))
+        if calendar_warnings:
+            routine_header["calendar_warnings"] = calendar_warnings
+            for warning in calendar_warnings:
+                print(f"{args.command}: {warning}", file=sys.stderr)
+        # The routine persists the review for as_of. Refuse before importing
+        # a snapshot when that review would contradict stored evidence.
+        try:
+            check_review_evidence(settings, as_of)
+        except ReviewEvidenceConflict as exc:
+            print(f"{args.command}: {exc}", file=sys.stderr)
+            return 1
         ranking_context = RankingContext()
         try:
             import_result = json.loads(
@@ -255,11 +277,15 @@ def main() -> int:
             as_of,
             ranking_context=ranking_context,
         )
-        persisted_review_output = review_output(
-            settings,
-            as_of,
-            ranking_context=ranking_context,
-        )
+        try:
+            persisted_review_output = review_output(
+                settings,
+                as_of,
+                ranking_context=ranking_context,
+            )
+        except ReviewEvidenceConflict as exc:
+            print(f"{args.command}: {exc}", file=sys.stderr)
+            return 1
         pick_list_output = picks_output(
             settings,
             as_of,

@@ -973,6 +973,39 @@ def get_review_run(settings: Settings, as_of: date, review_date: date) -> sqlite
         ).fetchone()
 
 
+def get_conflicting_review_runs(
+    settings: Settings,
+    signal_date: date,
+    review_date: date,
+) -> list[sqlite3.Row]:
+    """Return stored reviews that share one side of the (signal, review) key.
+
+    A row with the same review date but another signal date, or the same
+    signal date but another review date, would make a new persisted review
+    contradict stored evidence. The exact key is the idempotent rerun and is
+    not returned.
+    """
+    init_db(settings)
+    with connect(settings) as conn:
+        return list(
+            conn.execute(
+                """
+                SELECT id, as_of_date, review_date
+                FROM review_runs
+                WHERE (review_date = ? AND as_of_date != ?)
+                   OR (as_of_date = ? AND review_date != ?)
+                ORDER BY id
+                """,
+                (
+                    review_date.isoformat(),
+                    signal_date.isoformat(),
+                    signal_date.isoformat(),
+                    review_date.isoformat(),
+                ),
+            )
+        )
+
+
 def ensure_strategy_pilot(
     settings: Settings,
     signal_date: date,

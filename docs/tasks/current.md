@@ -64,6 +64,17 @@
 
 ## Active Enhancement
 
+- GitHub issue #41 (complete the BIST trading calendar) is on
+  `trading-calendar`. Fixed national holidays are recurring closures,
+  28 October is a recurring half day, 2026 variable dates come from Borsa
+  İstanbul notice 41625, half days moved out of `services.py`, and an
+  unconfirmed year warns in `routine` and the Data & Runs preview. 2027
+  variable dates wait for the December 2026 announcement. See
+  `docs/context/trading-calendar.md`. Ranking and stored evidence are
+  unchanged. A review evidence guard makes persisted `review` and
+  `routine` refuse, before any write or import, a run whose review date or
+  signal basket already has a review under a different key.
+
 - Live Evidence Console honesty (remove mock fixture, distinguish boot
   error vs empty basket, drop hardcoded ticker default) is on
   `live-evidence-panels` for GitHub issue #13. See

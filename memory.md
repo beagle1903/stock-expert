@@ -106,6 +106,8 @@ Use this section for architecture or workflow decisions that affect future chang
 | 2026-10-06 | `/bist` refreshes the four Investing.com CSVs in Cursor's embedded browser, publishes through `publish_extracted_tables`, then runs `routine`. It does not launch the web app or standalone Edge/Chrome. | Issue #32. `refresh-investing-csvs` is not an embedded-browser adapter and must not be used for this workflow. |
 | 2026-11-03 | Claude Code runs `/bist` from `.claude/skills/bist/` in the desktop app's built-in browser pane. The pane needs a 1440x1000 viewport to show the four tabs, and the capture reaches Python through the saved `tool-results` file via `publish_capture.py`. | The Cursor skill's browser tool and absolute paths do not apply in Claude Code. Rows are not retyped through the model, to avoid transcription errors. |
 | 2026-11-11 | CLI `routine` resolves a non-session `--date` to the previous trading session, matching the web launcher preview. | A Saturday 2026-11-07 run stored snapshot 176 under a non-session date, so review 136 scored the 2026-11-06 basket against that same Friday's close and the basket targeting 2026-11-09 was never reviewed. That evidence is immutable and stays as recorded. |
+| 2026-11-18 | The trading calendar models the fixed national holidays (Jan 1, Apr 23, May 1, May 19, Jul 15, Aug 30, Oct 29) as recurring closures and Oct 28 as a recurring half day. 2026 variable dates (03-19 half, 03-20, 05-26 half, 05-27..29) come from Borsa İstanbul notice 41625. Half days moved from `services.py` into the calendar, and `previous_weekday`/`next_weekday` were removed in favour of the `*_trading_session` helpers (GitHub issue #41). | 2026-04-23 and 2026-10-29 were missing, and 2027-01-01 was the next unmodelled closure. An unconfirmed year now warns in `routine` and the Data & Runs preview. See `docs/context/trading-calendar.md` for the yearly update step. |
+| 2026-11-18 | Persisted `review` and `routine` refuse before any write or import when the review date already has a review from another signal date, or the signal basket was already reviewed against another review date (issue #41 follow-up). | Calendar changes and wrong-date reviews move the (signal, review) key, and `persist_review_bundle` would then add conflicting evidence and upsert over the review date's `weights` row. A persisted `review` on a non-session date is also refused, before the exact-key check (it would mark the basket's pilot session as evaluated with no outcomes). An existing exact-key review on a trading session reruns idempotently and `--dry-run` is never blocked. If `/routine` is refused, report and stop. |
 | 2026-11-14 | New reviews append up to 5 reserved missed-mover rows for unpicked winners ranked in the signal-date top 20, after the 12 largest movers (`missed_top_mover_limit`, `near_cutoff_missed_mover_slots`). | Limit-up names ranked 190–500 filled all 12 rows (80 of 108 across reviews 130–139), hiding near-cutoff misses such as SELEC, GENIL, and IDGYO in review 139. Earlier reviews stay capped at 12 rows. |
 
 ## Workflows
@@ -174,7 +176,7 @@ Live files:
 ### Testing
 
 - Run `D:\miniconda3\python.exe -m unittest discover -s tests -v` from the repo root.
-- Current tests cover `routine` CLI wiring, weekday date helpers, review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, bounded technical/fundamental/setup-penalty scoring behavior, score-ranked default picks, bucketed comparison reporting, and Yahoo isolation.
+- Current tests cover `routine` CLI wiring, trading-calendar helpers (`tests/test_trading_calendar.py`), review dry-run persistence boundaries, CSV import of `Gelir`/`F/K`, bounded technical/fundamental/setup-penalty scoring behavior, score-ranked default picks, bucketed comparison reporting, and Yahoo isolation.
 - Ranking diagnostics depend on persisted `candidate_outcomes`; complete pilot evidence lives separately in `strategy_pilot_state`, `strategy_pilot_picks`, and `strategy_pilot_sessions`, where reviewed membership is immutable and incomplete price evidence remains visible.
 
 ### Git Workflow
@@ -214,14 +216,15 @@ Live files:
 - `python` may not be on PATH in this workspace shell; use `D:\miniconda3\python.exe` for CLI runs.
 - `import-daily-folder` requires the `--folder` flag; a positional folder path is rejected.
 - Dated data folders can be ahead of the current calendar date, so verify the folder name and import snapshot date explicitly.
-- Daily data folder names represent the target weekday/work day for the picks; `import-daily-folder` stores the CSV contents under the previous weekday/work day `snapshot_date`/signal date and returns both dates.
+- Daily data folder names represent the target trading session for the picks; `import-daily-folder` stores the CSV contents under the previous trading session as `snapshot_date`/signal date and returns both dates.
 - Dated archive folders under `data\YYYYMMDD` were legacy inputs; the default flow now uses root live CSVs and SQLite snapshot history.
 - Current reads use the latest snapshot for each date, so multiple same-day imports can coexist while existing date-based commands keep working.
 - A local `.env` can pin `STOCK_EXPERT_DB_PATH` and takes effect before branch-based default DB selection.
-- `review --date YYYY-MM-DD` evaluates realized market data for that date against picks generated from the previous weekday signal date.
+- `review --date YYYY-MM-DD` evaluates realized market data for that date against picks generated from the previous trading-session signal date.
 - `--dry-run` is the safe path for old-strategy comparisons because normal `picks`/`review` mutate SQLite state.
 - Review candidate recomputation must stay dry-run even during a persisted review; otherwise strategy changes can rewrite the historical pick basket before it is evaluated.
-- Variable-date religious/exchange holidays must be recorded as exact confirmed dates; stable annual closures such as July 15 may use recurring month/day rules.
+- Variable-date religious/exchange holidays must be recorded as exact dates from Borsa İstanbul's annual Pay Piyasası holiday table; fixed national holidays use recurring month/day rules. Add each new year when the December announcement appears (`docs/context/trading-calendar.md`), before the first variable holiday. Until then `routine` warns with `calendar_warnings`.
+- Review 18 (signal 2026-04-23, review 2026-04-24) was recorded before 2026-04-23 became a closure and is no longer reachable by date lookup; the 2026-04-22 basket was never reviewed. That evidence stays as recorded. A persisted `review --date 2026-04-24` or historical `routine --date 2026-04-24` would review the 2026-04-22 basket and overwrite review 18's 2026-04-24 `weights` row, so the review evidence guard refuses it (as it refuses `review --date 2026-11-09`, whose 2026-11-06 basket review 136 already evaluated). Use `--dry-run`.
 - Review 136 (signal 2026-11-06, review date 2026-11-07) is a known bad session: it measures the signal day's own close, not the 2026-11-09 trade. Baskets from snapshots 174 and 176 have no review.
 - `snapshot_runs.imported_at` is UTC; local time is UTC+3.
 - Workspace-local temp directories are safer than OS temp directories for tests in this environment.
@@ -276,3 +279,4 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-09-18 | Recorded mandatory PR after every development task and always-dispatch project subagents. |
 | 2026-10-06 | Recorded `/bist`: embedded-browser refresh, `publish_extracted_tables`, then `routine`, without the web app or standalone Edge/Chrome. |
 | 2026-11-03 | Recorded the Claude Code `/bist` port and its viewport and saved-capture gotchas. |
+| 2026-11-18 | Recorded the complete trading calendar, its source, the yearly update gotcha, and the review 18 caveat (#41). |

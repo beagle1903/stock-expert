@@ -49,4 +49,15 @@ Keep the handoff short. Report the pick basket, review result, snapshot/review
 ids, signal and target/review dates, SQLite verification result, and
 `git status --short`.
 
+If `routine` exits 1 with `Refusing to persist review` on stderr, report that
+message and stop. Do not work around it with other commands: the review
+evidence guard found a stored review that the run would contradict. See the
+"Review evidence guard" section of `docs/context/trading-calendar.md`.
+
+If the routine header JSON contains `calendar_warnings`, report it first: that
+year's Borsa Istanbul holiday table has not been added to
+`stock_expert/trading_calendar.py`, so religious-holiday closures are being
+treated as sessions. Point to the yearly update step in
+`docs/context/trading-calendar.md`.
+
 Do not expand into strategy analysis unless requested.
