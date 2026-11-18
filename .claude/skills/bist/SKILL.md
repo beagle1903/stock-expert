@@ -121,5 +121,8 @@ python.exe -m stock_expert routine
    target/review dates, SQLite verification, publication row counts, and git
    status. If the routine header JSON contains `calendar_warnings`, report it
    first and point to the yearly update step in
-   `docs/context/trading-calendar.md`.
+   `docs/context/trading-calendar.md`. If `routine` exits 1 with `Refusing to
+   persist review`, report the message and stop without working around it (see
+   the "Review evidence guard" section of that file); the published CSVs stay
+   in place.
 5. Do not start `frontend/scripts/dev.mjs` or open `http://127.0.0.1:5173`.

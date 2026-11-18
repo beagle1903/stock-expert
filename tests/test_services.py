@@ -13,18 +13,25 @@ from stock_expert.database import (
     connect,
     ensure_strategy_pilot,
     get_candidate_outcomes,
+    get_conflicting_review_runs,
     get_strategy_pilot_baskets,
     init_db,
     insert_review_run,
+    persist_daily_snapshot,
+    persist_review_bundle,
+    replace_picks_and_strategy_pilot_baskets,
     replace_strategy_pilot_baskets,
 )
 from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, Weights
 from stock_expert.services import (
     RankingContext,
+    ReviewDateNotTradingSession,
+    ReviewEvidenceConflict,
     _attribution_for_pick,
     apply_fade_then_rechase_penalty,
     bucketed_strategy_comparison_output,
     cap_setup_penalty_for_strong_momentum,
+    check_review_evidence,
     classify_missed_mover,
     daily_summary,
     downside_risk_output,
@@ -35,6 +42,7 @@ from stock_expert.services import (
     next_review_weights,
     picks_output,
     rank_candidates,
+    review_evidence_conflict_message,
     review_output,
     rolling_candidate_diagnostics,
     rolling_review_weights,
@@ -48,6 +56,7 @@ from stock_expert.signals import (
     compute_technical_adjustment,
     score_signal,
 )
+from stock_expert.trading_calendar import next_trading_session
 
 
 class MarketContextTests(unittest.TestCase):
@@ -1224,6 +1233,391 @@ class ReviewOutputTests(unittest.TestCase):
         )
         self.assertEqual(payload["adjustments"]["momentum_weight"], 0.4)
         self.assertEqual(payload["strategy_pilot"]["status"], "active")
+
+
+class ReviewEvidenceGuardTests(unittest.TestCase):
+    EVIDENCE_TABLES = (
+        "snapshot_runs",
+        "stocks",
+        "signals",
+        "picks",
+        "weights",
+        "review_runs",
+        "review_pick_results",
+        "candidate_outcomes",
+        "review_missed_mover_results",
+        "strategy_pilot_state",
+        "strategy_pilot_picks",
+        "strategy_pilot_sessions",
+    )
+
+    def setUp(self) -> None:
+        base_dir = Path(__file__).resolve().parent.parent / ".test_tmp" / f"review_guard_{uuid.uuid4().hex}"
+        self.settings = Settings(
+            base_dir=base_dir,
+            data_dir=base_dir / "data",
+            db_path=base_dir / "data" / "test.db",
+        )
+        self.settings.data_dir.mkdir(parents=True, exist_ok=True)
+        init_db(self.settings)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.settings.base_dir, ignore_errors=True)
+
+    def _table_state(self) -> dict[str, list[tuple[object, ...]]]:
+        with connect(self.settings) as conn:
+            return {
+                table: [tuple(row) for row in conn.execute(f"SELECT * FROM {table} ORDER BY rowid")]
+                for table in self.EVIDENCE_TABLES
+            }
+
+    @staticmethod
+    def _candidate_outcome(ticker: str) -> dict[str, object]:
+        return {
+            "ticker": ticker,
+            "candidate_rank": 1,
+            "score": 1.0,
+            "momentum": 0.9,
+            "volume": 0.8,
+            "technical": 0.0,
+            "fundamental": 0.0,
+            "quality": 0.0,
+            "setup_penalty": 0.0,
+            "selected_score_ranked": 1,
+            "selected_bucketed": 0,
+            "bucketed_bucket": None,
+            "return_pct": 0.02,
+            "won": 0,
+        }
+
+    def _seed_review(
+        self,
+        signal_date: date,
+        review_date: date,
+        momentum_weight: float = 0.55,
+    ) -> int:
+        review_id, created = persist_review_bundle(
+            self.settings,
+            as_of=signal_date,
+            review_date=review_date,
+            avg_return=0.02,
+            win_rate=0.0,
+            picks=[{"ticker": "CCC", "score": 1.0, "open_price": 100.0, "close_price": 102.0}],
+            weights=Weights(
+                date=review_date,
+                momentum_weight=momentum_weight,
+                volume_weight=round(1.0 - momentum_weight, 2),
+            ),
+            candidate_outcomes=[self._candidate_outcome("CCC")],
+            signal_snapshot_id=None,
+        )
+        self.assertTrue(created)
+        return review_id
+
+    def _seed_signal_basket(
+        self,
+        signal_date: date,
+        review_date: date | None,
+        pilot_start: date,
+    ) -> int:
+        """Store a signal snapshot with one pick and both pilot baskets.
+
+        With a review-date snapshot as well, a persisted review of the pair has
+        pick results to write; without one it still closes the pilot baskets.
+        Either way an unguarded persisted review would change the database.
+        """
+        signal_snapshot_id = persist_daily_snapshot(
+            self.settings,
+            snapshot_date=signal_date,
+            source_label="daily_csv",
+            source_dir="data",
+            market_rows=[],
+            price_rows=[
+                ("AAA", signal_date, 100.0, 101.0, 1_000_000),
+                ("BBB", signal_date, 50.0, 51.0, 1_000_000),
+            ],
+        )
+        if review_date is not None:
+            persist_daily_snapshot(
+                self.settings,
+                snapshot_date=review_date,
+                source_label="daily_csv",
+                source_dir="data",
+                market_rows=[],
+                price_rows=[
+                    ("AAA", review_date, 101.0, 106.0, 1_000_000),
+                    ("BBB", review_date, 51.0, 50.0, 1_000_000),
+                ],
+            )
+        ensure_strategy_pilot(
+            self.settings,
+            signal_date=pilot_start,
+            weights=Weights(date=pilot_start, momentum_weight=0.4, volume_weight=0.6),
+        )
+        replace_picks_and_strategy_pilot_baskets(
+            self.settings,
+            rows=[
+                PickRow(date=signal_date, ticker="AAA", score=1.0, momentum=0.9, volume=0.8, risk="high"),
+            ],
+            target_date=signal_date,
+            snapshot_id=signal_snapshot_id,
+            signal_date=signal_date,
+            target_trade_date=next_trading_session(signal_date),
+            basket_rows=[
+                {
+                    "strategy": "score_ranked",
+                    "ticker": "AAA",
+                    "selection_rank": 1,
+                    "candidate_rank": 1,
+                    "score": 1.0,
+                    "selection_bucket": "score_ranked",
+                },
+                {
+                    "strategy": "bucketed",
+                    "ticker": "BBB",
+                    "selection_rank": 1,
+                    "candidate_rank": 2,
+                    "score": 0.9,
+                    "selection_bucket": "core_momentum",
+                },
+            ],
+        )
+        return signal_snapshot_id
+
+    def _seed_review_18_scenario(self) -> int:
+        # Review 18 was stored as 2026-04-23 -> 2026-04-24 before 2026-04-23
+        # became a confirmed closure; review --date 2026-04-24 now resolves to
+        # signal date 2026-04-22.
+        self._seed_signal_basket(date(2026, 4, 22), date(2026, 4, 24), pilot_start=date(2026, 4, 20))
+        return self._seed_review(date(2026, 4, 23), date(2026, 4, 24))
+
+    def _review_without_guard(self, review_date: date) -> str:
+        # Control run: proves the seeded evidence is enough for a persisted
+        # review to write, so an unchanged database means the guard held.
+        with patch("stock_expert.services.check_review_evidence"):
+            return review_output(self.settings, review_date, dry_run=False)
+
+    def _review_keys(self) -> list[tuple[str, str]]:
+        with connect(self.settings) as conn:
+            return [
+                (row["as_of_date"], row["review_date"])
+                for row in conn.execute("SELECT as_of_date, review_date FROM review_runs ORDER BY id")
+            ]
+
+    def test_persisted_review_refuses_a_review_date_already_reviewed_from_another_signal_date(self) -> None:
+        review_id = self._seed_review_18_scenario()
+        before = self._table_state()
+
+        with self.assertRaises(ReviewEvidenceConflict) as raised:
+            review_output(self.settings, date(2026, 4, 24), dry_run=False)
+
+        self.assertEqual(self._table_state(), before)
+        with connect(self.settings) as conn:
+            weights = conn.execute(
+                "SELECT momentum_weight, volume_weight FROM weights WHERE date = '2026-04-24'"
+            ).fetchone()
+        self.assertEqual((weights["momentum_weight"], weights["volume_weight"]), (0.55, 0.45))
+        self.assertEqual(raised.exception.signal_date, date(2026, 4, 22))
+        self.assertEqual(raised.exception.review_date, date(2026, 4, 24))
+        self.assertEqual([row["id"] for row in raised.exception.conflicts], [review_id])
+        message = str(raised.exception)
+        self.assertTrue(message.isascii())
+        self.assertIn("Refusing to persist review 2026-04-22 -> 2026-04-24", message)
+        self.assertIn(
+            f"existing review {review_id} (2026-04-23 -> 2026-04-24) already covers review date 2026-04-24",
+            message,
+        )
+        self.assertIn("overwrite stored weights", message)
+        self.assertIn("--dry-run", message)
+
+    def test_dry_run_review_still_runs_when_evidence_conflicts(self) -> None:
+        self._seed_review_18_scenario()
+        before = self._table_state()
+
+        payload = json.loads(review_output(self.settings, date(2026, 4, 24), dry_run=True))
+
+        self.assertTrue(payload["dry_run"])
+        self.assertIsNone(payload["review_run_id"])
+        self.assertEqual(payload["signal_date"], "2026-04-22")
+        self.assertEqual(payload["review_date"], "2026-04-24")
+        self.assertEqual(self._table_state(), before)
+
+    def test_persisted_review_refuses_a_signal_basket_already_reviewed_on_another_date(self) -> None:
+        # Review 136 was stored as 2026-11-06 -> 2026-11-07 (a Saturday);
+        # review --date 2026-11-09 resolves to the same Friday signal basket.
+        # The Friday picks and both snapshots are stored, so the Monday review
+        # has pick results to persist if nothing stops it.
+        self._seed_signal_basket(date(2026, 11, 6), date(2026, 11, 9), pilot_start=date(2026, 11, 4))
+        review_id = self._seed_review(date(2026, 11, 6), date(2026, 11, 7))
+        before = self._table_state()
+
+        with self.assertRaises(ReviewEvidenceConflict) as raised:
+            review_output(self.settings, date(2026, 11, 9), dry_run=False)
+
+        self.assertEqual(self._table_state(), before)
+        message = str(raised.exception)
+        self.assertTrue(message.isascii())
+        self.assertIn("Refusing to persist review 2026-11-06 -> 2026-11-09", message)
+        self.assertIn(
+            f"existing review {review_id} (2026-11-06 -> 2026-11-07) already reviewed signal date 2026-11-06",
+            message,
+        )
+
+        self._review_without_guard(date(2026, 11, 9))
+        self.assertEqual(
+            self._review_keys(),
+            [("2026-11-06", "2026-11-07"), ("2026-11-06", "2026-11-09")],
+        )
+
+    def test_exact_key_persisted_rerun_passes_even_when_a_conflicting_row_exists(self) -> None:
+        self._seed_signal_basket(date(2026, 4, 20), date(2026, 4, 21), pilot_start=date(2026, 4, 16))
+        first = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
+        self.assertIsNotNone(first["review_run_id"])
+        # One row shares the review date, one shares the signal basket.
+        self._seed_review(date(2026, 4, 17), date(2026, 4, 21))
+        self._seed_review(date(2026, 4, 20), date(2026, 4, 22))
+        self.assertEqual(
+            len(get_conflicting_review_runs(self.settings, date(2026, 4, 20), date(2026, 4, 21))),
+            2,
+        )
+        before = self._table_state()
+
+        check_review_evidence(self.settings, date(2026, 4, 21))
+        rerun = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
+
+        self.assertEqual(self._table_state(), before)
+        self.assertEqual(rerun["review_run_id"], first["review_run_id"])
+        self.assertEqual(rerun["signal_date"], "2026-04-20")
+        self.assertEqual(rerun["review_date"], "2026-04-21")
+
+    def test_persisted_review_refuses_a_weekend_review_date(self) -> None:
+        # 2026-11-14 is a Saturday. Unguarded, the review would close Friday's
+        # pilot baskets with no outcomes, and Monday's real review would then
+        # skip that basket.
+        self._seed_signal_basket(date(2026, 11, 13), None, pilot_start=date(2026, 11, 11))
+        before = self._table_state()
+
+        with self.assertRaises(ReviewDateNotTradingSession) as raised:
+            review_output(self.settings, date(2026, 11, 14), dry_run=False)
+
+        self.assertIsInstance(raised.exception, ReviewEvidenceConflict)
+        self.assertEqual(self._table_state(), before)
+        self.assertEqual(raised.exception.signal_date, date(2026, 11, 13))
+        self.assertEqual(raised.exception.review_date, date(2026, 11, 14))
+        self.assertEqual(raised.exception.conflicts, [])
+        message = str(raised.exception)
+        self.assertTrue(message.isascii())
+        self.assertEqual(
+            message,
+            "Refusing to persist a review for review date 2026-11-14: it is not an open trading session. "
+            "Reviews are recorded only on trading sessions.",
+        )
+        self.assertEqual(raised.exception.message(cli_hint=False), message)
+
+        self._review_without_guard(date(2026, 11, 14))
+        with connect(self.settings) as conn:
+            sessions = [
+                (row["strategy"], row["review_date"], row["evaluated_count"])
+                for row in conn.execute(
+                    "SELECT strategy, review_date, evaluated_count FROM strategy_pilot_sessions ORDER BY strategy"
+                )
+            ]
+        self.assertEqual(sessions, [("bucketed", "2026-11-14", 0), ("score_ranked", "2026-11-14", 0)])
+
+    def test_persisted_review_refuses_a_holiday_review_date_with_a_stored_snapshot(self) -> None:
+        # 2026-04-23 is a market holiday. A snapshot stored under it would let
+        # an unguarded review write a review-136-style row for the holiday.
+        self._seed_signal_basket(date(2026, 4, 22), date(2026, 4, 23), pilot_start=date(2026, 4, 20))
+        before = self._table_state()
+
+        with self.assertRaises(ReviewDateNotTradingSession):
+            review_output(self.settings, date(2026, 4, 23), dry_run=False)
+
+        self.assertEqual(self._table_state(), before)
+        self._review_without_guard(date(2026, 4, 23))
+        self.assertEqual(self._review_keys(), [("2026-04-22", "2026-04-23")])
+
+    def test_non_session_review_date_is_refused_even_for_its_stored_key(self) -> None:
+        self._seed_review(date(2026, 11, 6), date(2026, 11, 7))
+
+        with self.assertRaises(ReviewDateNotTradingSession):
+            check_review_evidence(self.settings, date(2026, 11, 7))
+
+    def test_dry_run_review_still_runs_on_a_non_session_date(self) -> None:
+        self._seed_signal_basket(date(2026, 11, 13), None, pilot_start=date(2026, 11, 11))
+        before = self._table_state()
+
+        payload = json.loads(review_output(self.settings, date(2026, 11, 14), dry_run=True))
+
+        self.assertTrue(payload["dry_run"])
+        self.assertIsNone(payload["review_run_id"])
+        self.assertEqual(payload["signal_date"], "2026-11-13")
+        self.assertEqual(payload["review_date"], "2026-11-14")
+        self.assertEqual(self._table_state(), before)
+
+    def test_check_review_evidence_passes_for_the_exact_key_and_empty_history(self) -> None:
+        check_review_evidence(self.settings, date(2026, 4, 21))
+        self._seed_review(date(2026, 4, 20), date(2026, 4, 21))
+
+        check_review_evidence(self.settings, date(2026, 4, 21))
+        check_review_evidence(self.settings, date(2026, 4, 22))
+
+        self._seed_review(date(2026, 4, 23), date(2026, 4, 24))
+        with self.assertRaises(ReviewEvidenceConflict):
+            check_review_evidence(self.settings, date(2026, 4, 24))
+
+    def test_conflict_message_names_each_collision_side(self) -> None:
+        message = review_evidence_conflict_message(
+            date(2026, 4, 22),
+            date(2026, 4, 24),
+            [
+                {"id": 18, "as_of_date": "2026-04-23", "review_date": "2026-04-24"},
+                {"id": 19, "as_of_date": "2026-04-22", "review_date": "2026-04-27"},
+            ],
+        )
+
+        self.assertTrue(message.isascii())
+        self.assertIn("existing review 18 (2026-04-23 -> 2026-04-24) already covers review date 2026-04-24", message)
+        self.assertIn("existing review 19 (2026-04-22 -> 2026-04-27) already reviewed signal date 2026-04-22", message)
+        self.assertIn("overwrite stored weights", message)
+        self.assertIn("same signal basket", message)
+        self.assertTrue(message.endswith(" Use review --date 2026-04-24 --dry-run to inspect."))
+
+    def test_conflict_message_can_omit_the_cli_hint(self) -> None:
+        conflicts = [{"id": 18, "as_of_date": "2026-04-23", "review_date": "2026-04-24"}]
+        with_hint = review_evidence_conflict_message(date(2026, 4, 22), date(2026, 4, 24), conflicts)
+        without_hint = review_evidence_conflict_message(
+            date(2026, 4, 22),
+            date(2026, 4, 24),
+            conflicts,
+            cli_hint=False,
+        )
+
+        self.assertNotIn("--dry-run", without_hint)
+        self.assertNotIn("review --date", without_hint)
+        self.assertTrue(without_hint.endswith("overwrite stored weights."))
+        self.assertEqual(with_hint, without_hint + " Use review --date 2026-04-24 --dry-run to inspect.")
+        conflict = ReviewEvidenceConflict(date(2026, 4, 22), date(2026, 4, 24), conflicts)
+        self.assertEqual(str(conflict), with_hint)
+        self.assertEqual(conflict.message(cli_hint=False), without_hint)
+
+    def test_exact_key_persisted_rerun_stays_idempotent(self) -> None:
+        review_id = self._seed_review(date(2026, 4, 20), date(2026, 4, 21), momentum_weight=0.63)
+        recent_rows = [{"ticker": "CCC", "score": 1.0, "open_price": 100.0, "close_price": 102.0}]
+        with (
+            patch("stock_expert.services.generate_picks", return_value=[]),
+            patch("stock_expert.services.generate_bucketed_picks", return_value=[]),
+            patch("stock_expert.services.rank_candidates", return_value=[]),
+            patch("stock_expert.services.get_pick_results", return_value=recent_rows),
+            patch("stock_expert.services.get_top_movers", return_value=[]),
+        ):
+            payload = json.loads(review_output(self.settings, date(2026, 4, 21), dry_run=False))
+
+        with connect(self.settings) as conn:
+            review_count = conn.execute("SELECT COUNT(*) FROM review_runs").fetchone()[0]
+        self.assertEqual(review_count, 1)
+        self.assertEqual(payload["review_run_id"], review_id)
+        self.assertEqual(payload["adjustments"]["momentum_weight"], 0.63)
 
 
 class OutputAndOrderingTests(unittest.TestCase):

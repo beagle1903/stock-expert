@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
 
@@ -9,6 +10,7 @@ from stock_expert.constants import MIN_DAILY_WIN_RETURN
 from stock_expert.database import (
     ensure_strategy_pilot,
     get_candidate_outcomes,
+    get_conflicting_review_runs,
     get_latest_weights,
     get_latest_snapshot_id,
     get_market_snapshots_for_date,
@@ -55,6 +57,7 @@ from stock_expert.signals import (
 )
 from stock_expert.trading_calendar import (
     is_half_day_session,
+    is_trading_session,
     next_trading_session,
     previous_trading_session,
 )
@@ -1259,6 +1262,116 @@ def rolling_review_weights(current: Weights, sessions: list[object], min_session
     )
 
 
+def review_evidence_conflict_message(
+    signal_date: date,
+    review_date: date,
+    conflicts: Iterable[Mapping[str, object]],
+    *,
+    cli_hint: bool = True,
+) -> str:
+    """Explain why a persisted review is refused.
+
+    ``cli_hint`` appends the ``review --dry-run`` command; callers without a
+    terminal (the Data & Runs preview) leave it off and add their own pointer.
+    """
+    signal_text = signal_date.isoformat()
+    review_text = review_date.isoformat()
+    clauses: list[str] = []
+    review_date_taken = False
+    signal_basket_taken = False
+    for row in conflicts:
+        existing = f"existing review {row['id']} ({row['as_of_date']} -> {row['review_date']})"
+        if row["review_date"] == review_text:
+            review_date_taken = True
+            clauses.append(f"{existing} already covers review date {review_text} from another signal date")
+        else:
+            signal_basket_taken = True
+            clauses.append(f"{existing} already reviewed signal date {signal_text} against another review date")
+    consequences: list[str] = []
+    if review_date_taken:
+        consequences.append("add conflicting evidence and overwrite stored weights")
+    if signal_basket_taken:
+        consequences.append("review the same signal basket a second time")
+    message = (
+        f"Refusing to persist review {signal_text} -> {review_text}: "
+        + "; ".join(clauses)
+        + ". Persisting would "
+        + " and ".join(consequences)
+        + "."
+    )
+    if cli_hint:
+        message += f" Use review --date {review_text} --dry-run to inspect."
+    return message
+
+
+def non_session_review_message(review_date: date) -> str:
+    return (
+        f"Refusing to persist a review for review date {review_date.isoformat()}: "
+        "it is not an open trading session. Reviews are recorded only on trading sessions."
+    )
+
+
+class ReviewEvidenceConflict(Exception):
+    """A persisted review would contradict a stored review on one side of its key."""
+
+    def __init__(
+        self,
+        signal_date: date,
+        review_date: date,
+        conflicts: Iterable[Mapping[str, object]],
+    ) -> None:
+        self.signal_date = signal_date
+        self.review_date = review_date
+        self.conflicts = list(conflicts)
+        super().__init__(self.message())
+
+    def message(self, *, cli_hint: bool = True) -> str:
+        return review_evidence_conflict_message(
+            self.signal_date,
+            self.review_date,
+            self.conflicts,
+            cli_hint=cli_hint,
+        )
+
+
+class ReviewDateNotTradingSession(ReviewEvidenceConflict):
+    """A persisted review was requested for a weekend or market-holiday review date."""
+
+    def __init__(self, signal_date: date, review_date: date) -> None:
+        super().__init__(signal_date, review_date, [])
+
+    def message(self, *, cli_hint: bool = True) -> str:
+        return non_session_review_message(self.review_date)
+
+
+def check_review_evidence(settings: Settings, review_date: date) -> None:
+    """Raise ReviewEvidenceConflict before a persisted review could add bad evidence.
+
+    The signal date is derived exactly as review_output derives it.
+
+    - A review date that is not an open trading session is refused outright:
+      it would close the signal snapshot's pilot basket with no outcomes (so
+      the real next-session review skips it) or, when a snapshot is stored
+      under that date, write a weekend or holiday review row.
+    - A review already stored on the exact (signal date, review date) key is
+      the idempotent rerun: persist_review_bundle returns early and pilot
+      outcomes are written once per signal snapshot, so it passes even when a
+      conflicting row also exists.
+    - Otherwise review identity is unique on (signal date, review date), but
+      the review bundle also upserts weights on the review date and pilot
+      outcomes on the signal snapshot, so a different key that shares either
+      date must not persist.
+    """
+    signal_date = previous_trading_session(review_date)
+    if not is_trading_session(review_date):
+        raise ReviewDateNotTradingSession(signal_date, review_date)
+    if get_review_run(settings, signal_date, review_date) is not None:
+        return
+    conflicts = get_conflicting_review_runs(settings, signal_date, review_date)
+    if conflicts:
+        raise ReviewEvidenceConflict(signal_date, review_date, conflicts)
+
+
 def review_output(
     settings: Settings,
     as_of: date,
@@ -1267,6 +1380,10 @@ def review_output(
 ) -> str:
     review_date = as_of
     signal_date = previous_trading_session(review_date)
+    if not dry_run:
+        # Refuse before any other read or write so a blocked run leaves the
+        # database exactly as it was.
+        check_review_evidence(settings, review_date)
     ensure_base_state(settings, as_of, dry_run=dry_run)
     generated_picks = generate_picks(
         settings,

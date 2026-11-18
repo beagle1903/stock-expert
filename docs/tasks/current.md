@@ -70,8 +70,10 @@
   İstanbul notice 41625, half days moved out of `services.py`, and an
   unconfirmed year warns in `routine` and the Data & Runs preview. 2027
   variable dates wait for the December 2026 announcement. See
-  `docs/context/trading-calendar.md`. Ranking, review persistence, and
-  stored evidence are unchanged.
+  `docs/context/trading-calendar.md`. Ranking and stored evidence are
+  unchanged. A review evidence guard makes persisted `review` and
+  `routine` refuse, before any write or import, a run whose review date or
+  signal basket already has a review under a different key.
 
 - Live Evidence Console honesty (remove mock fixture, distinguish boot
   error vs empty basket, drop hardcoded ticker default) is on

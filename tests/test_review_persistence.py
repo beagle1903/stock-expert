@@ -11,6 +11,7 @@ from stock_expert.config import Settings
 from stock_expert.database import (
     connect,
     get_candidate_outcomes,
+    get_conflicting_review_runs,
     get_strategy_pilot_baskets,
     get_strategy_pilot_state,
     get_weights_as_of,
@@ -634,6 +635,64 @@ class ReviewPersistenceTests(unittest.TestCase):
         self.assertEqual(review_count, 1)
         self.assertEqual(outcome["score"], 1.0)
         self.assertEqual(outcome["review_run_id"], first_id)
+
+    def _seed_review(self, signal_date: date, review_date: date) -> int:
+        review_id, created = persist_review_bundle(
+            self.settings,
+            as_of=signal_date,
+            review_date=review_date,
+            avg_return=0.05,
+            win_rate=1.0,
+            picks=self._picks(),
+            weights=Weights(date=review_date, momentum_weight=0.6, volume_weight=0.4),
+            candidate_outcomes=self._outcomes(),
+            signal_snapshot_id=None,
+        )
+        self.assertTrue(created)
+        return review_id
+
+    def test_conflicting_review_runs_report_both_collision_directions(self) -> None:
+        exact_id = self._seed_review(date(2026, 4, 22), date(2026, 4, 24))
+        same_review_date_id = self._seed_review(date(2026, 4, 23), date(2026, 4, 24))
+        same_signal_date_id = self._seed_review(date(2026, 4, 22), date(2026, 4, 27))
+        self._seed_review(date(2026, 4, 20), date(2026, 4, 21))
+        self._seed_review(date(2026, 4, 24), date(2026, 4, 27))
+
+        rows = get_conflicting_review_runs(
+            self.settings,
+            signal_date=date(2026, 4, 22),
+            review_date=date(2026, 4, 24),
+        )
+
+        self.assertEqual(
+            [(row["id"], row["as_of_date"], row["review_date"]) for row in rows],
+            [
+                (same_review_date_id, "2026-04-23", "2026-04-24"),
+                (same_signal_date_id, "2026-04-22", "2026-04-27"),
+            ],
+        )
+        self.assertNotIn(exact_id, [row["id"] for row in rows])
+
+    def test_conflicting_review_runs_is_empty_for_exact_key_and_unrelated_reviews(self) -> None:
+        self._seed_review(date(2026, 4, 20), date(2026, 4, 21))
+        self._seed_review(date(2026, 4, 21), date(2026, 4, 22))
+
+        self.assertEqual(
+            get_conflicting_review_runs(
+                self.settings,
+                signal_date=date(2026, 4, 20),
+                review_date=date(2026, 4, 21),
+            ),
+            [],
+        )
+        self.assertEqual(
+            get_conflicting_review_runs(
+                self.settings,
+                signal_date=date(2026, 4, 27),
+                review_date=date(2026, 4, 28),
+            ),
+            [],
+        )
 
     def test_candidate_outcomes_can_exclude_future_review_dates(self) -> None:
         persist_review_bundle(

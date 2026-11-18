@@ -2,6 +2,7 @@
 
 - Previous trading-day signal performance
 - Evaluates previous trading-session signal-date picks against the requested realized market date (sessions come from `stock_expert/trading_calendar.py`; see `docs/context/trading-calendar.md`)
+- A persisted review exits 1 without writing when the review date is not an open trading session, already has a review from another signal date, or its signal basket was already reviewed against another review date. An existing exact-key review on a trading session reruns idempotently; `--dry-run` still runs on any date
 - Missed top movers
 - Actionable vs non-actionable misses
 - Weight adjustments use a rolling review window with a minimum sample size instead of reacting to one session

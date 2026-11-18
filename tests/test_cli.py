@@ -2,19 +2,36 @@ from __future__ import annotations
 
 import io
 import json
+import shutil
 import unittest
+import uuid
 from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
 from unittest.mock import ANY, patch
 
-from stock_expert import cli
+from stock_expert import cli, services
 from stock_expert.config import Settings
 from stock_expert.daily_csv import DailyCsvError
+from stock_expert.database import (
+    connect,
+    init_db,
+    persist_daily_snapshot,
+    persist_review_bundle,
+    replace_picks_for_date,
+)
 from stock_expert.investing_csv import InvestingCsvError
+from stock_expert.models import PickRow, Weights
+from stock_expert.services import ReviewEvidenceConflict
 
 
 class CliRoutineTests(unittest.TestCase):
     def setUp(self) -> None:
         self.settings = Settings(base_dir=".", data_dir="data", db_path="data/test.db")
+        # These routing tests mock every service; keep the evidence guard off
+        # the relative test database path. The guard has its own tests below.
+        evidence_check = patch("stock_expert.cli.check_review_evidence")
+        self.check_review_evidence = evidence_check.start()
+        self.addCleanup(evidence_check.stop)
 
     def test_parser_rejects_midday_routine(self) -> None:
         parser = cli.build_parser()
@@ -403,6 +420,284 @@ class CliRoutineTests(unittest.TestCase):
 
         self.assertEqual(header, {"routine": "routine", "routine_date": "2026-04-21", "import": {"ok": True}})
         self.assertEqual(stderr, "")
+
+    def test_routine_checks_review_evidence_for_the_resolved_date_before_importing(self) -> None:
+        calls: list[str] = []
+        self.check_review_evidence.side_effect = lambda *args, **kwargs: calls.append("check")
+
+        def record_import(*args, **kwargs):
+            calls.append("import")
+            return json.dumps({"ok": True})
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.ensure_bucketed_default_pilot"),
+            patch("stock_expert.cli.import_daily_csv_command", side_effect=record_import),
+            patch("stock_expert.cli.daily_summary", return_value="daily"),
+            patch("stock_expert.cli.market_context_output", return_value="market"),
+            patch("stock_expert.cli.picks_output", return_value="picks"),
+            patch("stock_expert.cli.bucketed_strategy_comparison_output", return_value="bucketed"),
+            patch("stock_expert.cli.downside_risk_output", return_value="downside"),
+            patch("stock_expert.cli.review_output", return_value="review"),
+            patch("sys.argv", ["stocks", "routine", "--date", "2026-11-07"]),
+            redirect_stdout(io.StringIO()),
+            redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(cli.main(), 0)
+
+        self.check_review_evidence.assert_called_once_with(self.settings, cli.date(2026, 11, 6))
+        self.assertEqual(calls, ["check", "import"])
+
+    def test_routine_reports_review_conflict_raised_during_review(self) -> None:
+        conflict = ReviewEvidenceConflict(
+            cli.date(2026, 4, 20),
+            cli.date(2026, 4, 21),
+            [{"id": 9, "as_of_date": "2026-04-17", "review_date": "2026-04-21"}],
+        )
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.ensure_bucketed_default_pilot"),
+            patch("stock_expert.cli.import_daily_csv_command", return_value=json.dumps({"ok": True})),
+            patch("stock_expert.cli.daily_summary", return_value="daily"),
+            patch("stock_expert.cli.market_context_output", return_value="market"),
+            patch("stock_expert.cli.picks_output", return_value="picks") as picks_output,
+            patch("stock_expert.cli.review_output", side_effect=conflict),
+            patch("sys.argv", ["stocks", "routine", "--date", "2026-04-21"]),
+            redirect_stdout(io.StringIO()),
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            self.assertEqual(cli.main(), 1)
+
+        picks_output.assert_not_called()
+        self.assertIn("routine: Refusing to persist review 2026-04-20 -> 2026-04-21", stderr.getvalue())
+
+
+class CliReviewEvidenceGuardTests(unittest.TestCase):
+    def setUp(self) -> None:
+        base_dir = Path(__file__).resolve().parent.parent / ".test_tmp" / f"cli_guard_{uuid.uuid4().hex}"
+        self.settings = Settings(
+            base_dir=base_dir,
+            data_dir=base_dir / "data",
+            db_path=base_dir / "data" / "test.db",
+        )
+        self.settings.data_dir.mkdir(parents=True, exist_ok=True)
+        init_db(self.settings)
+        self.addCleanup(shutil.rmtree, base_dir, ignore_errors=True)
+
+    def _seed_review(self, signal_date: cli.date, review_date: cli.date) -> int:
+        review_id, _ = persist_review_bundle(
+            self.settings,
+            as_of=signal_date,
+            review_date=review_date,
+            avg_return=0.02,
+            win_rate=0.0,
+            picks=[{"ticker": "CCC", "score": 1.0, "open_price": 100.0, "close_price": 102.0}],
+            weights=Weights(date=review_date, momentum_weight=0.55, volume_weight=0.45),
+            candidate_outcomes=[],
+            signal_snapshot_id=None,
+        )
+        return review_id
+
+    def _seed_signal_picks(self, signal_date: cli.date, review_date: cli.date) -> None:
+        # Signal and review snapshots plus a persisted signal-date pick: enough
+        # for a persisted review of the pair to write pick results.
+        signal_snapshot_id = persist_daily_snapshot(
+            self.settings,
+            snapshot_date=signal_date,
+            source_label="daily_csv",
+            source_dir="data",
+            market_rows=[],
+            price_rows=[
+                ("AAA", signal_date, 100.0, 101.0, 1_000_000),
+                ("BBB", signal_date, 50.0, 51.0, 1_000_000),
+            ],
+        )
+        persist_daily_snapshot(
+            self.settings,
+            snapshot_date=review_date,
+            source_label="daily_csv",
+            source_dir="data",
+            market_rows=[],
+            price_rows=[
+                ("AAA", review_date, 101.0, 106.0, 1_000_000),
+                ("BBB", review_date, 51.0, 50.0, 1_000_000),
+            ],
+        )
+        replace_picks_for_date(
+            self.settings,
+            [PickRow(date=signal_date, ticker="AAA", score=1.0, momentum=0.9, volume=0.8, risk="high")],
+            signal_date,
+            snapshot_id=signal_snapshot_id,
+        )
+
+    def _row_counts(self) -> dict[str, int]:
+        with connect(self.settings) as conn:
+            return {
+                table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                for table in (
+                    "snapshot_runs",
+                    "picks",
+                    "weights",
+                    "review_runs",
+                    "review_pick_results",
+                    "candidate_outcomes",
+                    "strategy_pilot_state",
+                    "strategy_pilot_sessions",
+                )
+            }
+
+    def test_review_command_refuses_conflicting_persisted_review(self) -> None:
+        review_id = self._seed_review(cli.date(2026, 4, 23), cli.date(2026, 4, 24))
+        before = self._row_counts()
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("sys.argv", ["stocks", "review", "--date", "2026-04-24"]),
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            exit_code = cli.main()
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn(
+            f"review: Refusing to persist review 2026-04-22 -> 2026-04-24: existing review {review_id} "
+            "(2026-04-23 -> 2026-04-24) already covers review date 2026-04-24",
+            stderr.getvalue(),
+        )
+        self.assertIn("Use review --date 2026-04-24 --dry-run to inspect.", stderr.getvalue())
+        self.assertEqual(self._row_counts(), before)
+
+    def test_review_command_dry_run_ignores_the_guard(self) -> None:
+        self._seed_review(cli.date(2026, 4, 23), cli.date(2026, 4, 24))
+        before = self._row_counts()
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("sys.argv", ["stocks", "review", "--date", "2026-04-24", "--dry-run"]),
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()),
+        ):
+            exit_code = cli.main()
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(json.loads(stdout.getvalue())["dry_run"])
+        self.assertEqual(self._row_counts(), before)
+
+    def test_review_command_refuses_a_non_session_review_date(self) -> None:
+        # 2026-11-14 is a Saturday. A snapshot stored under it would let an
+        # unguarded review write a review row for the weekend.
+        self._seed_signal_picks(cli.date(2026, 11, 13), cli.date(2026, 11, 14))
+        before = self._row_counts()
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("sys.argv", ["stocks", "review", "--date", "2026-11-14"]),
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            exit_code = cli.main()
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(
+            stderr.getvalue(),
+            "review: Refusing to persist a review for review date 2026-11-14: it is not an open trading session. "
+            "Reviews are recorded only on trading sessions.\n",
+        )
+        self.assertEqual(self._row_counts(), before)
+
+    def test_review_command_dry_run_runs_on_a_non_session_date(self) -> None:
+        self._seed_signal_picks(cli.date(2026, 11, 13), cli.date(2026, 11, 14))
+        before = self._row_counts()
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("sys.argv", ["stocks", "review", "--date", "2026-11-14", "--dry-run"]),
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()),
+        ):
+            exit_code = cli.main()
+
+        self.assertEqual(exit_code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertTrue(payload["dry_run"])
+        self.assertEqual(payload["signal_date"], "2026-11-13")
+        self.assertEqual(payload["review_date"], "2026-11-14")
+        self.assertEqual(self._row_counts(), before)
+
+    def test_saturday_routine_passes_the_guard_for_the_resolved_friday(self) -> None:
+        # The routine resolves 2026-11-07 (Saturday) to Friday 2026-11-06
+        # before the guard runs, so the non-session refusal never applies.
+        friday = cli.date(2026, 11, 6)
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch(
+                "stock_expert.cli.check_review_evidence",
+                wraps=services.check_review_evidence,
+            ) as check_review_evidence,
+            patch("stock_expert.cli.ensure_bucketed_default_pilot"),
+            patch(
+                "stock_expert.cli.import_daily_csv_command",
+                return_value=json.dumps({"ok": True}),
+            ) as csv_import,
+            patch("stock_expert.cli.daily_summary", return_value="daily"),
+            patch("stock_expert.cli.market_context_output", return_value="market"),
+            patch("stock_expert.cli.picks_output", return_value="picks"),
+            patch("stock_expert.cli.bucketed_strategy_comparison_output", return_value="bucketed"),
+            patch("stock_expert.cli.downside_risk_output", return_value="downside"),
+            patch("stock_expert.cli.review_output", return_value="review") as review_output,
+            patch("sys.argv", ["stocks", "routine", "--date", "2026-11-07"]),
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            exit_code = cli.main()
+
+        self.assertEqual(exit_code, 0)
+        check_review_evidence.assert_called_once_with(self.settings, friday)
+        csv_import.assert_called_once_with(settings=self.settings, snapshot_date="2026-11-06", data_dir="data")
+        review_output.assert_called_once_with(self.settings, friday, ranking_context=ANY)
+        self.assertNotIn("Refusing", stderr.getvalue())
+        self.assertEqual(json.loads(stdout.getvalue().split("\n\n", 1)[0])["routine_date"], "2026-11-06")
+
+    def test_routine_refuses_conflicting_review_before_importing(self) -> None:
+        # Review 136 (2026-11-06 -> 2026-11-07, a Saturday) is stored. The
+        # Friday picks and the Monday snapshot are stored as well, so a routine
+        # for 2026-11-09 that got past the guard would persist a second review
+        # of the Friday basket through the real review_output.
+        self._seed_signal_picks(cli.date(2026, 11, 6), cli.date(2026, 11, 9))
+        self._seed_review(cli.date(2026, 11, 6), cli.date(2026, 11, 7))
+        before = self._row_counts()
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch(
+                "stock_expert.cli.import_daily_csv_command",
+                return_value=json.dumps({"ok": True}),
+            ) as csv_import,
+            patch(
+                "stock_expert.cli.ensure_bucketed_default_pilot",
+                wraps=services.ensure_bucketed_default_pilot,
+            ) as ensure_pilot,
+            patch("stock_expert.cli.daily_summary", return_value="daily"),
+            patch("stock_expert.cli.market_context_output", return_value="market"),
+            patch("stock_expert.cli.picks_output", return_value="picks"),
+            patch("stock_expert.cli.bucketed_strategy_comparison_output", return_value="bucketed"),
+            patch("stock_expert.cli.downside_risk_output", return_value="downside"),
+            patch("stock_expert.cli.review_output", wraps=services.review_output) as review_output,
+            patch("sys.argv", ["stocks", "routine", "--date", "2026-11-09"]),
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            exit_code = cli.main()
+
+        self.assertEqual(exit_code, 1)
+        csv_import.assert_not_called()
+        ensure_pilot.assert_not_called()
+        review_output.assert_not_called()
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("routine: Refusing to persist review 2026-11-06 -> 2026-11-09", stderr.getvalue())
+        self.assertEqual(self._row_counts(), before)
 
 
 if __name__ == "__main__":
