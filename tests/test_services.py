@@ -14,6 +14,8 @@ from stock_expert.database import (
     ensure_strategy_pilot,
     get_candidate_outcomes,
     get_conflicting_review_runs,
+    get_latest_snapshot_id,
+    get_signal_window_coverage,
     get_strategy_pilot_baskets,
     init_db,
     insert_review_run,
@@ -2158,6 +2160,168 @@ class OutputAndOrderingTests(unittest.TestCase):
 
         self.assertIn("Signal-Ready Leaders:", output)
         self.assertLessEqual(output.count("Adj"), 3)
+
+
+class SignalWindowPublicationTests(unittest.TestCase):
+    SIGNAL_DATE = date(2026, 11, 18)
+    # Live DB has no 2026-11-16 snapshot; the control holds the same bars by
+    # position over six consecutive sessions.
+    GAP_DAYS = [date(2026, 11, day) for day in (10, 11, 12, 13, 17, 18)]
+    CONTIGUOUS_DAYS = [date(2026, 11, day) for day in (11, 12, 13, 16, 17, 18)]
+
+    def _settings(self, name: str) -> Settings:
+        base_dir = Path(__file__).resolve().parent.parent / ".test_tmp" / f"signal_window_{name}_{uuid.uuid4().hex}"
+        settings = Settings(
+            base_dir=base_dir,
+            data_dir=base_dir / "data",
+            db_path=base_dir / "data" / "test.db",
+        )
+        settings.data_dir.mkdir(parents=True, exist_ok=True)
+        self.addCleanup(shutil.rmtree, base_dir, True)
+        init_db(settings)
+        return settings
+
+    def _seed(self, settings: Settings, days: list[date], with_prices: bool = True) -> None:
+        for position, day in enumerate(days):
+            price_rows = []
+            if with_prices:
+                for index in range(8):
+                    close = 10.0 + position * (0.15 + 0.05 * index) + (0.4 if index % 3 == 0 and position == 5 else 0.0)
+                    price_rows.append(
+                        (
+                            f"T{index}",
+                            day,
+                            close - 0.05 * (index % 4),
+                            close,
+                            1_000_000.0 * (1 + (position * index) % 5),
+                        )
+                    )
+            persist_daily_snapshot(settings, day, "daily_csv", "data", [], price_rows)
+
+    def _persisted(self, settings: Settings) -> tuple[list[tuple[object, ...]], list[tuple[object, ...]]]:
+        snapshot_id = get_latest_snapshot_id(settings, self.SIGNAL_DATE)
+        with connect(settings) as conn:
+            picks = [
+                tuple(row)
+                for row in conn.execute(
+                    "SELECT ticker, score, momentum, volume, risk, selection_bucket FROM picks WHERE snapshot_id = ? ORDER BY ticker",
+                    (snapshot_id,),
+                )
+            ]
+        baskets = [
+            (row["strategy"], row["ticker"], row["selection_rank"], row["candidate_rank"], row["score"])
+            for row in get_strategy_pilot_baskets(settings, snapshot_id=snapshot_id)
+        ]
+        return picks, baskets
+
+    def _coverage_row_count(self, settings: Settings) -> int:
+        with connect(settings) as conn:
+            return int(conn.execute("SELECT COUNT(*) FROM signal_window_coverage").fetchone()[0])
+
+    def test_persisted_picks_record_the_gap_without_changing_scores(self) -> None:
+        gap = self._settings("gap")
+        control = self._settings("control")
+        self._seed(gap, self.GAP_DAYS)
+        self._seed(control, self.CONTIGUOUS_DAYS)
+
+        gap_picks = generate_picks(gap, self.SIGNAL_DATE)
+        control_picks = generate_picks(control, self.SIGNAL_DATE)
+
+        self.assertTrue(gap_picks)
+        self.assertEqual(gap_picks, control_picks)
+        self.assertEqual(rank_candidates(gap, self.SIGNAL_DATE), rank_candidates(control, self.SIGNAL_DATE))
+        self.assertEqual(self._persisted(gap), self._persisted(control))
+        self.assertTrue(self._persisted(gap)[1])
+
+        gap_window = get_signal_window_coverage(gap, get_latest_snapshot_id(gap, self.SIGNAL_DATE))
+        control_window = get_signal_window_coverage(control, get_latest_snapshot_id(control, self.SIGNAL_DATE))
+        assert gap_window is not None and control_window is not None
+        self.assertEqual(gap_window["status"], "gap")
+        self.assertEqual(gap_window["window_start"], "2026-11-10")
+        self.assertEqual(gap_window["missing_sessions"], ["2026-11-16"])
+        self.assertEqual(gap_window["affected_components"], ["momentum", "volume", "fade_then_rechase"])
+        self.assertEqual(control_window["status"], "contiguous")
+        self.assertEqual(control_window["missing_sessions"], [])
+
+    def test_disabling_the_record_leaves_the_basket_unchanged(self) -> None:
+        recorded = self._settings("recorded")
+        unrecorded = self._settings("unrecorded")
+        self._seed(recorded, self.GAP_DAYS)
+        self._seed(unrecorded, self.GAP_DAYS)
+
+        recorded_picks = generate_picks(recorded, self.SIGNAL_DATE)
+        with patch("stock_expert.services.signal_window_coverage", return_value=None):
+            unrecorded_picks = generate_picks(unrecorded, self.SIGNAL_DATE)
+
+        self.assertEqual(recorded_picks, unrecorded_picks)
+        self.assertEqual(self._persisted(recorded), self._persisted(unrecorded))
+        self.assertEqual(self._coverage_row_count(recorded), 1)
+        self.assertEqual(self._coverage_row_count(unrecorded), 0)
+
+    def test_pre_pilot_publication_records_the_gap(self) -> None:
+        settings = self._settings("pre_pilot")
+        self._seed(settings, self.GAP_DAYS)
+        ensure_strategy_pilot(
+            settings,
+            signal_date=date(2026, 11, 19),
+            weights=Weights(date=date(2026, 11, 19), momentum_weight=0.6, volume_weight=0.4),
+        )
+
+        picks = generate_picks(settings, self.SIGNAL_DATE)
+
+        snapshot_id = get_latest_snapshot_id(settings, self.SIGNAL_DATE)
+        stored = get_signal_window_coverage(settings, snapshot_id)
+        assert stored is not None
+        self.assertTrue(picks)
+        self.assertEqual(self._persisted(settings)[1], [])
+        self.assertEqual(stored["status"], "gap")
+        self.assertEqual(stored["missing_sessions"], ["2026-11-16"])
+
+    def test_empty_basket_publication_records_the_gap(self) -> None:
+        settings = self._settings("empty")
+        self._seed(settings, self.GAP_DAYS, with_prices=False)
+
+        self.assertEqual(generate_picks(settings, self.SIGNAL_DATE), [])
+
+        stored = get_signal_window_coverage(settings, get_latest_snapshot_id(settings, self.SIGNAL_DATE))
+        assert stored is not None
+        self.assertEqual(stored["status"], "gap")
+        self.assertEqual(stored["missing_sessions"], ["2026-11-16"])
+
+    def test_dry_run_records_nothing(self) -> None:
+        settings = self._settings("dry_run")
+        self._seed(settings, self.GAP_DAYS)
+
+        picks = generate_picks(settings, self.SIGNAL_DATE, dry_run=True)
+
+        self.assertTrue(picks)
+        self.assertEqual(self._coverage_row_count(settings), 0)
+        with connect(settings) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM picks").fetchone()[0], 0)
+
+    def test_picks_output_reports_the_live_signal_window(self) -> None:
+        settings = self._settings("output")
+        self._seed(settings, self.GAP_DAYS)
+
+        payload = json.loads(picks_output(settings, self.SIGNAL_DATE, dry_run=True))
+        missing = json.loads(picks_output(settings, date(2026, 11, 16), dry_run=True))
+
+        self.assertEqual(
+            payload["signal_window"],
+            {
+                "status": "gap",
+                "window_bars": 6,
+                "window_start": "2026-11-10",
+                "window_end": "2026-11-18",
+                "missing_sessions": ["2026-11-16"],
+                "non_session_dates": [],
+                "affected_components": ["momentum", "volume", "fade_then_rechase"],
+            },
+        )
+        self.assertEqual(missing["signal_window"], {"status": "not_available"})
+        self.assertEqual(self._coverage_row_count(settings), 0)
+        for key in ("dry_run", "signal_date", "target_trade_date", "market_context", "strategy_pilot", "exposure", "picks"):
+            self.assertIn(key, payload)
 
 
 if __name__ == "__main__":

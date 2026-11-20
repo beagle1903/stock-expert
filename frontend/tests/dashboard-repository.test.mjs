@@ -49,6 +49,15 @@ function dashboardPayload() {
         netAdjustment: 0,
       },
     }],
+    signalWindow: {
+      status: "gap",
+      windowBars: 6,
+      windowStart: "2026-04-13",
+      windowEnd: "2026-04-21",
+      missingSessions: ["2026-04-15"],
+      nonSessionDates: [],
+      affectedComponents: ["momentum", "volume"],
+    },
     runSteps: [{ id: 1, label: "Import", detail: "daily_csv" }],
   };
 }
@@ -104,6 +113,7 @@ test("load merges latest picks, review, and history into DashboardData", async (
     ]);
     assert.equal(data.snapshot.id, 12);
     assert.equal(data.picks[0].ticker, "THYAO");
+    assert.deepEqual(data.signalWindow, dashboardPayload().signalWindow);
     assert.equal(data.review.id, 7);
     assert.equal(data.reviewHistory.length, 1);
     assert.equal(data.reviewHistory[0].id, 7);

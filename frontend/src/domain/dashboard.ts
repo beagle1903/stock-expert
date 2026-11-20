@@ -77,6 +77,21 @@ export interface ReviewHistoryItem {
   pickCount: number;
 }
 
+export type SignalWindowStatus = "contiguous" | "gap" | "not_captured";
+export type SignalWindowComponent = "momentum" | "volume" | "fade_then_rechase";
+
+/** Publication-time coverage of the snapshot dates a basket's signal windows read. */
+export interface SignalWindow {
+  status: SignalWindowStatus;
+  windowBars: number | null;
+  windowStart: string | null;
+  /** The signal date; never the target trade date. */
+  windowEnd: string | null;
+  missingSessions: string[];
+  nonSessionDates: string[];
+  affectedComponents: SignalWindowComponent[];
+}
+
 export interface RunStep {
   id: number;
   label: string;
@@ -100,6 +115,8 @@ export interface DashboardData {
     policy: string;
   };
   picks: Pick[];
+  /** Absent in responses from before signal-window coverage was exposed. */
+  signalWindow?: SignalWindow;
   review: ReviewSummary | null;
   reviewHistory: ReviewHistoryItem[];
   runSteps: RunStep[];

@@ -10,8 +10,10 @@ from unittest.mock import patch
 from stock_expert.config import Settings
 from stock_expert.database import (
     connect,
+    create_snapshot_run,
     get_candidate_outcomes,
     get_conflicting_review_runs,
+    get_signal_window_coverage,
     get_strategy_pilot_baskets,
     get_strategy_pilot_state,
     get_weights_as_of,
@@ -21,9 +23,11 @@ from stock_expert.database import (
     persist_strategy_pilot_review,
     ensure_strategy_pilot,
     replace_picks_and_strategy_pilot_baskets,
+    replace_picks_for_date,
     replace_strategy_pilot_baskets,
 )
 from stock_expert.models import PickRow, PriceBar, Weights
+from stock_expert.signal_window import SignalWindowCoverage, assess_signal_window
 
 
 class ReviewPersistenceTests(unittest.TestCase):
@@ -726,6 +730,314 @@ class ReviewPersistenceTests(unittest.TestCase):
 
         self.assertEqual([row["review_date"] for row in outcomes], ["2026-04-21"])
         self.assertEqual([row["score"] for row in outcomes], [1.0])
+
+
+class SignalWindowPersistenceTests(unittest.TestCase):
+    SIGNAL_DATE = date(2026, 4, 20)
+
+    def setUp(self) -> None:
+        base_dir = Path(__file__).resolve().parent.parent / ".test_tmp" / f"signal_window_{uuid.uuid4().hex}"
+        self.settings = Settings(
+            base_dir=base_dir,
+            data_dir=base_dir / "data",
+            db_path=base_dir / "data" / "test.db",
+        )
+        self.settings.data_dir.mkdir(parents=True, exist_ok=True)
+        init_db(self.settings)
+        ensure_strategy_pilot(
+            self.settings,
+            signal_date=self.SIGNAL_DATE,
+            weights=Weights(date=self.SIGNAL_DATE, momentum_weight=0.4, volume_weight=0.6),
+        )
+        self.snapshot_id = create_snapshot_run(self.settings, self.SIGNAL_DATE, "daily_csv", "data")
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.settings.base_dir, ignore_errors=True)
+
+    def _coverage(self, gap: bool) -> SignalWindowCoverage:
+        # 2026-04-17 is a Friday session; the gapped history skips it.
+        days = (
+            ["2026-04-20", "2026-04-16", "2026-04-15", "2026-04-14", "2026-04-13", "2026-04-10"]
+            if gap
+            else ["2026-04-20", "2026-04-17", "2026-04-16", "2026-04-15", "2026-04-14", "2026-04-13"]
+        )
+        coverage = assess_signal_window(self.SIGNAL_DATE, [date.fromisoformat(day) for day in days])
+        assert coverage is not None
+        return coverage
+
+    def _pick(self, ticker: str) -> PickRow:
+        return PickRow(
+            date=self.SIGNAL_DATE,
+            ticker=ticker,
+            score=1.0,
+            momentum=0.9,
+            volume=0.8,
+            risk="high",
+            selection_bucket="score_ranked",
+        )
+
+    def _basket(self, ticker: str) -> list[dict[str, object]]:
+        return [
+            {
+                "strategy": strategy,
+                "ticker": ticker,
+                "selection_rank": 1,
+                "candidate_rank": 1,
+                "score": 1.0,
+                "selection_bucket": "score_ranked" if strategy == "score_ranked" else "core_momentum",
+            }
+            for strategy in ("score_ranked", "bucketed")
+        ]
+
+    def _publish(self, ticker: str, coverage: SignalWindowCoverage | None) -> None:
+        replace_picks_and_strategy_pilot_baskets(
+            self.settings,
+            rows=[self._pick(ticker)],
+            target_date=self.SIGNAL_DATE,
+            snapshot_id=self.snapshot_id,
+            signal_date=self.SIGNAL_DATE,
+            target_trade_date=date(2026, 4, 21),
+            basket_rows=self._basket(ticker),
+            signal_window=coverage,
+        )
+
+    def _persisted_state(self) -> tuple[list[str], list[str], int]:
+        with connect(self.settings) as conn:
+            picks = [row["ticker"] for row in conn.execute("SELECT ticker FROM picks WHERE snapshot_id = ?", (self.snapshot_id,))]
+            coverage_rows = conn.execute("SELECT COUNT(*) FROM signal_window_coverage").fetchone()[0]
+        baskets = sorted({row["ticker"] for row in get_strategy_pilot_baskets(self.settings, snapshot_id=self.snapshot_id)})
+        return picks, baskets, int(coverage_rows)
+
+    def test_publication_stores_coverage_with_the_basket(self) -> None:
+        self._publish("AAA", self._coverage(gap=True))
+
+        stored = get_signal_window_coverage(self.settings, self.snapshot_id)
+
+        self.assertEqual(
+            stored,
+            {
+                "snapshot_id": self.snapshot_id,
+                "signal_date": "2026-04-20",
+                "status": "gap",
+                "window_bars": 6,
+                "window_start": "2026-04-10",
+                "window_end": "2026-04-20",
+                "missing_sessions": ["2026-04-17"],
+                "non_session_dates": [],
+                "affected_components": ["momentum", "volume", "fade_then_rechase"],
+            },
+        )
+        self.assertEqual(self._persisted_state(), (["AAA"], ["AAA"], 1))
+
+    def test_coverage_is_none_when_the_publication_recorded_none(self) -> None:
+        self._publish("AAA", None)
+
+        self.assertIsNone(get_signal_window_coverage(self.settings, self.snapshot_id))
+        self.assertEqual(self._persisted_state(), (["AAA"], ["AAA"], 0))
+
+    def test_unreviewed_republish_replaces_the_coverage_row(self) -> None:
+        self._publish("AAA", self._coverage(gap=True))
+        self._publish("BBB", self._coverage(gap=False))
+
+        stored = get_signal_window_coverage(self.settings, self.snapshot_id)
+
+        assert stored is not None
+        self.assertEqual(stored["status"], "contiguous")
+        self.assertEqual(stored["missing_sessions"], [])
+        self.assertEqual(stored["affected_components"], [])
+        self.assertEqual(self._persisted_state(), (["BBB"], ["BBB"], 1))
+
+    def test_reviewed_basket_refusal_writes_neither_picks_nor_coverage(self) -> None:
+        self._publish("AAA", None)
+        persist_review_bundle(
+            self.settings,
+            as_of=self.SIGNAL_DATE,
+            review_date=date(2026, 4, 21),
+            avg_return=0.05,
+            win_rate=1.0,
+            picks=[{"ticker": "AAA", "score": 1.0, "open_price": 100.0, "close_price": 105.0}],
+            weights=Weights(date=date(2026, 4, 21), momentum_weight=0.4, volume_weight=0.6),
+            candidate_outcomes=[],
+            signal_snapshot_id=self.snapshot_id,
+            pilot_target_prices={
+                "AAA": PriceBar(
+                    ticker="AAA",
+                    date=date(2026, 4, 21),
+                    open_price=100.0,
+                    close_price=105.0,
+                    volume=1_000_000,
+                )
+            },
+        )
+
+        with self.assertRaisesRegex(ValueError, "reviewed pilot basket is immutable"):
+            self._publish("CHANGED", self._coverage(gap=True))
+
+        self.assertIsNone(get_signal_window_coverage(self.settings, self.snapshot_id))
+        self.assertEqual(self._persisted_state(), (["AAA"], ["AAA"], 0))
+
+    def _review_snapshot(self) -> None:
+        # A review pinned to the snapshot without pilot outcomes, as for a
+        # pre-pilot basket: the pilot baskets stay replaceable.
+        persist_review_bundle(
+            self.settings,
+            as_of=self.SIGNAL_DATE,
+            review_date=date(2026, 4, 21),
+            avg_return=0.05,
+            win_rate=1.0,
+            picks=[{"ticker": "AAA", "score": 1.0, "open_price": 100.0, "close_price": 105.0}],
+            weights=Weights(date=date(2026, 4, 21), momentum_weight=0.4, volume_weight=0.6),
+            candidate_outcomes=[],
+            signal_snapshot_id=self.snapshot_id,
+        )
+
+    def _republish_for_date(self, ticker: str, coverage: SignalWindowCoverage | None) -> None:
+        replace_picks_for_date(
+            self.settings,
+            [self._pick(ticker)],
+            self.SIGNAL_DATE,
+            snapshot_id=self.snapshot_id,
+            signal_window=coverage,
+        )
+
+    def test_reviewed_snapshot_keeps_its_coverage_on_a_dated_republish(self) -> None:
+        self._republish_for_date("AAA", self._coverage(gap=True))
+        self._review_snapshot()
+
+        # e.g. a manual `picks --date` for a pre-pilot, already-reviewed day.
+        self._republish_for_date("CHANGED", self._coverage(gap=False))
+
+        stored = get_signal_window_coverage(self.settings, self.snapshot_id)
+        assert stored is not None
+        self.assertEqual(stored["status"], "gap")
+        self.assertEqual(stored["missing_sessions"], ["2026-04-17"])
+        self.assertEqual(self._persisted_state()[0], ["CHANGED"])
+
+    def test_reviewed_snapshot_keeps_its_coverage_on_a_pilot_republish(self) -> None:
+        self._publish("AAA", self._coverage(gap=True))
+        self._review_snapshot()
+
+        self._publish("CHANGED", self._coverage(gap=False))
+
+        stored = get_signal_window_coverage(self.settings, self.snapshot_id)
+        assert stored is not None
+        self.assertEqual(stored["status"], "gap")
+
+    def test_reviewed_snapshot_without_coverage_gains_none_on_republish(self) -> None:
+        self._republish_for_date("AAA", None)
+        self._review_snapshot()
+
+        self._republish_for_date("CHANGED", self._coverage(gap=True))
+        self._publish("CHANGED", self._coverage(gap=True))
+
+        self.assertIsNone(get_signal_window_coverage(self.settings, self.snapshot_id))
+
+    def test_unreviewed_republish_without_coverage_clears_the_stale_row(self) -> None:
+        for publish in (self._publish, self._republish_for_date):
+            with self.subTest(publish=publish.__name__):
+                publish("AAA", self._coverage(gap=True))
+                self.assertIsNotNone(get_signal_window_coverage(self.settings, self.snapshot_id))
+
+                publish("BBB", None)
+
+                self.assertIsNone(get_signal_window_coverage(self.settings, self.snapshot_id))
+                self.assertEqual(self._persisted_state()[0], ["BBB"])
+
+    def test_reviewed_republish_without_coverage_keeps_the_row(self) -> None:
+        self._publish("AAA", self._coverage(gap=True))
+        self._review_snapshot()
+
+        self._publish("BBB", None)
+        self._republish_for_date("CCC", None)
+
+        stored = get_signal_window_coverage(self.settings, self.snapshot_id)
+        assert stored is not None
+        self.assertEqual(stored["status"], "gap")
+
+    def test_coverage_write_failure_rolls_back_picks_and_baskets(self) -> None:
+        self._publish("AAA", self._coverage(gap=False))
+
+        with patch(
+            "stock_expert.database._replace_signal_window_coverage_conn",
+            side_effect=RuntimeError("coverage write failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "coverage write failed"):
+                self._publish("CHANGED", self._coverage(gap=True))
+
+        stored = get_signal_window_coverage(self.settings, self.snapshot_id)
+        assert stored is not None
+        self.assertEqual(stored["status"], "contiguous")
+        self.assertEqual(self._persisted_state(), (["AAA"], ["AAA"], 1))
+
+    def test_non_pilot_publication_stores_coverage_in_the_same_transaction(self) -> None:
+        replace_picks_for_date(
+            self.settings,
+            [self._pick("AAA")],
+            self.SIGNAL_DATE,
+            snapshot_id=self.snapshot_id,
+            signal_window=self._coverage(gap=True),
+        )
+        stored = get_signal_window_coverage(self.settings, self.snapshot_id)
+        assert stored is not None
+        self.assertEqual(stored["status"], "gap")
+
+        with patch(
+            "stock_expert.database._replace_signal_window_coverage_conn",
+            side_effect=RuntimeError("coverage write failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "coverage write failed"):
+                replace_picks_for_date(
+                    self.settings,
+                    [self._pick("CHANGED")],
+                    self.SIGNAL_DATE,
+                    snapshot_id=self.snapshot_id,
+                    signal_window=self._coverage(gap=False),
+                )
+
+        stored = get_signal_window_coverage(self.settings, self.snapshot_id)
+        assert stored is not None
+        self.assertEqual(stored["status"], "gap")
+        self.assertEqual(self._persisted_state()[0], ["AAA"])
+
+    def test_coverage_for_another_signal_date_is_refused_before_writing(self) -> None:
+        other = assess_signal_window(date(2026, 4, 17), [date(2026, 4, 17), date(2026, 4, 16)])
+        assert other is not None
+
+        with self.assertRaisesRegex(ValueError, "cannot be published with the 2026-04-20 basket"):
+            self._publish("AAA", other)
+        with self.assertRaisesRegex(ValueError, "cannot be published with the 2026-04-20 basket"):
+            replace_picks_for_date(
+                self.settings,
+                [self._pick("AAA")],
+                self.SIGNAL_DATE,
+                snapshot_id=self.snapshot_id,
+                signal_window=other,
+            )
+
+        self.assertEqual(self._persisted_state(), ([], [], 0))
+
+    def test_init_db_adds_the_table_to_an_existing_database(self) -> None:
+        with connect(self.settings) as conn:
+            conn.execute("DROP TABLE signal_window_coverage")
+
+        init_db(self.settings)
+
+        with connect(self.settings) as conn:
+            columns = [row["name"] for row in conn.execute("PRAGMA table_info(signal_window_coverage)")]
+        self.assertEqual(
+            columns,
+            [
+                "snapshot_id",
+                "signal_date",
+                "status",
+                "window_bars",
+                "window_start",
+                "missing_sessions_json",
+                "non_session_dates_json",
+                "affected_components_json",
+            ],
+        )
+        self.assertIsNone(get_signal_window_coverage(self.settings, self.snapshot_id))
 
 
 if __name__ == "__main__":

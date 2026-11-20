@@ -1,4 +1,4 @@
-import type { ReviewSummary } from "./dashboard";
+import type { ReviewSummary, SignalWindow } from "./dashboard";
 
 export type PlaybackAvailability = "available" | "partial" | "unavailable";
 
@@ -36,6 +36,7 @@ export interface StrategyPlayback {
     universeCount: number;
     advancerCount: number;
     advancerRatio: number | null;
+    signalWindow?: SignalWindow;
   };
   strategy: {
     version: string;

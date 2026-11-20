@@ -856,6 +856,19 @@ button:focus-visible {
 }
 .evidence-notices p { margin: 3px 0; }
 
+.signal-window-notice {
+  display: grid;
+  gap: 6px;
+  margin: 10px 6px 0;
+  padding: 9px 12px;
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.signal-window-notice .evidence-status { justify-self: start; }
+.signal-window-notice p { margin: 0; }
+.signal-window-notice-neutral { border-color: var(--line-strong); background: var(--surface-quiet); color: var(--muted); }
+
 .lab-summary-grid,
 .lab-detail-grid,
 .latest-pick-grid {

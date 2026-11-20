@@ -14,12 +14,14 @@ from stock_expert.database import (
     get_latest_weights,
     get_latest_snapshot_id,
     get_market_snapshots_for_date,
+    get_operational_snapshot_dates,
     get_pick_results,
     get_persisted_pick_count,
     get_prices_for_date,
     get_recent_price_history,
     get_recent_review_runs,
     get_review_run,
+    get_signal_window_coverage,
     get_strategy_pilot_state,
     get_top_movers,
     get_weights_as_of,
@@ -39,6 +41,11 @@ from stock_expert.pilot import (
     PILOT_ROLLBACK_EDGE,
     PILOT_SESSION_TARGET,
     operational_strategy,
+)
+from stock_expert.signal_window import (
+    SIGNAL_WINDOW_BARS,
+    SignalWindowCoverage,
+    assess_signal_window,
 )
 from stock_expert.signals import (
     classify_risk,
@@ -227,6 +234,30 @@ def ensure_base_state(settings: Settings, as_of: date, dry_run: bool = False) ->
     latest = get_latest_weights(settings)
     if latest is None and not dry_run:
         insert_weights(settings, default_weights(as_of))
+
+
+def signal_window_coverage(settings: Settings, as_of: date) -> SignalWindowCoverage | None:
+    """Whether the signal components for ``as_of`` read consecutive trading sessions.
+
+    Read-only and evidence-only: it never changes a score, exposure, or selection.
+    """
+    return assess_signal_window(
+        as_of,
+        get_operational_snapshot_dates(settings, as_of, SIGNAL_WINDOW_BARS),
+    )
+
+
+def published_signal_window(settings: Settings, as_of: date) -> SignalWindowCoverage | None:
+    """The coverage stored with the basket published for ``as_of``, or None.
+
+    Reads the row written in the publication transaction for the latest
+    operational snapshot of ``as_of``; it never recomputes coverage.
+    """
+    snapshot_id = get_latest_snapshot_id(settings, as_of)
+    if snapshot_id is None:
+        return None
+    stored = get_signal_window_coverage(settings, snapshot_id)
+    return SignalWindowCoverage.from_payload(stored) if stored is not None else None
 
 
 def build_signals(settings: Settings, as_of: date) -> list[SignalRow]:
@@ -536,6 +567,7 @@ def generate_picks(
     pilot_applies = _pilot_applies_to_signal_date(pilot_state, as_of)
     if not signals:
         if not dry_run and snapshot_id is not None:
+            coverage = signal_window_coverage(settings, as_of)
             if pilot_applies:
                 replace_picks_and_strategy_pilot_baskets(
                     settings,
@@ -545,6 +577,7 @@ def generate_picks(
                     signal_date=as_of,
                     target_trade_date=next_trading_session(as_of),
                     basket_rows=[],
+                    signal_window=coverage,
                 )
             else:
                 replace_picks_for_date(
@@ -552,6 +585,7 @@ def generate_picks(
                     [],
                     as_of,
                     snapshot_id=snapshot_id,
+                    signal_window=coverage,
                 )
         return []
     if snapshot_id is None:
@@ -582,6 +616,7 @@ def generate_picks(
             pick.ticker: rank
             for rank, pick in enumerate(ranked, start=1)
         }
+        coverage = signal_window_coverage(settings, as_of)
         if pilot_applies:
             replace_picks_and_strategy_pilot_baskets(
                 settings,
@@ -602,6 +637,7 @@ def generate_picks(
                     for basket_strategy, picks in baskets.items()
                     for selection_rank, pick in enumerate(picks, start=1)
                 ],
+                signal_window=coverage,
             )
         else:
             replace_picks_for_date(
@@ -609,6 +645,7 @@ def generate_picks(
                 limited,
                 as_of,
                 snapshot_id=snapshot_id,
+                signal_window=coverage,
             )
     return limited
 
@@ -884,6 +921,7 @@ def picks_output(
         before_review_date=as_of,
     )
     snapshots = {item.ticker: item for item in get_market_snapshots_for_date(settings, as_of)}
+    coverage = signal_window_coverage(settings, as_of)
     payload = {
         "dry_run": dry_run,
         "chase_penalty": True,
@@ -895,6 +933,7 @@ def picks_output(
             signal_date=as_of,
         ),
         "exposure": exposure,
+        "signal_window": coverage.to_payload() if coverage is not None else {"status": "not_available"},
         "picks": [
             {
                 "ticker": pick.ticker,

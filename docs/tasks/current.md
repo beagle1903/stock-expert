@@ -64,8 +64,15 @@
 
 ## Active Enhancement
 
-- GitHub issue #41 (complete the BIST trading calendar) is on
-  `trading-calendar`. Fixed national holidays are recurring closures,
+- GitHub issue #45 (signal windows silently span missing sessions) is on
+  `signal-window-gaps`. Each persisted publication records its
+  signal-window coverage, and a gap is shown as degraded evidence in CLI
+  output, the APIs, and the Evidence Console. Scores, exposure, and
+  selection are unchanged, and older baskets read `not_captured`.
+
+- GitHub issue #41 (complete the BIST trading calendar) shipped on `main`
+  via [PR #60](https://github.com/beagle1903/stock-expert/pull/60) and is
+  closed. Fixed national holidays are recurring closures,
   28 October is a recurring half day, 2026 variable dates come from Borsa
   İstanbul notice 41625, half days moved out of `services.py`, and an
   unconfirmed year warns in `routine` and the Data & Runs preview. 2027

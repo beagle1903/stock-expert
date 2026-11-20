@@ -1,8 +1,14 @@
+import { signalWindowNotice } from "./signalWindowViewModel.mjs";
+
 export function playbackNotices(playback) {
   if (!playback) return [];
   const notices = [];
   if (playback.signal.status === "unavailable") {
     notices.push("The exact signal snapshot is not available for this legacy review.");
+  }
+  // Only a recorded gap earns a playback notice; every pre-feature review is not_captured.
+  if (playback.signal.signalWindow?.status === "gap") {
+    notices.push(signalWindowNotice(playback.signal.signalWindow).text);
   }
   if (playback.strategy.weightsStatus === "unavailable") {
     notices.push("The persisted weights that generated this signal basket are not available.");

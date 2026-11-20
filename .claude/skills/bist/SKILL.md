@@ -124,5 +124,6 @@ python.exe -m stock_expert routine
    `docs/context/trading-calendar.md`. If `routine` exits 1 with `Refusing to
    persist review`, report the message and stop without working around it (see
    the "Review evidence guard" section of that file); the published CSVs stay
-   in place.
+   in place. If stderr has a `routine: Signal window ...` line, report that the
+   basket is degraded evidence because its signal window skipped sessions.
 5. Do not start `frontend/scripts/dev.mjs` or open `http://127.0.0.1:5173`.

@@ -14,6 +14,7 @@ from stock_expert.config import Settings
 from stock_expert.daily_csv import DailyCsvError
 from stock_expert.database import (
     connect,
+    create_snapshot_run,
     init_db,
     persist_daily_snapshot,
     persist_review_bundle,
@@ -32,6 +33,10 @@ class CliRoutineTests(unittest.TestCase):
         evidence_check = patch("stock_expert.cli.check_review_evidence")
         self.check_review_evidence = evidence_check.start()
         self.addCleanup(evidence_check.stop)
+        # Same for the signal-window read; CliSignalWindowWarningTests covers it.
+        window_check = patch("stock_expert.cli.published_signal_window", return_value=None)
+        window_check.start()
+        self.addCleanup(window_check.stop)
 
     def test_parser_rejects_midday_routine(self) -> None:
         parser = cli.build_parser()
@@ -470,6 +475,96 @@ class CliRoutineTests(unittest.TestCase):
 
         picks_output.assert_not_called()
         self.assertIn("routine: Refusing to persist review 2026-04-20 -> 2026-04-21", stderr.getvalue())
+
+
+class CliSignalWindowWarningTests(unittest.TestCase):
+    def setUp(self) -> None:
+        base_dir = Path(__file__).resolve().parent.parent / ".test_tmp" / f"cli_window_{uuid.uuid4().hex}"
+        self.settings = Settings(
+            base_dir=base_dir,
+            data_dir=base_dir / "data",
+            db_path=base_dir / "data" / "test.db",
+        )
+        self.settings.data_dir.mkdir(parents=True, exist_ok=True)
+        init_db(self.settings)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.settings.base_dir, ignore_errors=True)
+
+    def run_routine(
+        self,
+        snapshot_days: list[str],
+        publish: bool = True,
+    ) -> tuple[dict[str, object], str, list[str]]:
+        # The import is mocked; these runs stand in for the stored snapshots.
+        for day in snapshot_days:
+            create_snapshot_run(self.settings, cli.date.fromisoformat(day), "daily_csv", "data")
+        calls: list[str] = []
+
+        def record_picks(settings, as_of, **kwargs):
+            calls.append("picks")
+            if publish:
+                # Real publication: no prices, so the empty basket is
+                # published with its signal-window coverage.
+                services.generate_picks(settings, as_of)
+            return "picks"
+
+        def record_window(settings, as_of):
+            calls.append("signal_window")
+            return services.published_signal_window(settings, as_of)
+
+        with (
+            patch("stock_expert.cli.get_settings", return_value=self.settings),
+            patch("stock_expert.cli.check_review_evidence"),
+            patch("stock_expert.cli.ensure_bucketed_default_pilot"),
+            patch("stock_expert.cli.import_daily_csv_command", return_value=json.dumps({"ok": True})),
+            patch("stock_expert.cli.daily_summary", return_value="daily"),
+            patch("stock_expert.cli.market_context_output", return_value="market"),
+            patch("stock_expert.cli.review_output", return_value="review"),
+            patch("stock_expert.cli.picks_output", side_effect=record_picks),
+            patch("stock_expert.cli.published_signal_window", side_effect=record_window),
+            patch("stock_expert.cli.bucketed_strategy_comparison_output", return_value="bucketed"),
+            patch("stock_expert.cli.downside_risk_output", return_value="downside"),
+            patch("sys.argv", ["stocks", "routine", "--date", "2026-11-18"]),
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            self.assertEqual(cli.main(), 0)
+        return json.loads(stdout.getvalue().split("\n\n", 1)[0]), stderr.getvalue(), calls
+
+    def test_gapped_window_warns_on_stderr_after_publication(self) -> None:
+        header, stderr, calls = self.run_routine(
+            ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-17", "2026-11-18"]
+        )
+
+        self.assertEqual(
+            stderr,
+            "routine: Signal window 2026-11-10 to 2026-11-18 spans missing trading session(s) 2026-11-16; "
+            "momentum, volume, fade_then_rechase read non-contiguous bars. Scores are unchanged.\n",
+        )
+        self.assertEqual(calls, ["picks", "signal_window"])
+        self.assertEqual(header, {"routine": "routine", "routine_date": "2026-11-18", "import": {"ok": True}})
+
+    def test_contiguous_window_prints_no_warning(self) -> None:
+        header, stderr, calls = self.run_routine(
+            ["2026-11-11", "2026-11-12", "2026-11-13", "2026-11-16", "2026-11-17", "2026-11-18"]
+        )
+
+        self.assertEqual(stderr, "")
+        self.assertEqual(calls, ["picks", "signal_window"])
+        self.assertEqual(header, {"routine": "routine", "routine_date": "2026-11-18", "import": {"ok": True}})
+
+    def test_warning_comes_from_the_stored_row_not_a_recomputation(self) -> None:
+        # The snapshot dates have a gap, but nothing published a coverage
+        # row for 2026-11-18, so there is nothing to warn from.
+        header, stderr, calls = self.run_routine(
+            ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-17", "2026-11-18"],
+            publish=False,
+        )
+
+        self.assertEqual(stderr, "")
+        self.assertEqual(calls, ["picks", "signal_window"])
+        self.assertEqual(header, {"routine": "routine", "routine_date": "2026-11-18", "import": {"ok": True}})
 
 
 class CliReviewEvidenceGuardTests(unittest.TestCase):

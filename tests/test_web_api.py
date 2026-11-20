@@ -12,7 +12,9 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 
 from stock_expert.config import Settings
-from stock_expert.database import connect, create_snapshot_run, init_db
+from stock_expert.database import connect, create_snapshot_run, init_db, replace_picks_for_date
+from stock_expert.models import PickRow
+from stock_expert.signal_window import assess_signal_window
 from stock_expert.web_api import (
     DEFAULT_PORT,
     REQUIRED_CSV_FILES,
@@ -582,6 +584,198 @@ class RoutineWebApiTests(unittest.TestCase):
         assert dashboard is not None
         self.assertEqual(dashboard["snapshot"]["id"], picks_snapshot_id)
         self.assertEqual([pick["ticker"] for pick in dashboard["picks"]], ["PICK"])
+
+    NOT_CAPTURED_SIGNAL_WINDOW = {
+        "status": "not_captured",
+        "windowBars": None,
+        "windowStart": None,
+        "windowEnd": None,
+        "missingSessions": [],
+        "nonSessionDates": [],
+        "affectedComponents": [],
+    }
+
+    def publish_signal_window_basket(self, signal_date: date, prior_dates: list[str]) -> int:
+        """Publish one pick with coverage assessed from ``prior_dates``.
+
+        Only the signal-date snapshot exists in snapshot_runs, so recomputing
+        the window on read would describe a one-bar contiguous window, not the
+        stored one.
+        """
+        init_db(self.settings)
+        snapshot_id = create_snapshot_run(self.settings, signal_date, "daily_csv", "data")
+        coverage = assess_signal_window(
+            signal_date,
+            [signal_date, *(date.fromisoformat(day) for day in prior_dates)],
+        )
+        replace_picks_for_date(
+            self.settings,
+            [
+                PickRow(
+                    date=signal_date,
+                    ticker="PICK",
+                    score=1.0,
+                    momentum=0.9,
+                    volume=0.8,
+                    risk="high",
+                )
+            ],
+            signal_date,
+            snapshot_id=snapshot_id,
+            signal_window=coverage,
+        )
+        return snapshot_id
+
+    def test_latest_picks_reads_the_stored_signal_window(self) -> None:
+        snapshot_id = self.publish_signal_window_basket(
+            date(2026, 11, 18),
+            ["2026-11-17", "2026-11-13", "2026-11-12", "2026-11-11", "2026-11-10"],
+        )
+
+        dashboard = load_latest_picks(self.settings)
+
+        assert dashboard is not None
+        self.assertEqual(dashboard["snapshot"]["id"], snapshot_id)
+        self.assertEqual(
+            dashboard["signalWindow"],
+            {
+                "status": "gap",
+                "windowBars": 6,
+                "windowStart": "2026-11-10",
+                "windowEnd": "2026-11-18",
+                "missingSessions": ["2026-11-16"],
+                "nonSessionDates": [],
+                "affectedComponents": ["momentum", "volume", "fade_then_rechase"],
+            },
+        )
+
+    def test_latest_picks_without_a_stored_signal_window_is_not_captured(self) -> None:
+        init_db(self.settings)
+        with connect(self.settings) as connection:
+            snapshot_id = connection.execute(
+                """
+                INSERT INTO snapshot_runs (snapshot_date, imported_at, source_label, source_dir)
+                VALUES ('2026-07-22', '2026-07-22 16:10:04', 'daily_csv', 'data')
+                """
+            ).lastrowid
+            connection.execute(
+                """
+                INSERT INTO picks (
+                    snapshot_id, date, ticker, score, kap, momentum, volume,
+                    risk, horizon, selection_bucket
+                ) VALUES (?, '2026-07-22', 'PICK', 1.0, 0, 0.9, 0.8,
+                    'high', 'intraday', 'score_ranked')
+                """,
+                (snapshot_id,),
+            )
+
+        dashboard = load_latest_picks(self.settings)
+
+        assert dashboard is not None
+        self.assertEqual(dashboard["signalWindow"], self.NOT_CAPTURED_SIGNAL_WINDOW)
+        with connect(self.settings) as connection:
+            stored = connection.execute("SELECT COUNT(*) FROM signal_window_coverage").fetchone()[0]
+        self.assertEqual(stored, 0)
+
+    def test_strategy_playback_reads_the_stored_signal_window(self) -> None:
+        # Publication records the coverage first; the review then pins the
+        # snapshot, after which the coverage can no longer be rewritten.
+        snapshot_id = self.publish_signal_window_basket(
+            date(2026, 11, 12),
+            ["2026-11-11", "2026-11-10", "2026-11-07", "2026-11-06", "2026-11-02"],
+        )
+        with connect(self.settings) as connection:
+            review_id = int(
+                connection.execute(
+                    """
+                    INSERT INTO review_runs (
+                        as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                        momentum_weight, volume_weight, signal_snapshot_id
+                    ) VALUES ('2026-11-12', '2026-11-13', 0.05, 1, 1, 1, 0.6, 0.4, ?)
+                    """,
+                    (snapshot_id,),
+                ).lastrowid
+            )
+
+        playback = load_strategy_playback(self.settings, review_id)
+
+        assert playback is not None
+        self.assertEqual(
+            playback["signal"]["signalWindow"],
+            {
+                "status": "gap",
+                "windowBars": 6,
+                "windowStart": "2026-11-02",
+                "windowEnd": "2026-11-12",
+                "missingSessions": ["2026-11-03", "2026-11-04", "2026-11-05", "2026-11-09"],
+                "nonSessionDates": ["2026-11-07"],
+                "affectedComponents": ["momentum", "volume", "fade_then_rechase"],
+            },
+        )
+
+    def test_strategy_playback_without_a_stored_signal_window_is_not_captured(self) -> None:
+        _, review_id = self.seed_strategy_evidence_session(
+            signal_date="2026-07-01",
+            review_date="2026-07-02",
+            score_return=0.05,
+            bucketed_return=0.02,
+            advancer_count=2,
+        )
+        with connect(self.settings) as connection:
+            legacy_review_id = int(
+                connection.execute(
+                    """
+                    INSERT INTO review_runs (
+                        as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                        momentum_weight, volume_weight
+                    ) VALUES ('2026-06-01', '2026-06-02', 0, 0, 1, 0, 0.6, 0.4)
+                    """
+                ).lastrowid
+            )
+
+        captured_absent = load_strategy_playback(self.settings, review_id)
+        legacy = load_strategy_playback(self.settings, legacy_review_id)
+
+        assert captured_absent is not None and legacy is not None
+        self.assertEqual(captured_absent["signal"]["signalWindow"], self.NOT_CAPTURED_SIGNAL_WINDOW)
+        self.assertIsNone(legacy["signal"]["snapshotId"])
+        self.assertEqual(legacy["signal"]["signalWindow"], self.NOT_CAPTURED_SIGNAL_WINDOW)
+
+    def test_http_routes_serve_the_stored_signal_window(self) -> None:
+        snapshot_id = self.publish_signal_window_basket(
+            date(2026, 11, 18),
+            ["2026-11-17", "2026-11-13", "2026-11-12", "2026-11-11", "2026-11-10"],
+        )
+        with connect(self.settings) as connection:
+            review_id = int(
+                connection.execute(
+                    """
+                    INSERT INTO review_runs (
+                        as_of_date, review_date, avg_return, win_rate, pick_count, wins,
+                        momentum_weight, volume_weight, signal_snapshot_id
+                    ) VALUES ('2026-11-18', '2026-11-19', 0.05, 1, 1, 1, 0.6, 0.4, ?)
+                    """,
+                    (snapshot_id,),
+                ).lastrowid
+            )
+
+        server = RoutineApiServer(("127.0.0.1", 0), self.settings, self.data_dir)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = int(server.server_port)
+            with urlopen(f"http://127.0.0.1:{port}/api/picks/latest", timeout=5) as response:
+                picks = json.load(response)
+            with urlopen(f"http://127.0.0.1:{port}/api/strategy-playback/{review_id}", timeout=5) as response:
+                playback = json.load(response)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+        self.assertEqual(picks["dashboard"]["signalWindow"]["status"], "gap")
+        self.assertEqual(picks["dashboard"]["signalWindow"]["missingSessions"], ["2026-11-16"])
+        self.assertEqual(playback["playback"]["signal"]["signalWindow"], picks["dashboard"]["signalWindow"])
 
     def test_http_health_and_latest_picks_use_real_sqlite_fixture(self) -> None:
         init_db(self.settings)
