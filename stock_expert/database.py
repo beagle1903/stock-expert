@@ -15,7 +15,15 @@ from stock_expert.signal_window import SignalWindowCoverage
 
 MAX_SNAPSHOT_MAPPING_FAILURES = 50
 YAHOO_OHLCV_SOURCE = "yahoo_ohlcv"
-_OPERATIONAL_SNAPSHOT_SQL = f"source_label != '{YAHOO_OHLCV_SOURCE}'"
+DAILY_CSV_SOURCE = "daily_csv"
+LEGACY_SOURCE = "legacy"
+OPERATIONAL_SNAPSHOT_SOURCES = (DAILY_CSV_SOURCE, LEGACY_SOURCE)
+# Allow-list: only these labels may feed ranking, selection, review pricing, and
+# price-history windows. Any other label (yahoo_ohlcv, yahoo_history_browser,
+# future repair labels) is non-operational by default. Built from constants only.
+_OPERATIONAL_SNAPSHOT_SQL = "source_label IN ({})".format(
+    ", ".join(f"'{label}'" for label in OPERATIONAL_SNAPSHOT_SOURCES)
+)
 
 
 class SnapshotQuality(TypedDict):
@@ -636,9 +644,9 @@ def upsert_prices(settings: Settings, rows: Iterable[tuple]) -> None:
                 cursor = conn.execute(
                     """
                     INSERT INTO snapshot_runs (snapshot_date, source_label, source_dir)
-                    VALUES (?, 'legacy', 'unknown')
+                    VALUES (?, ?, 'unknown')
                     """,
-                    (day.isoformat(),),
+                    (day.isoformat(), LEGACY_SOURCE),
                 )
                 snapshot_ids[day] = int(cursor.lastrowid)
 
@@ -718,7 +726,7 @@ def replace_picks_for_date(
 ) -> None:
     _check_signal_window_date(signal_window, target_date)
     init_db(settings)
-    snapshot_id = snapshot_id or get_latest_snapshot_id(settings, target_date) or create_snapshot_run(settings, target_date, "legacy", "unknown")
+    snapshot_id = snapshot_id or get_latest_snapshot_id(settings, target_date) or create_snapshot_run(settings, target_date, LEGACY_SOURCE, "unknown")
     with connect(settings) as conn:
         _replace_picks_for_snapshot_conn(conn, rows, snapshot_id)
         _publish_signal_window_coverage_conn(conn, snapshot_id, signal_window)
@@ -1803,20 +1811,21 @@ def _operational_snapshot_dates_conn(conn: sqlite3.Connection, as_of: date, limi
     """Newest-first distinct operational snapshot dates on or before ``as_of``.
 
     Price-history windows and signal-window coverage both read this, so the
-    coverage describes exactly the dates the signal components index.
+    coverage describes exactly the dates the signal components index. Only
+    allow-listed operational sources count (``OPERATIONAL_SNAPSHOT_SOURCES``).
     """
     return [
         str(row["date"])
         for row in conn.execute(
-            """
+            f"""
             SELECT DISTINCT snapshot_date AS date
             FROM snapshot_runs
             WHERE snapshot_date <= ?
-              AND source_label != ?
+              AND {_OPERATIONAL_SNAPSHOT_SQL}
             ORDER BY snapshot_date DESC
             LIMIT ?
             """,
-            (as_of.isoformat(), YAHOO_OHLCV_SOURCE, limit),
+            (as_of.isoformat(), limit),
         )
     ]
 

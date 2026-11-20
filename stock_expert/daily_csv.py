@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 
 from stock_expert.config import Settings
-from stock_expert.database import persist_daily_snapshot
+from stock_expert.database import DAILY_CSV_SOURCE, persist_daily_snapshot
 from stock_expert.models import MarketSnapshot
 from stock_expert.trading_calendar import previous_trading_session
 
@@ -360,7 +360,7 @@ def import_daily_csv_command(settings: Settings, snapshot_date: str, data_dir: s
     snapshot_id = persist_daily_snapshot(
         settings=settings,
         snapshot_date=target_date,
-        source_label="daily_csv",
+        source_label=DAILY_CSV_SOURCE,
         source_dir=data_dir,
         market_rows=snapshots,
         price_rows=price_rows,

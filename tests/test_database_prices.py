@@ -68,9 +68,9 @@ class PricePersistenceTests(unittest.TestCase):
         self.assertEqual(stock_count, 6)
 
     def test_price_read_helpers_use_latest_snapshot_per_date(self) -> None:
-        first_id = create_snapshot_run(self.settings, date(2026, 4, 20), "test", "first")
-        latest_id = create_snapshot_run(self.settings, date(2026, 4, 20), "test", "latest")
-        next_id = create_snapshot_run(self.settings, date(2026, 4, 21), "test", "next")
+        first_id = create_snapshot_run(self.settings, date(2026, 4, 20), "daily_csv", "first")
+        latest_id = create_snapshot_run(self.settings, date(2026, 4, 20), "daily_csv", "latest")
+        next_id = create_snapshot_run(self.settings, date(2026, 4, 21), "daily_csv", "next")
         upsert_prices(
             self.settings,
             [
@@ -159,8 +159,8 @@ class PricePersistenceTests(unittest.TestCase):
     def test_signal_pick_weight_and_review_helpers_round_trip(self) -> None:
         signal_date = date(2026, 4, 20)
         review_date = date(2026, 4, 21)
-        signal_snapshot = create_snapshot_run(self.settings, signal_date, "test", "signal")
-        target_snapshot = create_snapshot_run(self.settings, review_date, "test", "target")
+        signal_snapshot = create_snapshot_run(self.settings, signal_date, "daily_csv", "signal")
+        target_snapshot = create_snapshot_run(self.settings, review_date, "daily_csv", "target")
         upsert_prices(
             self.settings,
             [
