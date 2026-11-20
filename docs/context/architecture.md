@@ -41,7 +41,7 @@
 
 - SQLite tables: `snapshot_runs`, `snapshot_mapping_failures`, `stocks`, `signals`, `picks`, `weights`, `market_snapshots`, `review_runs`, `review_pick_results`, `review_missed_mover_results`, `candidate_outcomes`, `strategy_pilot_state`, `strategy_pilot_picks`, `strategy_pilot_sessions`
 - `snapshot_runs` stores each live CSV import; market rows, signals, and picks reference a snapshot id
-- Date-based operational reads ignore `yahoo_ohlcv` snapshots so Yahoo backfill cannot enter ranking or review price windows
+- Date-based operational reads allow-list `daily_csv` and `legacy` snapshot runs (`_OPERATIONAL_SNAPSHOT_SQL`), so Yahoo backfill (`yahoo_ohlcv`), ad-hoc repair runs (`yahoo_history_browser`), and any future label cannot enter ranking or review price windows
 - Daily snapshot publication is one transaction covering the run, market rows, price rows, and optional captured provenance (`provenance_captured=1` plus up to 50 mapping-failure names). `create_snapshot_run` and other non-CSV paths leave provenance uncaptured.
 - Review runs, resulting weights, pick results, and candidate outcomes are persisted as one idempotent transaction
 - Captured missed movers join that review transaction; their ordered classification and attribution are immutable on rerun, while a review-level flag keeps legacy and captured-empty states distinct
