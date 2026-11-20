@@ -21,6 +21,10 @@ import { snapshotHistoryRepository } from "./data/snapshotHistoryRepository";
 import { strategyEvidenceRepository } from "./data/strategyEvidenceRepository";
 import { playbackNotices } from "./data/strategyPlaybackViewModel.mjs";
 import {
+  latestBasketSignalWindowNotice,
+  type SignalWindowNotice,
+} from "./data/signalWindowViewModel.mjs";
+import {
   persistedRowsLabel,
   snapshotDetailForSelection,
   snapshotNotices,
@@ -140,14 +144,21 @@ function SessionHeader({ data }: { data: DashboardData }) {
   );
 }
 
-function PickList({ picks, selectedTicker, onSelect }: {
+function PickList({ picks, selectedTicker, onSelect, windowNotice = null }: {
   picks: Pick[];
   selectedTicker: string;
   onSelect: (ticker: string) => void;
+  windowNotice?: SignalWindowNotice | null;
 }) {
   return (
     <section className="panel pick-panel" aria-labelledby="pick-list-title">
       <h2 id="pick-list-title">Today <span>• {picks.length} persisted ideas</span></h2>
+      {windowNotice && (
+        <div className={`evidence-notices signal-window-notice signal-window-notice-${windowNotice.tone}`} role="status">
+          <span className={`evidence-status evidence-status-${windowNotice.tone}`}>{windowNotice.label}</span>
+          <p>{windowNotice.text}</p>
+        </div>
+      )}
       <div className="pick-head" aria-hidden="true">
         <span>Rank</span><span>Ticker</span><span>Score</span><span>Risk</span>
       </div>
@@ -1485,7 +1496,12 @@ export function App() {
     return (
       <div className="dashboard-view">
         <div className="evidence-grid">
-          <PickList picks={data.picks} selectedTicker={selectedPick.ticker} onSelect={selectPick} />
+          <PickList
+            picks={data.picks}
+            selectedTicker={selectedPick.ticker}
+            onSelect={selectPick}
+            windowNotice={latestBasketSignalWindowNotice(data.signalWindow)}
+          />
           <EvidencePanel pick={selectedPick} onOpenDiagnostics={() => navigate("diagnostics")} />
           <div className="right-stack"><ExposurePanel data={data} /><ReviewPanel review={data.review} /></div>
         </div>

@@ -18,8 +18,10 @@ from stock_expert.services import (
     ensure_bucketed_default_pilot,
     market_context_output,
     picks_output,
+    published_signal_window,
     review_output,
 )
+from stock_expert.signal_window import signal_window_warning
 from stock_expert.trading_calendar import (
     calendar_coverage_warnings,
     is_trading_session,
@@ -291,6 +293,11 @@ def main() -> int:
             as_of,
             ranking_context=ranking_context,
         )
+        # Evidence only: the basket above was published unchanged. Warn from
+        # the coverage row stored with it; no row means no warning.
+        window_warning = signal_window_warning(published_signal_window(settings, as_of))
+        if window_warning:
+            print(f"{args.command}: {window_warning}", file=sys.stderr)
         print(daily_output)
         print()
         print("Pick List:")

@@ -22,6 +22,7 @@ from stock_expert.database import (
     get_latest_snapshot_id,
     get_prices_for_date,
     get_review_run,
+    get_signal_window_coverage,
     init_db,
 )
 from stock_expert.pilot import (
@@ -61,6 +62,30 @@ class RoutineRequestError(Exception):
     def __init__(self, message: str, status: HTTPStatus = HTTPStatus.BAD_REQUEST) -> None:
         super().__init__(message)
         self.status = status
+
+
+def _signal_window_payload(settings: Settings, snapshot_id: int | None) -> dict[str, Any]:
+    """Signal-window coverage stored with a basket publication; never recomputed on read."""
+    stored = get_signal_window_coverage(settings, int(snapshot_id)) if snapshot_id is not None else None
+    if stored is None:
+        return {
+            "status": "not_captured",
+            "windowBars": None,
+            "windowStart": None,
+            "windowEnd": None,
+            "missingSessions": [],
+            "nonSessionDates": [],
+            "affectedComponents": [],
+        }
+    return {
+        "status": str(stored["status"]),
+        "windowBars": int(stored["window_bars"]),
+        "windowStart": str(stored["window_start"]),
+        "windowEnd": str(stored["window_end"]),
+        "missingSessions": [str(day) for day in stored["missing_sessions"]],
+        "nonSessionDates": [str(day) for day in stored["non_session_dates"]],
+        "affectedComponents": [str(component) for component in stored["affected_components"]],
+    }
 
 
 def _serialize_missed_mover(row: Any) -> dict[str, Any]:
@@ -501,6 +526,7 @@ def load_strategy_playback(settings: Settings, review_id: int) -> dict[str, Any]
     universe_count = int(breadth["universe_count"]) if breadth is not None else 0
     advancer_count = int(breadth["advancer_count"] or 0) if breadth is not None else 0
     snapshot_available = snapshot is not None and universe_count > 0
+    signal_window = _signal_window_payload(settings, snapshot_id)
     return {
         "review": review,
         "signal": {
@@ -513,6 +539,7 @@ def load_strategy_playback(settings: Settings, review_id: int) -> dict[str, Any]
             "universeCount": universe_count,
             "advancerCount": advancer_count,
             "advancerRatio": round(advancer_count / universe_count, 4) if universe_count else None,
+            "signalWindow": signal_window,
         },
         "strategy": {
             "version": strategy_version,
@@ -1071,6 +1098,7 @@ def load_latest_picks(settings: Settings) -> dict[str, Any] | None:
             "pickCountCap": int(exposure["pick_count_cap"]),
             "policy": str(exposure["policy"]),
         },
+        "signalWindow": _signal_window_payload(settings, int(snapshot["id"])),
         "picks": picks,
         "runSteps": [
             {"id": 1, "label": "CSV imported", "detail": str(snapshot["imported_at"])},

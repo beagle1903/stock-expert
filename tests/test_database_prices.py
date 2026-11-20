@@ -14,6 +14,7 @@ from stock_expert.database import (
     create_snapshot_run,
     get_latest_snapshot_id,
     get_latest_weights,
+    get_operational_snapshot_dates,
     get_persisted_pick_count,
     get_pick_results,
     get_prices_between,
@@ -131,6 +132,29 @@ class PricePersistenceTests(unittest.TestCase):
         self.assertEqual({row.date for row in history}, {date(2026, 4, 20)})
         self.assertEqual(history[0].close_price, 11.0)
         self.assertEqual(get_recent_price_history(self.settings, date(2026, 4, 21), bars=5), [])
+
+    def test_operational_snapshot_dates_match_the_price_history_window(self) -> None:
+        for day in ("2026-04-14", "2026-04-15", "2026-04-15", "2026-04-17", "2026-04-20", "2026-04-21"):
+            create_snapshot_run(self.settings, date.fromisoformat(day), "daily_csv", "data")
+        # Yahoo backfill for the skipped 2026-04-16 and a later day is not operational.
+        persist_yahoo_prices(
+            self.settings,
+            [
+                ("AAA", date(2026, 4, 16), 10.0, 11.0, 100.0),
+                ("AAA", date(2026, 4, 22), 10.0, 11.0, 100.0),
+            ],
+        )
+
+        dates = get_operational_snapshot_dates(self.settings, date(2026, 4, 20), 3)
+        all_dates = get_operational_snapshot_dates(self.settings, date(2026, 4, 22), 10)
+
+        self.assertEqual(dates, [date(2026, 4, 20), date(2026, 4, 17), date(2026, 4, 15)])
+        self.assertEqual(
+            all_dates,
+            [date(2026, 4, 21), date(2026, 4, 20), date(2026, 4, 17), date(2026, 4, 15), date(2026, 4, 14)],
+        )
+        self.assertNotIn(date(2026, 4, 16), all_dates)
+        self.assertEqual(get_operational_snapshot_dates(self.settings, date(2026, 4, 13), 6), [])
 
     def test_signal_pick_weight_and_review_helpers_round_trip(self) -> None:
         signal_date = date(2026, 4, 20)

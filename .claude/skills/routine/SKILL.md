@@ -54,6 +54,11 @@ message and stop. Do not work around it with other commands: the review
 evidence guard found a stored review that the run would contradict. See the
 "Review evidence guard" section of `docs/context/trading-calendar.md`.
 
+If stderr has a `routine: Signal window ...` line (the pick JSON's
+`signal_window.status` is `gap`), report it with the basket: the signal window
+skipped trading sessions, so treat the basket as degraded evidence. Scores are
+unchanged.
+
 If the routine header JSON contains `calendar_warnings`, report it first: that
 year's Borsa Istanbul holiday table has not been added to
 `stock_expert/trading_calendar.py`, so religious-holiday closures are being

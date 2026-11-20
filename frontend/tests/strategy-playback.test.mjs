@@ -32,6 +32,46 @@ test("explains legacy and partial evidence without recomputation", () => {
   assert.match(notices[3], /no paired pilot session/i);
 });
 
+test("adds the signal-window gap notice to playback", () => {
+  const notices = playbackNotices(fixture({
+    signal: {
+      status: "available",
+      signalWindow: {
+        status: "gap",
+        windowBars: 6,
+        windowStart: "2026-11-10",
+        windowEnd: "2026-11-18",
+        missingSessions: ["2026-11-12", "2026-11-13"],
+        nonSessionDates: [],
+        affectedComponents: ["momentum", "volume"],
+      },
+    },
+  }));
+
+  assert.equal(notices.length, 1);
+  assert.match(notices[0], /^Signal window 2026-11-10 to 2026-11-18/);
+  assert.match(notices[0], /2026-11-12, 2026-11-13/);
+  assert.match(notices[0], /degraded evidence/);
+});
+
+test("keeps not-captured, contiguous, and absent signal windows out of playback notices", () => {
+  const empty = {
+    windowBars: null,
+    windowStart: null,
+    windowEnd: null,
+    missingSessions: [],
+    nonSessionDates: [],
+    affectedComponents: [],
+  };
+  assert.deepEqual(playbackNotices(fixture({
+    signal: { status: "available", signalWindow: { ...empty, status: "not_captured" } },
+  })), []);
+  assert.deepEqual(playbackNotices(fixture({
+    signal: { status: "available", signalWindow: { ...empty, status: "contiguous" } },
+  })), []);
+  assert.deepEqual(playbackNotices(fixture({ signal: { status: "available" } })), []);
+});
+
 test("warns that a partial pilot comparison is not a fair pair", () => {
   const notices = playbackNotices(fixture({
     pilotComparison: { status: "partial" },

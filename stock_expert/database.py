@@ -10,6 +10,7 @@ from stock_expert.config import Settings
 from stock_expert.constants import MIN_DAILY_WIN_RETURN
 from stock_expert.models import MarketSnapshot, PickRow, PriceBar, SignalRow, Weights
 from stock_expert.pilot import PILOT_NAME, evaluate_pilot_sessions
+from stock_expert.signal_window import SignalWindowCoverage
 
 
 MAX_SNAPSHOT_MAPPING_FAILURES = 50
@@ -252,6 +253,17 @@ CREATE TABLE IF NOT EXISTS strategy_pilot_sessions (
     is_complete INTEGER NOT NULL,
     PRIMARY KEY (pilot_name, signal_snapshot_id, strategy),
     FOREIGN KEY (pilot_name) REFERENCES strategy_pilot_state(pilot_name)
+);
+
+CREATE TABLE IF NOT EXISTS signal_window_coverage (
+    snapshot_id INTEGER PRIMARY KEY REFERENCES snapshot_runs(id),
+    signal_date TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('contiguous', 'gap')),
+    window_bars INTEGER NOT NULL,
+    window_start TEXT NOT NULL,
+    missing_sessions_json TEXT NOT NULL,
+    non_session_dates_json TEXT NOT NULL,
+    affected_components_json TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_snapshot_runs_date_id
@@ -697,10 +709,111 @@ def upsert_signals(settings: Settings, rows: Iterable[SignalRow], snapshot_id: i
         )
 
 
-def replace_picks_for_date(settings: Settings, rows: Iterable[PickRow], target_date: date, snapshot_id: int | None = None) -> None:
+def replace_picks_for_date(
+    settings: Settings,
+    rows: Iterable[PickRow],
+    target_date: date,
+    snapshot_id: int | None = None,
+    signal_window: SignalWindowCoverage | None = None,
+) -> None:
+    _check_signal_window_date(signal_window, target_date)
+    init_db(settings)
     snapshot_id = snapshot_id or get_latest_snapshot_id(settings, target_date) or create_snapshot_run(settings, target_date, "legacy", "unknown")
     with connect(settings) as conn:
         _replace_picks_for_snapshot_conn(conn, rows, snapshot_id)
+        _publish_signal_window_coverage_conn(conn, snapshot_id, signal_window)
+
+
+def _check_signal_window_date(signal_window: SignalWindowCoverage | None, signal_date: date) -> None:
+    if signal_window is not None and signal_window.signal_date != signal_date:
+        raise ValueError(
+            f"signal window for {signal_window.signal_date.isoformat()} cannot be "
+            f"published with the {signal_date.isoformat()} basket"
+        )
+
+
+def _snapshot_has_review_conn(conn: sqlite3.Connection, snapshot_id: int) -> bool:
+    return (
+        conn.execute(
+            "SELECT 1 FROM review_runs WHERE signal_snapshot_id = ? LIMIT 1",
+            (snapshot_id,),
+        ).fetchone()
+        is not None
+    )
+
+
+def _publish_signal_window_coverage_conn(
+    conn: sqlite3.Connection,
+    snapshot_id: int,
+    signal_window: SignalWindowCoverage | None,
+) -> None:
+    """Record a publication's signal-window coverage in the caller's transaction.
+
+    A reviewed signal snapshot keeps the coverage it was published with (or
+    none): a later republish neither writes nor clears it, so playback never
+    shows recomputed coverage as publication-time evidence. An unreviewed
+    republish replaces the row, or clears it when no coverage was assessed.
+    """
+    if _snapshot_has_review_conn(conn, snapshot_id):
+        return
+    if signal_window is None:
+        conn.execute("DELETE FROM signal_window_coverage WHERE snapshot_id = ?", (snapshot_id,))
+        return
+    _replace_signal_window_coverage_conn(conn, snapshot_id, signal_window)
+
+
+def _replace_signal_window_coverage_conn(
+    conn: sqlite3.Connection,
+    snapshot_id: int,
+    signal_window: SignalWindowCoverage,
+) -> None:
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO signal_window_coverage (
+            snapshot_id, signal_date, status, window_bars, window_start,
+            missing_sessions_json, non_session_dates_json, affected_components_json
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            snapshot_id,
+            signal_window.signal_date.isoformat(),
+            signal_window.status,
+            signal_window.window_bars,
+            signal_window.window_start.isoformat(),
+            json.dumps([day.isoformat() for day in signal_window.missing_sessions]),
+            json.dumps([day.isoformat() for day in signal_window.non_session_dates]),
+            json.dumps(list(signal_window.affected_components)),
+        ),
+    )
+
+
+def get_signal_window_coverage(settings: Settings, snapshot_id: int) -> dict[str, object] | None:
+    """The signal-window coverage stored with a basket publication, never recomputed."""
+    init_db(settings)
+    with connect(settings) as conn:
+        row = conn.execute(
+            """
+            SELECT snapshot_id, signal_date, status, window_bars, window_start,
+                   missing_sessions_json, non_session_dates_json, affected_components_json
+            FROM signal_window_coverage
+            WHERE snapshot_id = ?
+            """,
+            (snapshot_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "snapshot_id": int(row["snapshot_id"]),
+        "signal_date": str(row["signal_date"]),
+        "status": str(row["status"]),
+        "window_bars": int(row["window_bars"]),
+        "window_start": str(row["window_start"]),
+        "window_end": str(row["signal_date"]),
+        "missing_sessions": list(json.loads(row["missing_sessions_json"])),
+        "non_session_dates": list(json.loads(row["non_session_dates_json"])),
+        "affected_components": list(json.loads(row["affected_components_json"])),
+    }
 
 
 def _replace_picks_for_snapshot_conn(
@@ -744,7 +857,9 @@ def replace_picks_and_strategy_pilot_baskets(
     signal_date: date,
     target_trade_date: date,
     basket_rows: Iterable[dict[str, object]],
+    signal_window: SignalWindowCoverage | None = None,
 ) -> None:
+    _check_signal_window_date(signal_window, signal_date)
     pick_rows = list(rows)
     pilot_rows = list(basket_rows)
     init_db(settings)
@@ -757,6 +872,7 @@ def replace_picks_and_strategy_pilot_baskets(
             basket_rows=pilot_rows,
         )
         _replace_picks_for_snapshot_conn(conn, pick_rows, snapshot_id)
+        _publish_signal_window_coverage_conn(conn, snapshot_id, signal_window)
 
 
 def insert_weights(settings: Settings, row: Weights) -> None:
@@ -1683,26 +1799,42 @@ def get_prices_between(settings: Settings, start_date: date, end_date: date) -> 
     ]
 
 
+def _operational_snapshot_dates_conn(conn: sqlite3.Connection, as_of: date, limit: int) -> list[str]:
+    """Newest-first distinct operational snapshot dates on or before ``as_of``.
+
+    Price-history windows and signal-window coverage both read this, so the
+    coverage describes exactly the dates the signal components index.
+    """
+    return [
+        str(row["date"])
+        for row in conn.execute(
+            """
+            SELECT DISTINCT snapshot_date AS date
+            FROM snapshot_runs
+            WHERE snapshot_date <= ?
+              AND source_label != ?
+            ORDER BY snapshot_date DESC
+            LIMIT ?
+            """,
+            (as_of.isoformat(), YAHOO_OHLCV_SOURCE, limit),
+        )
+    ]
+
+
+def get_operational_snapshot_dates(settings: Settings, as_of: date, limit: int) -> list[date]:
+    with connect(settings) as conn:
+        dates = _operational_snapshot_dates_conn(conn, as_of, limit)
+    return [date.fromisoformat(day) for day in dates]
+
+
 def get_recent_price_history(settings: Settings, as_of: date, bars: int) -> list[PriceBar]:
     with connect(settings) as conn:
-        date_rows = list(
-            conn.execute(
-                """
-                SELECT DISTINCT snapshot_date AS date
-                FROM snapshot_runs
-                WHERE snapshot_date <= ?
-                  AND source_label != ?
-                ORDER BY snapshot_date DESC
-                LIMIT ?
-                """,
-                (as_of.isoformat(), YAHOO_OHLCV_SOURCE, bars),
-            )
-        )
-    if not date_rows:
+        dates = _operational_snapshot_dates_conn(conn, as_of, bars)
+    if not dates:
         return []
-    if date_rows[0]["date"] != as_of.isoformat():
+    if dates[0] != as_of.isoformat():
         return []
-    start_date = date.fromisoformat(date_rows[-1]["date"])
+    start_date = date.fromisoformat(dates[-1])
     return get_prices_between(settings, start_date, as_of)
 
 

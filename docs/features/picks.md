@@ -22,6 +22,13 @@
 - Score-ranked and bucketed comparisons use the same effective breadth-adjusted pick count
 - Wide diagnostic rankings use score order for review attribution and missed-mover analysis
 - Needs multiple imported days for non-zero momentum and volume signals
+- Signal windows count stored snapshot dates, not trading sessions: momentum reads the last 6, the volume baseline 5, and fade-then-rechase 4. Each persisted publication records its signal-window coverage in `signal_window_coverage` (same transaction as the picks and pilot baskets): `contiguous`, or `gap` with the missing trading sessions, any non-session snapshot dates, and the affected components. Scores, exposure, and selection are unchanged; a gap marks the basket as degraded evidence. Baskets published before this feature read as `not_captured` and are not backfilled. GitHub issue #45
+- Pick JSON includes `signal_window` (`status`, `window_bars`, `window_start`, `window_end`, `missing_sessions`, `non_session_dates`, `affected_components`), computed live for the signal date, including on `--dry-run`, which writes nothing. It is `{"status": "not_available"}` when the signal date has no snapshot
+- Coverage is judged per snapshot date. A ticker missing from some snapshots can still read further back inside the 10-date fetch; that per-ticker case is not flagged
+- A snapshot date counts as present whatever its row count, so a thin non-CSV snapshot (for example the 8-row `yahoo_history_browser` snapshot on 2026-08-13) hides the gap for every ticker it lacks
+- With fewer than 6 stored dates (bootstrap), a window can read `contiguous` with `window_bars` below 6 even though medium momentum is still 0
+- In a year without confirmed variable holidays (see `calendar_warnings`), religious-holiday closures inside a window show up as `missing_sessions`
+- The coverage row is written only while the basket is unreviewed; republishing a reviewed basket (for example a manual pre-pilot `picks --date`) leaves the recorded coverage, or its absence, untouched
 - Applies a small score penalty to overextended same-day movers above `+8%`
 - Uses the latest `signal_date` snapshot to generate picks for the next trading-session `target_trade_date`
 - Multiple same-day imports can coexist; date-based picks use the latest snapshot
