@@ -42,6 +42,7 @@ Use this section for architecture or workflow decisions that affect future chang
 
 | Date | Decision | Why It Matters |
 | --- | --- | --- |
+| 2026-11-20 | Operational snapshot reads are an allow-list of `daily_csv` and `legacy` source labels, not a deny-list of `yahoo_ohlcv`. | A `yahoo_history_browser` repair run (snapshot 122, 2026-08-13) slipped past the deny-list into review pricing and price-history windows. New labels are non-operational until added to `OPERATIONAL_SNAPSHOT_SOURCES`. |
 | 2026-09-17 | Yahoo OHLCV stays optional and secondary: source-owned `yahoo_ohlcv` snapshots, no live-CSV overwrite, no daily-CSV mutation. `midday-routine` removed; use `review --dry-run`. | Issue #14. |
 | 2026-09-17 | Removed `openwiki/`; operator docs stay in `memory.md` and `docs/`. | Duplicate generated wiki drifted from the canonical tree. |
 | 2026-04-09 | Added `memory.md` as a durable repo memory file for human and agent collaboration. | Preserves hard-won context across sessions without relying on chat history. |
@@ -227,6 +228,7 @@ Live files:
 - Review 18 (signal 2026-04-23, review 2026-04-24) was recorded before 2026-04-23 became a closure and is no longer reachable by date lookup; the 2026-04-22 basket was never reviewed. That evidence stays as recorded. A persisted `review --date 2026-04-24` or historical `routine --date 2026-04-24` would review the 2026-04-22 basket and overwrite review 18's 2026-04-24 `weights` row, so the review evidence guard refuses it (as it refuses `review --date 2026-11-09`, whose 2026-11-06 basket review 136 already evaluated). Use `--dry-run`.
 - Review 136 (signal 2026-11-06, review date 2026-11-07) is a known bad session: it measures the signal day's own close, not the 2026-11-09 trade. Baskets from snapshots 174 and 176 have no review.
 - `snapshot_runs.imported_at` is UTC; local time is UTC+3.
+- Review 89 (signal 2026-08-12, review 2026-08-13) is known Yahoo-priced evidence: 2026-08-13 had no daily-CSV run, only snapshot 122 (`yahoo_history_browser`, 8 tickers from `.test_tmp/aug13-yahoo-repair-bars.json`), and the old deny-list let it price the five picks and candidate outcomes. Baskets ranked in the ~10 sessions after 2026-08-13 (for example review 90's 2026-08-14 signals) also counted those 8 Yahoo bars in their price-history windows. That evidence stays as recorded. Since the allow-list fix, 2026-08-13 has no operational snapshot: a persisted `review --date 2026-08-13` passes the guard on the exact key and writes nothing new (pilot session for snapshot 120 already exists), but now reports 0 of 5 picks priced (`missing_price_outcomes`, `review_run_id: null` instead of 89); `review --date 2026-08-14` (signal 2026-08-13) finds no signal snapshot or picks and persists no review row.
 - Workspace-local temp directories are safer than OS temp directories for tests in this environment.
 - `.test_tmp/` is a local test artifact folder and should stay ignored.
 - `frontend/scripts/dev.mjs` owns both start/reuse and the post-ready watchdog;
@@ -280,3 +282,4 @@ Use this only for meaningful memory-management changes, not every repo change.
 | 2026-10-06 | Recorded `/bist`: embedded-browser refresh, `publish_extracted_tables`, then `routine`, without the web app or standalone Edge/Chrome. |
 | 2026-11-03 | Recorded the Claude Code `/bist` port and its viewport and saved-capture gotchas. |
 | 2026-11-18 | Recorded the complete trading calendar, its source, the yearly update gotcha, and the review 18 caveat (#41). |
+| 2026-11-20 | Recorded the operational snapshot allow-list and review 89 as known Yahoo-priced evidence. |

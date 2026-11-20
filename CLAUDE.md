@@ -47,7 +47,7 @@ Environment: `STOCK_EXPERT_DB_PATH` (also settable in `.env`) overrides the DB; 
 - `stock_expert/cli.py` routes commands; `services.py` orchestrates `daily`, `picks`, `review`, and `routine`. `signals.py` scores; `pilot.py` runs the bucketed-default pilot arms alongside operational picks.
 - Inputs are four live CSVs in `data/` (`fiyat.csv`, `performans.csv`, `teknik.csv`, `temel.csv`, git-ignored). `daily_csv.py` imports them as a `snapshot_runs` row; `investing_csv.py` validates and publishes refreshed Investing.com extracts all-or-nothing. `data/ticker_map.csv` is a name→ticker fallback.
 - Dates: a data folder's name is the target trade day; its contents are stored under the previous BIST work day as the signal/snapshot date (`trading_calendar.py`). Keep signal date and trade date distinct everywhere, including the UI.
-- `yahoo.py` downloads optional OHLCV backfill as `yahoo_ohlcv` snapshots; date-based operational reads ignore them so Yahoo data never enters ranking or review.
+- `yahoo.py` downloads optional OHLCV backfill as `yahoo_ohlcv` snapshots; date-based operational reads allow-list only `daily_csv` and `legacy` snapshot runs, so Yahoo data (any other `source_label`) never enters ranking or review.
 - `database.py` owns the schema. Key invariants:
   - Snapshot publication (run, market rows, prices, provenance) is one transaction.
   - `routine` persists the prior-session review **before** current picks. Review, weights, pick results, candidate outcomes, missed movers, and pilot outcomes commit as one idempotent transaction; review identity is unique on signal/review dates, and reviewed evidence is immutable on rerun.

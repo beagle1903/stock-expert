@@ -14,7 +14,15 @@ from stock_expert.pilot import PILOT_NAME, evaluate_pilot_sessions
 
 MAX_SNAPSHOT_MAPPING_FAILURES = 50
 YAHOO_OHLCV_SOURCE = "yahoo_ohlcv"
-_OPERATIONAL_SNAPSHOT_SQL = f"source_label != '{YAHOO_OHLCV_SOURCE}'"
+DAILY_CSV_SOURCE = "daily_csv"
+LEGACY_SOURCE = "legacy"
+OPERATIONAL_SNAPSHOT_SOURCES = (DAILY_CSV_SOURCE, LEGACY_SOURCE)
+# Allow-list: only these labels may feed ranking, selection, review pricing, and
+# price-history windows. Any other label (yahoo_ohlcv, yahoo_history_browser,
+# future repair labels) is non-operational by default. Built from constants only.
+_OPERATIONAL_SNAPSHOT_SQL = "source_label IN ({})".format(
+    ", ".join(f"'{label}'" for label in OPERATIONAL_SNAPSHOT_SOURCES)
+)
 
 
 class SnapshotQuality(TypedDict):
@@ -624,9 +632,9 @@ def upsert_prices(settings: Settings, rows: Iterable[tuple]) -> None:
                 cursor = conn.execute(
                     """
                     INSERT INTO snapshot_runs (snapshot_date, source_label, source_dir)
-                    VALUES (?, 'legacy', 'unknown')
+                    VALUES (?, ?, 'unknown')
                     """,
-                    (day.isoformat(),),
+                    (day.isoformat(), LEGACY_SOURCE),
                 )
                 snapshot_ids[day] = int(cursor.lastrowid)
 
@@ -698,7 +706,7 @@ def upsert_signals(settings: Settings, rows: Iterable[SignalRow], snapshot_id: i
 
 
 def replace_picks_for_date(settings: Settings, rows: Iterable[PickRow], target_date: date, snapshot_id: int | None = None) -> None:
-    snapshot_id = snapshot_id or get_latest_snapshot_id(settings, target_date) or create_snapshot_run(settings, target_date, "legacy", "unknown")
+    snapshot_id = snapshot_id or get_latest_snapshot_id(settings, target_date) or create_snapshot_run(settings, target_date, LEGACY_SOURCE, "unknown")
     with connect(settings) as conn:
         _replace_picks_for_snapshot_conn(conn, rows, snapshot_id)
 
@@ -1687,15 +1695,15 @@ def get_recent_price_history(settings: Settings, as_of: date, bars: int) -> list
     with connect(settings) as conn:
         date_rows = list(
             conn.execute(
-                """
+                f"""
                 SELECT DISTINCT snapshot_date AS date
                 FROM snapshot_runs
                 WHERE snapshot_date <= ?
-                  AND source_label != ?
+                  AND {_OPERATIONAL_SNAPSHOT_SQL}
                 ORDER BY snapshot_date DESC
                 LIMIT ?
                 """,
-                (as_of.isoformat(), YAHOO_OHLCV_SOURCE, bars),
+                (as_of.isoformat(), bars),
             )
         )
     if not date_rows:

@@ -234,7 +234,7 @@ class DailyCsvImportTests(unittest.TestCase):
 
     def test_enriched_fields_round_trip_through_sqlite(self) -> None:
         init_db(self.settings)
-        snapshot_id = create_snapshot_run(self.settings, date(2026, 4, 21), "test", "data")
+        snapshot_id = create_snapshot_run(self.settings, date(2026, 4, 21), "daily_csv", "data")
         snapshot = MarketSnapshot(
             date=date(2026, 4, 21),
             ticker="ADEL",
@@ -351,7 +351,7 @@ class DailyCsvImportTests(unittest.TestCase):
 
     def test_failed_snapshot_write_rolls_back_new_run(self) -> None:
         self._write_minimal_csv_set("2,10B", "12,77")
-        previous_id = create_snapshot_run(self.settings, date(2026, 4, 21), "test", "previous")
+        previous_id = create_snapshot_run(self.settings, date(2026, 4, 21), "daily_csv", "previous")
 
         with patch("stock_expert.database._upsert_prices_conn", side_effect=RuntimeError("write failed")):
             with self.assertRaisesRegex(RuntimeError, "write failed"):
